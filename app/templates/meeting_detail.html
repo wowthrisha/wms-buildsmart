@@ -1,0 +1,205 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% from '_meeting_comment_thread.html' import render_comments %}
+{% block title %}Meeting #{{ meeting.id }} — BuildSmart{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Meeting Details</div>
+          <h1 class="meetings-title">Meeting #{{ meeting.id }}</h1>
+          <p class="meetings-subtitle">{{ project.name }}{% if meeting.requested_description %} · {{ meeting.requested_description }}{% endif %}</p>
+        </div>
+        <div class="inline-actions">
+          <span class="status-pill {{ meeting.normalized_status|replace('_', '-') }}">{{ meeting.status_label }}</span>
+          <a class="mt-btn ghost" href="{{ url_for('meetings.mom_workspace', meeting_id=meeting.id) }}">Open MOM Workspace</a>
+        </div>
+      </div>
+      <div class="inline-actions" style="margin-top:18px;">
+        <a class="mt-btn ghost" href="{{ url_for('meetings.requests_page') }}">← Back to Requests</a>
+        <a class="mt-btn ghost" href="{{ url_for('meetings.active_page') }}">Scheduled Meetings</a>
+      </div>
+    </section>
+
+    <div class="detail-grid">
+      <div class="field-stack">
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section 1</div>
+              <h3>Slot Management</h3>
+            </div>
+          </div>
+          <div style="padding:20px;">
+            {% if meeting.normalized_status == 'requested' %}
+            <p>This request is waiting for the architect to propose slots.</p>
+            {% elif meeting.normalized_status == 'proposed' %}
+              {% if current_user.role == 'client' %}
+              <form method="POST" action="{{ url_for('meetings.confirm', meeting_id=meeting.id) }}" class="field-stack">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="slot-list">
+                  {% for slot_name, slot in [('slot_1', meeting.slot_1), ('slot_2', meeting.slot_2), ('slot_3', meeting.slot_3)] if slot %}
+                  <label class="slot-option">
+                    <input type="radio" name="slot" value="{{ slot_name }}" {% if loop.first %}checked{% endif %}>
+                    <div>
+                      <div class="slot-time">{{ slot|strftime('%d %b %Y · %H:%M') }}</div>
+                      <div class="slot-caption">Choose this option to confirm the meeting</div>
+                    </div>
+                  </label>
+                  {% endfor %}
+                </div>
+                <button type="submit" class="mt-btn primary">Confirm Selected Slot</button>
+              </form>
+              {% else %}
+              <div class="slot-list">
+                {% for slot in meeting.proposed_slots %}
+                <div class="slot-option">
+                  <div>
+                    <div class="slot-time">{{ slot|strftime('%d %b %Y · %H:%M') }}</div>
+                    <div class="slot-caption">Waiting for client selection</div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            {% elif meeting.normalized_status == 'counter_proposed' %}
+              {% if current_user.role == 'architect' %}
+              <div class="slot-option" style="margin-top:18px;">
+                <div>
+                  <div class="slot-time">{{ meeting.counter_slot|strftime('%d %b %Y · %H:%M') if meeting.counter_slot else 'Counter proposal unavailable' }}</div>
+                  <div class="slot-caption">Client counter proposal ready for approval</div>
+                </div>
+              </div>
+              <form method="POST" action="{{ url_for('meetings.confirm', meeting_id=meeting.id) }}" style="margin-top:18px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="slot" value="counter_slot">
+                <button type="submit" class="mt-btn primary">Approve Counter Proposal</button>
+              </form>
+              {% else %}
+              <p>Your counter proposal is waiting for architect approval.</p>
+              <div class="slot-option" style="margin-top:18px;">
+                <div>
+                  <div class="slot-time">{{ meeting.counter_slot|strftime('%d %b %Y · %H:%M') if meeting.counter_slot else 'Counter proposal unavailable' }}</div>
+                  <div class="slot-caption">Counter-proposed time</div>
+                </div>
+              </div>
+              {% endif %}
+            {% else %}
+            <div class="slot-option" style="margin-top:18px;">
+              <div>
+                <div class="slot-time">{{ meeting.confirmed_slot|strftime('%d %b %Y · %H:%M') if meeting.confirmed_slot else 'No time selected' }}</div>
+                <div class="slot-caption">Confirmed meeting time</div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section 2</div>
+              <h3>Actions</h3>
+            </div>
+          </div>
+          <div style="padding:20px;" class="field-stack">
+            {% if current_user.role == 'client' and meeting.normalized_status == 'proposed' %}
+            <form method="POST" action="{{ url_for('meetings.counter', meeting_id=meeting.id) }}" class="field-stack">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="field">
+                <label>Counter Propose</label>
+                <input type="datetime-local" name="counter_slot" required>
+              </div>
+              <button type="submit" class="mt-btn secondary">Counter Propose</button>
+            </form>
+            {% elif current_user.role == 'architect' and meeting.normalized_status == 'counter_proposed' %}
+            <p>Approve the client counter proposal above, or send a fresh set of slots from the requests page.</p>
+            {% else %}
+            <p>Actions are available when the meeting is waiting for scheduling decisions.</p>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section 3</div>
+              <h3>MOM Workspace</h3>
+            </div>
+          </div>
+          <div style="padding:20px;">
+            <p>Minutes, discussion, requirement changes, uploads, and the activity log all live in the MOM workspace.</p>
+            <div class="inline-actions" style="margin-top:18px;">
+              <a class="mt-btn primary" href="{{ url_for('meetings.mom_workspace', meeting_id=meeting.id) }}">Open MOM Workspace</a>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="field-stack">
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Requirements</div>
+              <h3>Meeting-linked Requirements</h3>
+            </div>
+            <a class="ghost-link" href="{{ url_for('requirements.kanban', project_id=project.id) }}">Open Kanban</a>
+          </div>
+          {% if requirements %}
+          <div class="requirement-grid" style="padding:20px;">
+            {% for requirement in requirements %}
+            <article class="requirement-card">
+              <div class="meetings-head">
+                <h3>{{ requirement.title }}</h3>
+                <span class="status-pill {{ requirement.status|replace('_', '-') }}">{{ requirement.status|replace('_', ' ')|title }}</span>
+              </div>
+              <p style="margin-top:12px;">{{ requirement.description or 'No description provided.' }}</p>
+              <div class="requirement-meta">
+                <span>{{ requirement.category }}</span>
+                <span>{{ requirement.created_at|strftime('%d %b %Y') }}</span>
+                <span>{{ requirement.creator.name if requirement.creator else 'Unknown' }}</span>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="mt-empty">No requirements linked to this meeting yet.</div>
+          {% endif %}
+        </section>
+
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Discussion Preview</div>
+              <h3>Latest Comments</h3>
+            </div>
+          </div>
+          {% if comments %}
+          <div style="padding:20px;">
+            {{ render_comments(comments[:3], meeting, 'detail') }}
+          </div>
+          {% else %}
+          <div class="mt-empty">No discussion yet. Add comments inside the MOM workspace.</div>
+          {% endif %}
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  document.querySelectorAll('[data-toggle-reply]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var target = document.getElementById(button.getAttribute('data-toggle-reply'));
+      if (target) target.classList.toggle('hide');
+    });
+  });
+}());
+</script>
+{% endblock %}

@@ -1,27 +1,24 @@
-import sys
 import os
+import sys
 
-# Add the project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app import create_app, db
-from app.models import User, Project
+from app import create_app
+from app.models import Project, User
+
 
 def test_app():
     app = create_app()
     with app.app_context():
-        # Check tables
-        try:
-            users_count = User.query.count()
-            projects_count = Project.query.count()
-            print(f"SMOKE TEST SUCCESS: Found {users_count} users and {projects_count} projects.")
-            return True
-        except Exception as e:
-            print(f"SMOKE TEST FAILED: {e}")
-            return False
+        users_count = User.query.count()
+        projects_count = Project.query.count()
+        assert users_count >= 0
+        assert projects_count >= 0
+
 
 if __name__ == "__main__":
-    if test_app():
+    try:
+        test_app()
         sys.exit(0)
-    else:
+    except AssertionError:
         sys.exit(1)

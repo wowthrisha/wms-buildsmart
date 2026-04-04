@@ -1,0 +1,217 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% block title %}Meeting Requests — BuildSmart{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Meetings Module</div>
+          <h1 class="meetings-title">Meeting Requests</h1>
+          <p class="meetings-subtitle">Clients initiate here. Architects review requests, propose slots in a modal, and each request stays connected to the same meeting record all the way through confirmation and MOM.</p>
+        </div>
+        <div class="inline-actions">{% include '_meetings_nav.html' %}</div>
+      </div>
+      <div class="inline-actions" style="margin-top:18px;">
+        {% if current_user.role == 'client' and projects %}
+        <button type="button" class="mt-btn primary" data-open-modal="request-modal">Request Meeting</button>
+        {% endif %}
+      </div>
+    </section>
+
+    {% if current_user.role == 'architect' %}
+    <section class="surface-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Architect Queue</div>
+          <h3>Pending Client Requests</h3>
+        </div>
+      </div>
+      {% if requested_meetings %}
+      <div class="request-grid" style="padding:20px;">
+        {% for meeting in requested_meetings %}
+        <article class="request-card">
+          <div class="meetings-head">
+            <div>
+              <h3>#{{ meeting.id }} · {{ meeting.project.name }}</h3>
+              <div class="request-meta">
+                <span>{{ meeting.client_name }}</span>
+                <span>{{ meeting.created_at|strftime('%d %b %Y · %H:%M') }}</span>
+                <span class="status-pill requested">Pending Request</span>
+              </div>
+            </div>
+            <div class="inline-actions">
+              <a class="mt-btn ghost" href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}">Open Details</a>
+              <button type="button" class="mt-btn primary" data-open-propose="{{ meeting.id }}" data-project-id="{{ meeting.project.id }}">Propose Slots</button>
+            </div>
+          </div>
+          <p style="margin-top:14px;">{{ meeting.requested_description or 'No description shared.' }}</p>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="mt-empty">No pending meeting requests right now.</div>
+      {% endif %}
+    </section>
+    {% else %}
+    <section class="surface-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Client Timeline</div>
+          <h3>Your Requests</h3>
+        </div>
+      </div>
+      {% if client_feed %}
+      <div class="timeline-grid" style="padding:20px;">
+        {% for meeting in client_feed %}
+        {% set state = meeting.normalized_status %}
+        <article class="timeline-card">
+          <div class="meetings-head">
+            <div>
+              <h3>#{{ meeting.id }} · {{ meeting.project.name }}</h3>
+              <div class="request-meta">
+                <span>{{ meeting.created_at|strftime('%d %b %Y · %H:%M') }}</span>
+                <span class="status-pill {{ state|replace('_', '-') }}">{{ meeting.status_label }}</span>
+              </div>
+            </div>
+            <a class="mt-btn ghost" href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}">Open Details</a>
+          </div>
+          <p style="margin-top:14px;">{{ meeting.requested_description or 'Meeting request created.' }}</p>
+          {% if meeting.proposed_slots %}
+          <div class="slot-list">
+            {% for slot in meeting.proposed_slots %}
+            <div class="slot-option">
+              <div>
+                <div class="slot-time">{{ slot|strftime('%d %b %Y · %H:%M') }}</div>
+                <div class="slot-caption">Available on your meeting details page</div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="mt-empty">No meeting requests yet. Use the request button to start.</div>
+      {% endif %}
+    </section>
+    {% endif %}
+  </div>
+</div>
+
+{% if current_user.role == 'client' and projects %}
+<div class="modal-backdrop mt-modal" id="request-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Client Flow</div>
+      <h2 class="modal-title">Request Meeting</h2>
+    </div>
+    <form method="POST" action="{{ url_for('meetings.request_meeting', project_id=projects[0].id) }}" id="request-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        {% if projects|length > 1 %}
+        <div>
+          <label>Project</label>
+          <select data-project-route="request">
+            {% for project in projects %}
+            <option value="{{ project.id }}">{{ project.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div>
+          <label>Description</label>
+          <textarea name="description" placeholder="Tell your architect what this meeting should cover." required></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="request-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Send Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.role == 'architect' %}
+<div class="modal-backdrop mt-modal" id="propose-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Architect Flow</div>
+      <h2 class="modal-title">Propose Slots</h2>
+      <p class="meetings-subtitle" id="propose-context" style="margin-top:10px;">Meeting request</p>
+    </div>
+    <form method="POST" action="#" id="propose-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="meeting_id" id="propose-meeting-id">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Option 1</label>
+          <input type="datetime-local" name="slot_1" required>
+        </div>
+        <div>
+          <label>Option 2</label>
+          <input type="datetime-local" name="slot_2">
+        </div>
+        <div>
+          <label>Option 3</label>
+          <input type="datetime-local" name="slot_3">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="propose-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Save Proposal</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  function openModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.add('open');
+  }
+  function closeModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.remove('open');
+  }
+  document.querySelectorAll('[data-close-modal]').forEach(function (button) {
+    button.addEventListener('click', function () { closeModal(button.getAttribute('data-close-modal')); });
+  });
+  document.querySelectorAll('.modal-backdrop.mt-modal').forEach(function (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) modal.classList.remove('open');
+    });
+  });
+  var requestButton = document.querySelector('[data-open-modal="request-modal"]');
+  if (requestButton) {
+    requestButton.addEventListener('click', function () { openModal('request-modal'); });
+  }
+  var requestSelect = document.querySelector('#request-form [data-project-route="request"]');
+  var requestForm = document.getElementById('request-form');
+  if (requestSelect && requestForm) {
+    requestSelect.addEventListener('change', function () {
+      requestForm.action = '/projects/' + requestSelect.value + '/meetings/request';
+    });
+  }
+  var proposeForm = document.getElementById('propose-form');
+  document.querySelectorAll('[data-open-propose]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var meetingId = button.getAttribute('data-open-propose');
+      var projectId = button.getAttribute('data-project-id');
+      document.getElementById('propose-meeting-id').value = meetingId;
+      document.getElementById('propose-context').textContent = 'Request #' + meetingId;
+      proposeForm.action = '/projects/' + projectId + '/meetings/propose';
+      openModal('propose-modal');
+    });
+  });
+}());
+</script>
+{% endblock %}

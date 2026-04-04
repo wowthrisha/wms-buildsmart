@@ -21,7 +21,7 @@
   <button class="tab-btn" data-tab="plot">Plot Analysis</button>
   <button class="tab-btn" data-tab="documents">Documents</button>
   <button class="tab-btn" data-tab="compliance">Compliance</button>
-  <button class="tab-btn" data-tab="meetings">Meetings</button>
+  <button class="tab-btn" data-tab="meetings" type="button">Meetings</button>
   <button class="tab-btn" data-tab="payments">Payments</button>
   <button class="tab-btn" data-tab="activity">Activity</button>
 </div>
@@ -56,21 +56,45 @@
             </form>
         </div>
         <p style="color:var(--chalk-3); font-size:11px; margin-bottom:16px;">Visual references and renders.</p>
-        <div class="image-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap:12px;">
+        <div class="image-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px; @media(max-width:768px){grid-template-columns: repeat(2, 1fr);} @media(max-width:480px){grid-template-columns: 1fr;}">
             {% for img in project.images.all() %}
-            <div class="image-item" style="position:relative; aspect-ratio:1/1; border-radius:8px; overflow:hidden; border:1px solid var(--line);">
-                <img src="/uploads/{{ img.filename }}" style="width:100%; height:100%; object-fit:cover;">
-                <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); padding:4px; font-size:10px; color:#fff; text-align:center;">
-                    {{ img.tag }}
+            <div class="image-card" style="position:relative; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--bg-2); transition:all 0.3s ease;">
+                <div style="position:relative; flex:1; aspect-ratio:4/3; background:linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%); overflow:hidden; cursor:pointer;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="openImageModal('/uploads/{{ img.filename }}')">
+                    <img src="/uploads/{{ img.filename }}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentElement.innerHTML += '<div style=\'position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);\\'><div style=\\'text-align:center; color:#606060; font-size:12px;\\'><div style=\\'margin-bottom:8px;\\'>Image not found</div><div style=\\'font-size:10px;\\'>{{ img.filename }}</div></div></div>'" alt="Project image">
+                    <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:4px; font-size:10px; color:#fff; text-transform:uppercase; letter-spacing:0.05em;">{{ img.tag }}</div>
+                </div>
+                <div style="padding:12px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:11px; color:var(--chalk-3);">{{ img.created_at|strftime('%b %d, %Y') }}</div>
+                    <button class="del-img" onclick="deleteImage({{ img.id }}, '{{ project.id }}', '{{ csrf_token() }}')" style="background:transparent; border:1px solid #606060; color:#606060; padding:4px 8px; border-radius:4px; font-size:10px; cursor:pointer; transition:all 0.2s; hover:background:#ff4444; hover:color:#fff; hover:border-color:#ff4444;">✕ Delete</button>
                 </div>
             </div>
             {% else %}
-            <div style="grid-column: 1/-1; text-align:center; padding:40px; border:1px dashed var(--line); border-radius:12px; color:var(--chalk-3); font-size:12px;">
-                No images uploaded yet.
+            <div style="grid-column: 1/-1; text-align:center; padding:60px 40px; border:2px dashed var(--line); border-radius:12px; background:rgba(13,13,13,0.5);">
+                <div style="color:var(--chalk-3); font-size:13px; margin-bottom:8px; font-weight:500;">No images uploaded yet</div>
+                <div style="color:var(--chalk-4); font-size:11px;">Upload visual references, renders, or design mockups using the "+ Add Image" button above.</div>
             </div>
             {% endfor %}
         </div>
     </div>
+
+    <script>
+    function openImageModal(imageSrc) {
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.95); display:flex; align-items:center; justify-content:center; z-index:9999; cursor:pointer;';
+        modal.innerHTML = '<img src="' + imageSrc + '" style="max-width:90vw; max-height:90vh; object-fit:contain;" onclick="event.stopPropagation();"><span style="position:absolute; top:20px; right:20px; color:#fff; font-size:28px; cursor:pointer; user-select:none;">×</span>';
+        modal.onclick = () => modal.remove();
+        document.body.appendChild(modal);
+    }
+    function deleteImage(imgId, projectId, csrf) {
+        if (confirm('Delete this image?')) {
+            fetch('/projects/' + projectId + '/images/delete/' + imgId, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf }
+            }).then(() => window.location.reload());
+        }
+    }
+    </script>
+
   </div>
 </div>
 
@@ -192,75 +216,380 @@
 </div>
 
 <!-- Tab: Documents -->
+<style>
+/* ── Document Vault ─────────────────────────────────────── */
+.dv-title        { font-size:14px; font-weight:600; color:var(--chalk); line-height:1.3; }
+.dv-meta         { font-size:11px; color:var(--chalk-3); margin-top:4px; font-family:'Space Mono',monospace; letter-spacing:.02em; }
+.dv-cat-col      { min-width:140px; }
+
+/* version cell */
+.dv-ver-cell     { min-width:160px; }
+.dv-file-meta    { font-size:11px; color:var(--chalk-3); margin-top:5px; font-family:'Space Mono',monospace; }
+
+/* versions dropdown */
+.dv-drop-wrap    { position:relative; display:inline-block; margin-top:6px; }
+.dv-drop-btn     { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--chalk-3); background:none; border:none; padding:0; cursor:pointer; font-family:'Space Mono',monospace; transition:color .15s; }
+.dv-drop-btn:hover { color:var(--gold); }
+.dv-drop-btn svg { transition:transform .2s; }
+.dv-drop-btn.open svg { transform:rotate(180deg); }
+.dv-drop-panel   { display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:120;
+                   background:#161616; border:1px solid #2a2a2a; border-radius:8px;
+                   min-width:320px; box-shadow:0 8px 32px rgba(0,0,0,.6); overflow:hidden; }
+.dv-drop-panel.open { display:block; }
+.dv-drop-head    { padding:10px 14px 8px; font-size:10px; font-weight:700; text-transform:uppercase;
+                   letter-spacing:1.5px; color:var(--chalk-3); border-bottom:1px solid #1e1e1e;
+                   font-family:'Space Mono',monospace; }
+.dv-drop-item    { display:flex; align-items:center; justify-content:space-between; gap:12px;
+                   padding:9px 14px; border-bottom:1px solid #1a1a1a; transition:background .12s; }
+.dv-drop-item:last-child { border-bottom:none; }
+.dv-drop-item:hover { background:rgba(255,255,255,.04); }
+.dv-drop-left    { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.dv-drop-ver     { font-size:12px; font-weight:600; color:var(--chalk); }
+.dv-drop-detail  { font-size:10px; color:var(--chalk-3); font-family:'Space Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dv-drop-dl      { flex-shrink:0; color:var(--gold); text-decoration:none; font-size:11px;
+                   padding:3px 8px; border:1px solid rgba(232,201,122,.25); border-radius:4px;
+                   background:var(--gold-dim); transition:all .15s; white-space:nowrap; }
+.dv-drop-dl:hover { background:rgba(232,201,122,.2); border-color:var(--gold); }
+
+/* visibility toggle */
+.dv-vis-btn      { display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
+                   border-radius:6px; border:1px solid transparent; cursor:pointer;
+                   font-size:11px; font-weight:600; background:none; transition:all .15s;
+                   white-space:nowrap; }
+.dv-vis-btn[data-visible="true"]  { color:#5eead4; border-color:rgba(94,234,212,.25); background:rgba(94,234,212,.08); }
+.dv-vis-btn[data-visible="false"] { color:var(--chalk-3); border-color:var(--line); background:var(--ink-2); }
+.dv-vis-btn:hover                  { opacity:.8; }
+
+/* icon-only action buttons */
+.dv-icon-btn     { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center;
+                   border:1px solid var(--line); border-radius:6px; background:var(--ink-2);
+                   color:var(--chalk-2); cursor:pointer; text-decoration:none;
+                   transition:all .15s; flex-shrink:0; }
+.dv-icon-btn:hover { border-color:var(--gold); color:var(--gold); background:var(--gold-dim); }
+.dv-icon-btn svg  { width:14px; height:14px; stroke:currentColor; stroke-width:2; fill:none; }
+
+/* expand rows */
+.dv-expand-row td   { padding:0 !important; border-top:none !important; }
+.dv-expand-inner    { background:#0e0e0e; border-top:1px solid #1c1c1c; padding:18px 24px 22px; }
+.dv-expand-label    { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;
+                      color:var(--chalk-3); margin-bottom:14px; font-family:'Space Mono',monospace; }
+
+/* version history mini-table */
+.vh-table           { width:100%; border-collapse:collapse; }
+.vh-table th        { padding:6px 10px; text-align:left; font-size:10px; font-weight:700;
+                      text-transform:uppercase; letter-spacing:1.5px; color:#444;
+                      border-bottom:1px solid #1e1e1e; font-family:'Space Mono',monospace; }
+.vh-table td        { padding:10px 10px; border-bottom:1px solid #161616; vertical-align:middle; font-size:12px; }
+.vh-table tr:last-child td { border-bottom:none; }
+.vh-table tbody tr:hover td { background:rgba(255,255,255,.025); }
+
+/* form fields */
+.doc-field-label { display:block; font-size:10px; font-weight:700; color:var(--chalk-3); margin-bottom:5px;
+                   text-transform:uppercase; letter-spacing:1px; font-family:'Space Mono',monospace; }
+.doc-field-input { width:100%; padding:8px 12px; background:#0a0a0a; border:1px solid #252525;
+                   border-radius:6px; color:var(--chalk); font-size:13px; box-sizing:border-box; transition:border-color .15s; }
+.doc-field-input:focus   { outline:none; border-color:var(--gold); box-shadow:0 0 0 3px var(--gold-dim); }
+.doc-field-input[readonly] { opacity:.5; cursor:default; }
+
+/* main row hover */
+.dv-main-row:hover td { background:rgba(255,255,255,.015); }
+</style>
+
 <div class="tab-panel" data-panel="documents">
     <div class="card">
-        <div class="page-head-row" style="margin-bottom:24px;">
+
+        <!-- ── Header ───────────────────────────────────────────── -->
+        <div class="page-head-row" style="margin-bottom:20px;">
             <div class="section-title" style="margin:0;">Document Vault</div>
-            <form action="{{ url_for('documents.upload', project_id=project.id) }}" method="POST" enctype="multipart/form-data" style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-primary" id="doc-upload-toggle">
+                <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Upload Document
+            </button>
+        </div>
+
+        <!-- ── Upload Panel ─────────────────────────────────────── -->
+        <div id="doc-upload-panel" style="display:none; background:#0e0e0e; border:1px solid #252525; border-radius:10px; padding:22px; margin-bottom:24px;">
+            <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--chalk-3); margin-bottom:16px; font-family:'Space Mono',monospace;">New Document</div>
+            <form action="{{ url_for('documents.upload', project_id=project.id) }}" method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <select name="category" class="btn btn-ghost" style="appearance:auto; padding-right:30px;">
-                    <option value="Site Plan">Site Plan</option>
-                    <option value="Structural">Structural</option>
-                    <option value="Legal">Legal</option>
-                    <option value="Client Docs">Client Docs</option>
-                </select>
-                <input type="file" name="doc" id="doc-upload" style="display:none;" onchange="this.form.submit()">
-                <label for="doc-upload" class="btn btn-primary" style="cursor:pointer;">
-                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    Upload
-                </label>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+                    <div>
+                        <label class="doc-field-label">Document Title</label>
+                        <input class="doc-field-input" type="text" name="title" placeholder="e.g. Site Plan, Elevation Drawing">
+                    </div>
+                    <div>
+                        <label class="doc-field-label">Version / Revision</label>
+                        <input class="doc-field-input" type="text" name="version_label" placeholder="e.g. Rev A, v1, Draft">
+                    </div>
+                    <div>
+                        <label class="doc-field-label">File Tag / Category</label>
+                        <select class="doc-field-input" name="category" style="appearance:auto; cursor:pointer;">
+                            <option value="Site Plan">Site Plan</option>
+                            <option value="Structural">Structural</option>
+                            <option value="Legal">Legal</option>
+                            <option value="Client Docs">Client Docs</option>
+                            <option value="Permit">Permit</option>
+                            <option value="Others">Others</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="doc-field-label">File (PDF / JPG / PNG)</label>
+                        <input class="doc-field-input" type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png" style="padding:6px; color:var(--chalk-2);">
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button type="submit" class="btn btn-primary" style="padding:9px 22px;">Save Document</button>
+                    <button type="button" class="btn btn-ghost" id="doc-upload-cancel" style="padding:9px 16px;">Cancel</button>
+                </div>
             </form>
         </div>
 
+        <!-- ── Document Table ───────────────────────────────────── -->
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Document</th>
-                    <th>Category</th>
-                    <th>Version</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th style="min-width:220px;">Document</th>
+                    <th class="dv-cat-col">Category</th>
+                    <th class="dv-ver-cell">Version</th>
+                    <th>Visibility</th>
+                    <th style="width:90px; text-align:center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for d in project.documents.all() %}
-                <tr>
+            {% set docs_list = project.documents.all() %}
+            {% if docs_list %}
+                {% for d in docs_list %}
+                {% set cv = d.current_version %}
+                {% set vc = d.versions.count() %}
+
+                <!-- ── Main row ─────────────────────────────────── -->
+                <tr class="dv-main-row">
+
+                    {# DOCUMENT #}
                     <td>
-                        <div style="font-weight:600;">{{ d.original_name }}</div>
-                        <div style="font-size:11px; color:var(--chalk-3);">Uploaded {{ d.created_at|strftime('%d %b %Y') }} by {{ d.uploader_role }}</div>
+                        <div class="dv-title">{{ d.original_name }}</div>
+                        <div class="dv-meta">
+                            {{ d.created_at|strftime('%d %b %Y · %H:%M') }}
+                            &nbsp;·&nbsp;{{ d.uploader_role }}
+                            &nbsp;·&nbsp;{{ vc }} version{{ 's' if vc != 1 else '' }}
+                        </div>
                     </td>
-                    <td><span class="badge badge-muted">{{ d.category }}</span></td>
-                    <td>{{ d.version_label }}</td>
-                    <td>
-                        {% if d.shared_with_client %}
-                        <span class="badge badge-teal">Shared</span>
+
+                    {# CATEGORY #}
+                    <td class="dv-cat-col">
+                        <span class="badge badge-muted">{{ d.category }}</span>
+                    </td>
+
+                    {# VERSION + dropdown + file meta #}
+                    <td class="dv-ver-cell">
+                        {% if cv %}
+                        <span class="badge badge-gold">{{ cv.label }}</span>
+                        <div class="dv-file-meta">
+                            {{ cv.file_type.split('/')[-1].upper() if cv.file_type else '—' }}
+                            {% if cv.file_size %}&nbsp;·&nbsp;{{ cv.file_size }}{% endif %}
+                        </div>
                         {% else %}
-                        <span class="badge badge-gold">Internal</span>
+                        <span style="color:#444; font-size:12px;">—</span>
+                        {% endif %}
+
+                        {# Versions dropdown — only if >1 version #}
+                        {% if vc > 0 %}
+                        <div class="dv-drop-wrap">
+                            <button type="button" class="dv-drop-btn" data-drop="drop-{{ d.id }}">
+                                <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="6 9 12 15 18 9"/></svg>
+                                {{ vc }} version{{ 's' if vc != 1 else '' }}
+                            </button>
+                            <div class="dv-drop-panel" id="drop-{{ d.id }}">
+                                <div class="dv-drop-head">Version History</div>
+                                {% for v in d.all_versions %}
+                                <div class="dv-drop-item">
+                                    <div class="dv-drop-left">
+                                        <span class="dv-drop-ver">{{ v.label }}</span>
+                                        <span class="dv-drop-detail">
+                                            {{ v.file_type.split('/')[-1].upper() if v.file_type else '?' }}
+                                            {% if v.file_size %}&nbsp;·&nbsp;{{ v.file_size }}{% endif %}
+                                            &nbsp;·&nbsp;{{ v.created_at|strftime('%d %b %Y · %H:%M') }}
+                                            {% if v.uploader %}&nbsp;·&nbsp;{{ v.uploader.name }}{% endif %}
+                                        </span>
+                                    </div>
+                                    <a href="{{ url_for('documents.download_version', version_id=v.id) }}"
+                                       target="_blank" rel="noopener" class="dv-drop-dl">&#x2193; Download</a>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
                         {% endif %}
                     </td>
+
+                    {# VISIBILITY TOGGLE #}
                     <td>
-                        <div style="display:flex; gap:12px; align-items:center;">
-                            <a href="{{ url_for('documents.download', doc_id=d.id) }}" title="Download">
-                                <svg viewBox="0 0 24 24" style="width:18px; height:18px; stroke:var(--gold); stroke-width:2; fill:none;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            </a>
-                            {% if not d.shared_with_client %}
-                            <form action="{{ url_for('documents.share', doc_id=d.id) }}" method="POST">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-ghost" style="padding:4px 8px; font-size:11px;">Share</button>
-                            </form>
+                        <button type="button"
+                                class="dv-vis-btn toggle-visibility-btn"
+                                data-doc-id="{{ d.id }}"
+                                data-visible="{{ d.visible_to_client|lower }}">
+                            {% if d.visible_to_client %}
+                            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            Visible to Client
+                            {% else %}
+                            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            Hidden
                             {% endif %}
+                        </button>
+                    </td>
+
+                    {# ACTIONS — icon buttons only #}
+                    <td style="text-align:center;">
+                        <div style="display:inline-flex; gap:8px; align-items:center;">
+                            {# Download latest #}
+                            <a href="{{ url_for('documents.download', doc_id=d.id) }}"
+                               target="_blank" rel="noopener"
+                               class="dv-icon-btn" title="Download latest version">
+                                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            </a>
+                            {# Update — add new version #}
+                            <button type="button"
+                                    class="dv-icon-btn dv-upd-toggle"
+                                    data-target="upd-row-{{ d.id }}"
+                                    title="Add new version">
+                                <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                            </button>
                         </div>
                     </td>
                 </tr>
-                {% else %}
-                <tr>
-                    <td colspan="5" style="text-align:center; padding:40px; color:var(--chalk-3);">No documents uploaded yet.</td>
+
+                <!-- ── Update / Add Version row ─────────────────── -->
+                <tr class="dv-expand-row" id="upd-row-{{ d.id }}" style="display:none;">
+                    <td colspan="5">
+                        <div class="dv-expand-inner">
+                            <div class="dv-expand-label">Add New Version — {{ d.original_name }}</div>
+                            <form action="{{ url_for('documents.upload_version', doc_id=d.id) }}" method="POST" enctype="multipart/form-data">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:14px; margin-bottom:14px;">
+                                    <div>
+                                        <label class="doc-field-label">Title</label>
+                                        <input class="doc-field-input" type="text" value="{{ d.original_name }}" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="doc-field-label">Category</label>
+                                        <input class="doc-field-input" type="text" value="{{ d.category }}" readonly>
+                                    </div>
+                                    <div>
+                                        <label class="doc-field-label">New Version Name</label>
+                                        <input class="doc-field-input" type="text" name="version_label" placeholder="e.g. Rev B, Final, v2">
+                                    </div>
+                                    <div>
+                                        <label class="doc-field-label">File (PDF / JPG / PNG)</label>
+                                        <input class="doc-field-input" type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png" style="padding:6px; color:var(--chalk-2);">
+                                    </div>
+                                </div>
+                                <div style="display:flex; gap:8px;">
+                                    <button type="submit" class="btn btn-primary" style="padding:8px 22px;">Save Version</button>
+                                    <button type="button" class="btn btn-ghost dv-upd-close"
+                                            data-target="upd-row-{{ d.id }}"
+                                            style="padding:8px 16px;">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
+
                 {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" style="padding:60px; text-align:center;">
+                        <svg viewBox="0 0 24 24" style="width:36px;height:36px;stroke:#2a2a2a;stroke-width:1.5;fill:none;display:block;margin:0 auto 14px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                        <div style="font-size:14px; font-weight:600; color:#333; margin-bottom:6px;">No documents yet</div>
+                        <div style="font-size:12px; color:#2a2a2a;">Upload your first document using the button above.</div>
+                    </td>
+                </tr>
+            {% endif %}
             </tbody>
         </table>
+
     </div>
 </div>
+
+<script>
+(function () {
+    var CSRF = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+    // ── Upload panel toggle ──────────────────────────────────────
+    var uploadPanel = document.getElementById('doc-upload-panel');
+    document.getElementById('doc-upload-toggle').addEventListener('click', function () {
+        uploadPanel.style.display = uploadPanel.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('doc-upload-cancel').addEventListener('click', function () {
+        uploadPanel.style.display = 'none';
+    });
+
+    // ── Update row toggle (🔄 icon) ──────────────────────────────
+    document.querySelectorAll('.dv-upd-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var row = document.getElementById(btn.dataset.target);
+            if (!row) return;
+            row.style.display = row.style.display === 'none' ? '' : 'none';
+        });
+    });
+
+    document.querySelectorAll('.dv-upd-close').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var row = document.getElementById(btn.dataset.target);
+            if (row) row.style.display = 'none';
+        });
+    });
+
+    // ── Versions floating dropdown ───────────────────────────────
+    document.querySelectorAll('.dv-drop-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var panelId = btn.dataset.drop;
+            var panel   = document.getElementById(panelId);
+            if (!panel) return;
+            var isOpen = panel.classList.contains('open');
+            // Close all other dropdowns first
+            document.querySelectorAll('.dv-drop-panel.open').forEach(function (p) {
+                p.classList.remove('open');
+            });
+            document.querySelectorAll('.dv-drop-btn.open').forEach(function (b) {
+                b.classList.remove('open');
+            });
+            if (!isOpen) {
+                panel.classList.add('open');
+                btn.classList.add('open');
+            }
+        });
+    });
+
+    // Close dropdowns on outside click
+    document.addEventListener('click', function () {
+        document.querySelectorAll('.dv-drop-panel.open').forEach(function (p) {
+            p.classList.remove('open');
+        });
+        document.querySelectorAll('.dv-drop-btn.open').forEach(function (b) {
+            b.classList.remove('open');
+        });
+    });
+
+    // ── Visibility toggle (AJAX) ─────────────────────────────────
+    document.querySelectorAll('.toggle-visibility-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var docId = btn.dataset.docId;
+            fetch('/documents/' + docId + '/toggle-visibility', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': CSRF }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var vis = data.visible_to_client;
+                btn.dataset.visible = vis ? 'true' : 'false';
+                btn.innerHTML = vis
+                    ? '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Visible to Client'
+                    : '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> Hidden';
+            });
+        });
+    });
+}());
+</script>
 
 <!-- Tab: Compliance -->
 <!-- BACKEND NOTE: ComplianceItem model needs: arch_checked (bool), client_checked (bool),
@@ -329,7 +658,7 @@
         <input id="new-crit-label" type="text" placeholder="Document / Criteria name" required style="flex:1; min-width:180px; background:#0D0D0D; border:1px solid #2A2A2A; color:#fff; padding:10px 14px; font-size:13px; border-radius:6px;" onfocus="this.style.borderColor='#F5C842'" onblur="this.style.borderColor='#2A2A2A'">
         <input id="new-crit-desc" type="text" placeholder="Description (optional)" style="flex:1; min-width:180px; background:#0D0D0D; border:1px solid #2A2A2A; color:#fff; padding:10px 14px; font-size:13px; border-radius:6px;" onfocus="this.style.borderColor='#F5C842'" onblur="this.style.borderColor='#2A2A2A'">
         <div style="display:flex; gap:8px; align-items:center;">
-          <button onclick="submitAddCriteria('{{ project.id }}', '{{ csrf_token() }}'" style="background:#F5C842; color:#0D0D0D; border:none; padding:10px 20px; border-radius:6px; font-weight:600; cursor:pointer;">Add</button>
+          <button onclick="submitAddCriteria('{{ project.id }}', '{{ csrf_token() }}')" style="background:#F5C842; color:#0D0D0D; border:none; padding:10px 20px; border-radius:6px; font-weight:600; cursor:pointer;">Add</button>
           <button onclick="toggleAddCriteria()" style="background:transparent; border:none; color:#606060; font-size:13px; cursor:pointer;">Cancel</button>
         </div>
       </form>
@@ -416,78 +745,453 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
         body: JSON.stringify({ label, description: desc })
-      }).then(() => window.location.reload());
+      }).then(r => r.json()).then(data => {
+        if (data.success && data.item) {
+          const compBody = document.querySelector('.comp-body');
+          const newRow = document.createElement('div');
+          newRow.className = 'comp-row';
+          newRow.id = 'comp-row-' + data.item.id;
+          newRow.innerHTML = `
+            <div class="comp-check-col">
+              <span class="comp-check-lbl">Arch</span>
+              <button class="comp-check arch-check"
+                      onclick="toggleCompCheck(${data.item.id}, 'architect', false, '${projectId}', '${csrf}')"
+                      title="Architect verification"></button>
+            </div>
+            <div class="sep-vert"></div>
+            <div class="comp-check-col">
+              <span class="comp-check-lbl">Client</span>
+              <button class="comp-check client-check" disabled></button>
+            </div>
+            <div class="sep-vert"></div>
+            <div class="comp-info">
+              <div class="comp-name">${data.item.label}<span class="pill-custom">Custom</span></div>
+              ${data.item.description ? '<div class="comp-desc">' + data.item.description + '</div>' : ''}
+            </div>
+            <div class="comp-status">
+              <span class="pill-pending">Pending</span>
+            </div>
+          `;
+          compBody.appendChild(newRow);
+          document.getElementById('new-crit-label').value = '';
+          document.getElementById('new-crit-desc').value = '';
+          document.getElementById('add-criteria-form').classList.remove('open');
+          // Update progress
+          const progressEl = document.getElementById('comp-progress');
+          if (progressEl) {
+            const text = progressEl.textContent;
+            const match = text.match(/(\d+) of (\d+)/);
+            if (match) {
+              const x = parseInt(match[1]);
+              const y = parseInt(match[2]) + 1;
+              progressEl.textContent = `${x} of ${y} verified`;
+            }
+          }
+        }
+      });
     }
     let _compDebounce = {};
     function toggleCompCheck(itemId, role, currentlyChecked, projectId, csrf) {
       clearTimeout(_compDebounce[itemId+role]);
       _compDebounce[itemId+role] = setTimeout(() => {
-        const btn = document.querySelector(`#comp-row-${itemId} .${role === 'architect' ? 'arch' : 'client'}-check`);
         const newChecked = !currentlyChecked;
         fetch('/projects/' + projectId + '/compliance/toggle/' + itemId, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
           body: JSON.stringify({ checked_by: role, checked: newChecked })
-        }).then(() => window.location.reload());
+        }).then(r => r.json()).then(data => {
+          if (data.success) {
+            const row = document.getElementById('comp-row-' + itemId);
+            if (row) {
+              const checkBtn = role === 'architect' 
+                ? row.querySelector('.arch-check')
+                : row.querySelector('.client-check');
+              const archCheck = data.item.arch_checked;
+              const clientCheck = data.item.client_checked;
+              if (role === 'architect') {
+                if (newChecked) {
+                  checkBtn.classList.add('checked');
+                  checkBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+                } else {
+                  checkBtn.classList.remove('checked');
+                  checkBtn.innerHTML = '';
+                }
+                // Update progress
+                const progressEl = document.getElementById('comp-progress');
+                if (progressEl) {
+                  const text = progressEl.textContent;
+                  const match = text.match(/(\d+) of (\d+)/);
+                  if (match) {
+                    let x = parseInt(match[1]);
+                    const y = parseInt(match[2]);
+                    x = newChecked ? x + 1 : x - 1;
+                    progressEl.textContent = `${x} of ${y} verified`;
+                  }
+                }
+              }
+              const statusSpan = row.querySelector('.comp-status span');
+              if (archCheck && clientCheck) {
+                statusSpan.className = 'pill-complete';
+                statusSpan.textContent = '✓ Complete';
+              } else if (archCheck || clientCheck) {
+                statusSpan.className = 'pill-inprog';
+                statusSpan.textContent = 'In Progress';
+              } else {
+                statusSpan.className = 'pill-pending';
+                statusSpan.textContent = 'Pending';
+              }
+            }
+          }
+        });
       }, 300);
     }
   </script>
 </div>
 
 <!-- Tab: Meetings -->
+<style>
+.mt-card   { background:#141414; border:1px solid #222; border-radius:10px; padding:20px; margin-bottom:16px; }
+.mt-label  { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;
+             color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:12px; }
+.mt-section-head { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;
+                   color:var(--chalk-3); font-family:'Space Mono',monospace; padding:8px 0 10px;
+                   border-bottom:1px solid #1e1e1e; margin-bottom:14px; display:flex;
+                   align-items:center; gap:8px; }
+.mt-section-count { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:20px;
+                    padding:1px 8px; font-size:10px; color:var(--chalk-3); }
+.slot-btn  { display:block; width:100%; text-align:left; padding:10px 14px; margin-bottom:8px;
+             background:#0d0d0d; border:1px solid #2a2a2a; border-radius:6px; color:var(--chalk-2);
+             font-size:13px; cursor:default; }
+.cmt-item  { display:flex; gap:12px; padding:12px 0; border-bottom:1px solid #1a1a1a; }
+.cmt-item:last-child { border-bottom:none; }
+.cmt-avatar{ width:30px; height:30px; border-radius:50%; background:var(--gold-dim);
+             display:flex; align-items:center; justify-content:center; font-size:11px;
+             font-weight:700; color:var(--gold); flex-shrink:0; }
+.cmt-body  { flex:1; min-width:0; }
+.cmt-meta  { font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:4px; }
+.cmt-text  { font-size:13px; color:var(--chalk-2); line-height:1.5; }
+.cmt-action a { color:var(--gold); text-decoration:none; font-size:11px; }
+.cmt-action a:hover { text-decoration:underline; }
+.req-tag   { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:2px 8px;
+             border-radius:20px; background:rgba(94,234,212,.1); color:#5eead4;
+             border:1px solid rgba(94,234,212,.25); margin-top:4px; }
+.log-row   { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #1a1a1a; }
+.log-row:last-child { border-bottom:none; }
+.log-dot   { width:8px; height:8px; border-radius:50%; background:#2a2a2a; flex-shrink:0; margin-top:5px; }
+.log-dot.PROPOSED   { background:#e8c97a; }
+.log-dot.CONFIRMED  { background:#5eead4; }
+.log-dot.COUNTERED  { background:#fb923c; }
+.log-dot.REQUESTED  { background:#a78bfa; }
+.log-dot.MOM_SAVED  { background:#60a5fa; }
+.log-dot.COMMENT    { background:#4ade80; }
+</style>
+
 <div class="tab-panel" data-panel="meetings">
-  <div class="two-col">
-    <!-- Propose Meeting -->
-    <div class="card">
-        <div class="section-title">Schedule Meeting</div>
+
+{% set all_meetings = project.meetings.order_by(Meeting.created_at.desc()).all() %}
+{% set requested_meetings   = all_meetings | selectattr('status','equalto','requested')       | list %}
+{% set pending_meetings     = all_meetings | selectattr('status','in',['awaiting_client','countered']) | list %}
+{% set confirmed_meetings   = all_meetings | selectattr('status','equalto','confirmed')       | list %}
+
+<div style="display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;">
+
+  <!-- LEFT SIDEBAR: actions + summary -->
+  <div>
+    <!-- Toggle propose form -->
+    <div class="mt-card" style="padding:0; overflow:hidden;">
+      <button type="button" id="propose-toggle"
+              style="width:100%; padding:14px 18px; display:flex; align-items:center; gap:10px;
+                     background:none; border:none; cursor:pointer; color:var(--chalk); font-size:13px; font-weight:600;"
+              onclick="var p=document.getElementById('propose-form-wrap'); p.style.display=p.style.display==='none'?'block':'none';">
+        <span style="font-size:18px; color:var(--gold);">+</span> Propose New Meeting
+      </button>
+      <div id="propose-form-wrap" style="display:none; padding:0 18px 18px;">
         <form action="{{ url_for('meetings.propose', project_id=project.id) }}" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="field">
-                <label>Option 1</label>
-                <input type="datetime-local" name="slot_1" required>
-            </div>
-            <div class="field">
-                <label>Option 2</label>
-                <input type="datetime-local" name="slot_2">
-            </div>
-            <div class="field">
-                <label>Option 3</label>
-                <input type="datetime-local" name="slot_3">
-            </div>
-            <button type="submit" class="btn btn-primary" style="width:100%;">Propose Slots to Client</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="field"><label>Option 1 *</label><input type="datetime-local" name="slot_1" required class="doc-field-input" style="color-scheme:dark;"></div>
+          <div class="field"><label>Option 2</label><input type="datetime-local" name="slot_2" class="doc-field-input" style="color-scheme:dark;"></div>
+          <div class="field"><label>Option 3</label><input type="datetime-local" name="slot_3" class="doc-field-input" style="color-scheme:dark;"></div>
+          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:4px;">Send to Client</button>
         </form>
+      </div>
     </div>
 
-    <!-- Meeting History -->
-    <div class="card">
-        <div class="section-title">Upcoming & Past Meetings</div>
-        {% for m in project.meetings.order_by(Meeting.created_at.desc()) %}
-        <div class="meeting-row" style="padding:12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="badge {% if m.status == 'confirmed' %}badge-teal{% else %}badge-gold{% endif %}">
-                    {{ m.status|replace('_',' ')|title }}
-                </span>
-                <span style="font-size:11px; opacity:0.6;">{{ m.created_at|strftime('%d %b') }}</span>
-            </div>
-            <div style="margin-top:8px; font-weight:600;">
-                {% if m.status == 'confirmed' %}
-                {{ m.confirmed_slot|strftime('%d %b, %H:%M') }}
-                {% else %}
-                Awaiting client selection
-                {% endif %}
-            </div>
-            {% if m.status == 'confirmed' %}
-            <button class="btn btn-ghost" style="margin-top:12px; font-size:11px; width:100%;" 
-                    onclick='openMomModal({{ m.id }}, {{ (m.mom_discussion or "")|tojson }}, {{ (m.mom_decision or "")|tojson }})'>
-                Log Minutes (MOM)
-            </button>
-            {% endif %}
+    <a href="{{ url_for('requirements.kanban', project_id=project.id) }}"
+       class="btn btn-ghost" style="width:100%; text-align:center; display:block; box-sizing:border-box; margin-top:10px;">
+      &#9776; Requirements Kanban
+    </a>
+
+    <!-- Stats -->
+    <div class="mt-card" style="margin-top:10px;">
+      <div class="mt-label">Summary</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        {% for label, count, color in [
+            ('Requests', requested_meetings|length, '#a78bfa'),
+            ('Pending',  pending_meetings|length,   '#e8c97a'),
+            ('Confirmed',confirmed_meetings|length,  '#5eead4'),
+            ('Total',    all_meetings|length,        '#888'),
+        ] %}
+        <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:6px; padding:10px;">
+          <div style="font-size:20px; font-weight:700; color:{{ color }};">{{ count }}</div>
+          <div style="font-size:10px; color:var(--chalk-3); text-transform:uppercase; letter-spacing:1px;">{{ label }}</div>
         </div>
-        {% else %}
-        <p style="text-align:center; color:var(--chalk-3); padding:20px;">No meetings scheduled.</p>
         {% endfor %}
+      </div>
     </div>
   </div>
+
+  <!-- RIGHT: Meeting cards grouped by status -->
+  <div>
+    {% if not all_meetings %}
+    <div class="mt-card" style="text-align:center; padding:40px; color:var(--chalk-3);">
+      No meetings yet. Use "Propose New Meeting" or wait for a client request.
+    </div>
+    {% endif %}
+
+    <!-- ── Client Requests ─────────────────────────────── -->
+    {% if requested_meetings %}
+    <div class="mt-section-head" style="color:#a78bfa;">
+      Client Requests <span class="mt-section-count">{{ requested_meetings|length }}</span>
+    </div>
+    {% for m in requested_meetings %}
+    <div class="mt-card" style="border-color:rgba(167,139,250,.2);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+        <div>
+          <span class="badge badge-muted" style="background:rgba(167,139,250,.1); color:#a78bfa; border-color:rgba(167,139,250,.2); margin-bottom:6px;">Client Request</span>
+          <div style="font-size:13px; color:var(--chalk-2); margin-top:4px;">
+            {% if m.description %}{{ m.description }}{% else %}No reason provided.{% endif %}
+          </div>
+          <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-top:4px;">
+            Requested {{ m.created_at|strftime('%d %b %Y') }} · #{{ m.id }}
+          </div>
+        </div>
+        <a href="{{ url_for('meetings.detail', meeting_id=m.id) }}"
+           class="btn btn-ghost" style="font-size:11px; padding:4px 12px; white-space:nowrap;">Details &#8594;</a>
+      </div>
+      <!-- Propose slots for this request -->
+      <div style="border-top:1px solid #1e1e1e; padding-top:14px;">
+        <div class="mt-label">Propose Slots for This Request</div>
+        <form action="{{ url_for('meetings.propose', project_id=project.id) }}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="meeting_id" value="{{ m.id }}">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+            <div><label class="doc-field-label">Option 1 *</label><input type="datetime-local" name="slot_1" required class="doc-field-input" style="color-scheme:dark;"></div>
+            <div><label class="doc-field-label">Option 2</label><input type="datetime-local" name="slot_2" class="doc-field-input" style="color-scheme:dark;"></div>
+            <div><label class="doc-field-label">Option 3</label><input type="datetime-local" name="slot_3" class="doc-field-input" style="color-scheme:dark;"></div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="padding:7px 18px; font-size:12px;">Propose Slots</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- ── Awaiting / Countered ────────────────────────── -->
+    {% if pending_meetings %}
+    <div class="mt-section-head" style="color:#e8c97a;">
+      Pending Response <span class="mt-section-count">{{ pending_meetings|length }}</span>
+    </div>
+    {% for m in pending_meetings %}
+    {% set vcnt = m.comments.count() %}
+    <div class="mt-card" style="border-color:rgba(232,201,122,.15);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+        <div>
+          <span class="badge {% if m.status == 'countered' %}badge-gold{% else %}badge-muted{% endif %}" style="margin-bottom:6px;">
+            {{ m.status|replace('_',' ')|title }}
+          </span>
+          <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-top:3px;">
+            Proposed {{ m.created_at|strftime('%d %b %Y') }} · #{{ m.id }}
+          </div>
+        </div>
+        <a href="{{ url_for('meetings.detail', meeting_id=m.id) }}"
+           class="btn btn-ghost" style="font-size:11px; padding:4px 12px; white-space:nowrap;">Details &#8594;</a>
+      </div>
+      <div class="mt-label">Proposed Slots</div>
+      {% for slot in [m.slot_1, m.slot_2, m.slot_3] if slot %}
+      <div class="slot-btn">{{ loop.index }}. {{ slot|strftime('%d %b %Y · %H:%M') }}</div>
+      {% endfor %}
+      {% if m.status == 'countered' and m.counter_slot %}
+      <div style="font-size:12px; color:#fb923c; margin:10px 0 8px; display:flex; align-items:center; gap:6px;">
+        <span>&#x21bb;</span> Client proposed: <strong>{{ m.counter_slot|strftime('%d %b %Y · %H:%M') }}</strong>
+      </div>
+      <form action="{{ url_for('meetings.confirm', meeting_id=m.id) }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="slot_choice" value="counter_slot">
+        <button type="submit" class="btn btn-primary" style="padding:6px 18px; font-size:12px;">Confirm This Slot</button>
+      </form>
+      {% endif %}
+
+      <!-- Discussion -->
+      <div style="margin-top:16px; border-top:1px solid #1e1e1e; padding-top:14px;">
+        <div class="mt-label">Discussion{% if vcnt %} ({{ vcnt }}){% endif %}</div>
+        {% for c in m.comments.all() %}
+        <div class="cmt-item">
+          <div class="cmt-avatar">{{ c.author.initials if c.author else '?' }}</div>
+          <div class="cmt-body">
+            <div class="cmt-meta">{{ c.author.name if c.author else 'Unknown' }} &middot; {{ c.created_at|strftime('%d %b · %H:%M') }}</div>
+            <div class="cmt-text">{{ c.content }}</div>
+            {% if c.requirement %}<span class="req-tag">&#10003; {{ c.requirement.title[:40] }}</span>
+            {% else %}<div class="cmt-action"><a href="#" onclick="openConvertModal({{ c.id }}, {{ c.content|tojson }}); return false;">&#8594; Requirement</a></div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+        <form action="{{ url_for('requirements.add_comment', meeting_id=m.id) }}" method="POST"
+              style="display:flex; gap:8px; align-items:flex-end; margin-top:10px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <textarea name="content" rows="2" placeholder="Add a note..." required
+                    class="doc-field-input" style="flex:1; resize:none; font-size:13px;"></textarea>
+          <button type="submit" class="btn btn-ghost" style="padding:8px 14px;">Post</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- ── Confirmed ───────────────────────────────────── -->
+    {% if confirmed_meetings %}
+    <div class="mt-section-head" style="color:#5eead4;">
+      Confirmed <span class="mt-section-count">{{ confirmed_meetings|length }}</span>
+    </div>
+    {% for m in confirmed_meetings %}
+    {% set vcnt = m.comments.count() %}
+    <div class="mt-card" style="border-color:rgba(94,234,212,.15);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+        <div>
+          <span class="badge badge-teal" style="margin-bottom:6px;">Confirmed</span>
+          <div style="font-weight:600; font-size:15px; color:var(--chalk);">
+            {{ m.confirmed_slot|strftime('%d %b %Y · %H:%M') if m.confirmed_slot else 'Time TBD' }}
+          </div>
+          <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-top:3px;">#{{ m.id }}</div>
+        </div>
+        <a href="{{ url_for('meetings.detail', meeting_id=m.id) }}"
+           class="btn btn-ghost" style="font-size:11px; padding:5px 12px;">Full Details &#8594;</a>
+      </div>
+
+      <!-- MOM -->
+      <div style="margin-bottom:14px;">
+        <div class="mt-label">Minutes of Meeting</div>
+        {% if m.mom_content %}
+        <div style="font-size:13px; color:var(--chalk-2); background:#0d0d0d; border:1px solid #1e1e1e;
+                    border-radius:6px; padding:12px; white-space:pre-wrap; line-height:1.6; margin-bottom:8px;">{{ m.mom_content }}</div>
+        <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:6px;">
+          Logged {{ m.mom_date|strftime('%d %b %Y · %H:%M') if m.mom_date else '' }}
+        </div>
+        {% endif %}
+        <button type="button" class="btn btn-ghost" style="font-size:11px; padding:6px 14px;"
+                onclick="var f=document.getElementById('mom-form-{{ m.id }}'); f.style.display=f.style.display==='none'?'block':'none';">
+          {{ 'Update MOM' if m.mom_content else 'Log MOM' }}
+        </button>
+        <form id="mom-form-{{ m.id }}" action="{{ url_for('meetings.notes', meeting_id=m.id) }}" method="POST" style="display:none; margin-top:10px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <textarea name="mom_content" rows="5" class="doc-field-input"
+                    placeholder="Summarise discussion, decisions, and next steps..."
+                    style="resize:vertical; margin-bottom:8px;">{{ m.mom_content or '' }}</textarea>
+          <div style="display:flex; gap:8px;">
+            <button type="submit" class="btn btn-primary" style="padding:7px 18px;">Save MOM</button>
+            <button type="button" class="btn btn-ghost" style="padding:7px 14px;"
+                    onclick="document.getElementById('mom-form-{{ m.id }}').style.display='none';">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Discussion + Logs -->
+      <div style="border-top:1px solid #1e1e1e; padding-top:14px;">
+        <div style="display:grid; grid-template-columns:1fr 220px; gap:16px;">
+          <div>
+            <div class="mt-label">Discussion{% if vcnt %} ({{ vcnt }}){% endif %}</div>
+            {% for c in m.comments.all() %}
+            <div class="cmt-item">
+              <div class="cmt-avatar">{{ c.author.initials if c.author else '?' }}</div>
+              <div class="cmt-body">
+                <div class="cmt-meta">{{ c.author.name if c.author else 'Unknown' }} &middot; {{ c.created_at|strftime('%d %b · %H:%M') }}</div>
+                <div class="cmt-text">{{ c.content }}</div>
+                {% if c.requirement %}<span class="req-tag">&#10003; {{ c.requirement.title[:40] }}</span>
+                {% else %}<div class="cmt-action"><a href="#" onclick="openConvertModal({{ c.id }}, {{ c.content|tojson }}); return false;">&#8594; Requirement</a></div>{% endif %}
+              </div>
+            </div>
+            {% else %}
+            <div style="font-size:12px; color:#333; margin-bottom:10px;">No comments yet.</div>
+            {% endfor %}
+            <form action="{{ url_for('requirements.add_comment', meeting_id=m.id) }}" method="POST"
+                  style="display:flex; gap:8px; align-items:flex-end; margin-top:10px;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <textarea name="content" rows="2" placeholder="Add a comment..." required
+                        class="doc-field-input" style="flex:1; resize:none; font-size:13px;"></textarea>
+              <button type="submit" class="btn btn-primary" style="padding:8px 14px;">Post</button>
+            </form>
+          </div>
+          <!-- Activity log -->
+          <div>
+            <div class="mt-label">Activity</div>
+            {% set mlogs = m.logs.all() %}
+            {% if mlogs %}
+            {% for l in mlogs %}
+            <div class="log-row">
+              <div class="log-dot {{ l.action }}"></div>
+              <div>
+                <div style="font-size:11px; color:var(--chalk-2);">{{ l.actor.name if l.actor else '?' }}</div>
+                <div style="font-size:10px; color:var(--chalk-3); font-family:'Space Mono',monospace;">
+                  {{ l.action|replace('_',' ')|title }} · {{ l.created_at|strftime('%d %b %H:%M') }}
+                </div>
+                {% if l.note %}<div style="font-size:11px; color:#555; margin-top:2px;">{{ l.note[:60] }}</div>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div style="font-size:11px; color:#333;">No activity logged.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+  </div>
+</div>
+
+<!-- Convert to Requirement modal -->
+<div id="convert-modal" style="display:none; position:fixed; inset:0; z-index:500;
+     background:rgba(0,0,0,.75); align-items:center; justify-content:center;">
+  <div style="background:#161616; border:1px solid #2a2a2a; border-radius:12px; padding:28px; width:460px; max-width:90vw;">
+    <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;
+                color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:14px;">Convert Comment &#8594; Requirement</div>
+    <form id="convert-form" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="margin-bottom:12px;">
+        <label class="doc-field-label">Requirement Title</label>
+        <input id="convert-title" class="doc-field-input" type="text" name="req_title" required>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label class="doc-field-label">Category</label>
+        <select class="doc-field-input" name="req_category" style="appearance:auto;">
+          <option value="General">General</option>
+          <option value="Design">Design</option>
+          <option value="Structural">Structural</option>
+          <option value="Compliance">Compliance</option>
+          <option value="Client Request">Client Request</option>
+          <option value="Budget">Budget</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button type="submit" class="btn btn-primary" style="padding:9px 22px;">Create Requirement</button>
+        <button type="button" class="btn btn-ghost" style="padding:9px 16px;"
+                onclick="document.getElementById('convert-modal').style.display='none';">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function openConvertModal(commentId, content) {
+  var modal = document.getElementById('convert-modal');
+  document.getElementById('convert-form').action = '/comments/' + commentId + '/convert';
+  document.getElementById('convert-title').value = content.substring(0, 80);
+  modal.style.display = 'flex';
+}
+document.getElementById('convert-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
 </div>
 
 <!-- Tab: Payments -->
@@ -545,7 +1249,7 @@
   .file-label span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 
-{% set total_paid = project.payments|sum(attribute='amount') %}
+{% set total_paid = project.payments.all()|sum(attribute='amount') %}
 {% set budget = project.total_budget or 0 %}
 {% set remaining = budget - total_paid %}
 {% set over_budget = total_paid > budget and budget > 0 %}
@@ -685,7 +1389,7 @@
       <div class="paylog-body">
         <table style="width:100%; border-collapse:collapse;" id="pay-table">
           <tbody>
-            {% for p in project.payments|sort(attribute='date', reverse=True) %}
+            {% for p in project.payments.all()|sort(attribute='date', reverse=True) %}
             <tr class="pay-row" data-role="{{ p.logged_by_role or 'architect' }}" style="border-bottom:1px solid #1E1E1E; transition:background 0.15s;" onmouseover="this.style.background='#1A1A1A'" onmouseout="this.style.background='transparent'">
               <td style="padding:10px 12px; font-size:12px; color:#A0A0A0; white-space:nowrap;">{{ p.date|strftime('%d %b %Y') }}</td>
               <td style="padding:10px 12px;">
@@ -695,7 +1399,7 @@
               <td style="padding:10px 12px; font-size:13px; font-weight:600; color:#F5C842; white-space:nowrap;">₹{{ "{:,}".format(p.amount|int) }}</td>
               <td style="padding:10px 12px;">
                 {% if p.bill_filename %}
-                <a href="{{ url_for('payments.download_bill', filename=p.bill_filename) }}" target="_blank" style="color:#F5C842; font-size:12px; text-decoration:none; display:flex; align-items:center; gap:4px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                <a href="{{ url_for('payments.download_bill', payment_id=p.id) }}" target="_blank" style="color:#F5C842; font-size:12px; text-decoration:none; display:flex; align-items:center; gap:4px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
                   <svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;stroke-width:2;fill:none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   View Bill
                 </a>
@@ -854,16 +1558,27 @@
     document.addEventListener('DOMContentLoaded', () => {
         const tabs = document.querySelectorAll('.tab-btn');
         const panels = document.querySelectorAll('.tab-panel');
-        
+        const meetingsIndexUrl = "{{ url_for('meetings.index') }}";
+        const paymentsProjectUrl = "{{ url_for('payments.project_overview', project_id=project.id) }}";
+
         function switchTab(tabId) {
+            if (tabId === 'meetings') {
+                window.location.href = meetingsIndexUrl;
+                return;
+            }
+            if (tabId === 'payments') {
+                window.location.href = paymentsProjectUrl;
+                return;
+            }
             tabs.forEach(t => t.classList.remove('active'));
             panels.forEach(p => p.classList.remove('active'));
-            
+
             const targetTab = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
             const targetPanel = document.querySelector(`.tab-panel[data-panel="${tabId}"]`);
-            
+
             if(targetTab) targetTab.classList.add('active');
             if(targetPanel) targetPanel.classList.add('active');
+            // Normalise URL to hash form (removes ?tab= param)
             window.history.replaceState(null, null, `#${tabId}`);
         }
 
@@ -871,10 +1586,21 @@
             tab.addEventListener('click', () => switchTab(tab.dataset.tab));
         });
 
-        // Check hash on load
-        const hash = window.location.hash.replace('#', '');
-        if(hash && [...tabs].some(t => t.dataset.tab === hash)) {
-            switchTab(hash);
+        // Prefer ?tab= query param (set by server redirects), fall back to #hash
+        const params = new URLSearchParams(window.location.search);
+        const tabFromParam = params.get('tab');
+        const tabFromHash  = window.location.hash.replace('#', '');
+        const initialTab   = tabFromParam || tabFromHash;
+        if (initialTab === 'meetings') {
+            window.location.replace(meetingsIndexUrl);
+            return;
+        }
+        if (initialTab === 'payments') {
+            window.location.replace(paymentsProjectUrl);
+            return;
+        }
+        if (initialTab && [...tabs].some(t => t.dataset.tab === initialTab)) {
+            switchTab(initialTab);
         }
     });
 </script>

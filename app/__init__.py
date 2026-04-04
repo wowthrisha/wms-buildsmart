@@ -3,9 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from config import Config
-from datetime import datetime, timezone
+from app.time_utils import ensure_utc, utc_now
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from sqlalchemy.orm import joinedload
 
 db     = SQLAlchemy()
 login  = LoginManager()
@@ -26,31 +27,56 @@ def _notify(user_id, title, body):
     except: pass
 
 def seed_db(app):
-    from app.models import User
+    from app.models import User, Project, ComplianceItem
     from werkzeug.security import generate_password_hash
     from sqlalchemy.exc import IntegrityError
     
     with app.app_context():
         try:
             # Architect
-            if not User.query.filter_by(email='arch@qa.com').first():
+            arch = User.query.filter_by(email='arch@qa.com').first()
+            if not arch:
                 arch = User(name='QA Architect', email='arch@qa.com', role='architect',
                             password_hash=generate_password_hash('qapass123'))
                 db.session.add(arch)
+                db.session.commit()
+                
             # Client
-            if not User.query.filter_by(email='client@qa.com').first():
+            client = User.query.filter_by(email='client@qa.com').first()
+            if not client:
                 client = User(name='QA Client', email='client@qa.com', role='client',
+                             phone='+916369727809',
                              password_hash=generate_password_hash('qapass123'))
                 db.session.add(client)
-            db.session.commit()
-        except IntegrityError:
+                db.session.commit()
+            elif not client.phone:
+                client.phone = '+916369727809'
+                db.session.commit()
+                
+            # Demo Project
+            if not Project.query.filter_by(name='Demo Project').first():
+                p = Project(name='Demo Project', architect_id=arch.id, client_id=client.id, 
+                            status='Design', plot_zone='Mixed')
+                db.session.add(p)
+                db.session.commit()
+                
+                # Default Compliance
+                for label in ['Building Plan Approval', 'Fire NOC']:
+                    db.session.add(ComplianceItem(project_id=p.id, label=label))
+                db.session.commit()
+        except Exception as e:
             db.session.rollback()
+            raise e
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(Config)
+    if test_config:
+        app.config.update(test_config)
 
     db.init_app(app)
+    # Debug: Print DB path
+    print(f"DATABASE_URI: {app.config.get('SQLALCHEMY_DATABASE_URI')}")
     login.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
@@ -67,14 +93,35 @@ def create_app():
     @login.user_loader
     def load_user(user_id):
         from app.models import User
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
+
+    # Dev mode: role override for testing (DEVELOPMENT ONLY)
+    @app.before_request
+    def apply_dev_role_override():
+        from flask_login import current_user
+        if current_user.is_authenticated:
+            from flask import session
+            override_role = session.get('_dev_role_override')
+            if override_role:
+                # Temporarily override the role (in-memory only)
+                current_user._dev_role_override = override_role
+
+    # Context processor to expose dev role override to templates
+    @app.context_processor
+    def inject_dev_context():
+        from flask_login import current_user
+        dev_role = None
+        if current_user.is_authenticated:
+            dev_role = getattr(current_user, '_dev_role_override', None)
+        return {'dev_role_override': dev_role}
 
     # Jinja2 filters
     @app.template_filter('timeago')
     def timeago_filter(dt):
         if dt is None: return ''
-        now  = datetime.utcnow()
-        diff = now - dt
+        now = ensure_utc(utc_now())
+        current = ensure_utc(dt)
+        diff = now - current
         s    = int(diff.total_seconds())
         if s < 60:   return f'{s}s ago'
         if s < 3600: return f'{s//60}m ago'
@@ -94,7 +141,7 @@ def create_app():
 
     @app.template_filter('strftime')
     def strftime_filter(value, format='%d %b %Y'):
-        if value is None: return ""
+        if not value or not hasattr(value, 'strftime'): return ""
         return value.strftime(format)
 
     @app.context_processor
@@ -112,11 +159,11 @@ def create_app():
 
             if current_user.role == 'architect':
                 data['all_projects'] = Project.query.filter_by(
-                    architect_id=current_user.id).order_by(Project.updated_at.desc()).all()
+                    architect_id=current_user.id).options(joinedload(Project.client)).order_by(Project.updated_at.desc()).all()
                 data['all_clients'] = User.query.filter_by(role='client').all() # All clients for project creation
             elif current_user.role == 'client':
                 from app.routes.client import get_client_project
-                data['projects'] = Project.query.filter_by(client_id=current_user.id).all()
+                data['projects'] = Project.query.filter_by(client_id=current_user.id).options(joinedload(Project.architect)).all()
                 data['project'] = get_client_project()
                 
         data['AuditLog'] = AuditLog
@@ -135,8 +182,10 @@ def create_app():
     from app.routes.client     import bp as client_bp
     from app.routes.settings   import bp as settings_api
     from app.routes.notifications import bp as notif_api
+    from app.routes.dev          import bp as dev_bp
+    from app.routes.requirements import bp as req_bp
 
-    for bp in [auth_bp, proj_bp, plot_bp, docs_bp, comp_bp, meet_bp, pay_bp, act_bp, client_bp, settings_api, notif_api]:
+    for bp in [auth_bp, proj_bp, plot_bp, docs_bp, comp_bp, meet_bp, pay_bp, act_bp, client_bp, settings_api, notif_api, dev_bp, req_bp]:
         app.register_blueprint(bp)
 
     # P2-15: Custom error pages
@@ -153,8 +202,51 @@ def create_app():
     def server_error(e):
         return _rt('errors/500.html'), 500
 
+    @app.cli.command("seed")
+    def seed_command():
+        """Seed the database with QA defaults."""
+        try:
+            seed_db(app)
+            print("Database seamlessly seeded!")
+        except Exception as e:
+            print(f"FAILED to seed database: {e}")
+
     with app.app_context():
         db.create_all()
-        seed_db(app)
+        _apply_migrations()
 
     return app
+
+
+def _apply_migrations():
+    """Apply ALTER TABLE migrations for columns added after initial db.create_all().
+    Each statement is attempted individually; failures are silently ignored because
+    SQLite raises an error if a column already exists."""
+    migrations = [
+        "ALTER TABLE document ADD COLUMN visible_to_client BOOLEAN DEFAULT 0",
+        "ALTER TABLE document ADD COLUMN meeting_id INTEGER",
+        "ALTER TABLE document ADD COLUMN requirement_id INTEGER",
+        "ALTER TABLE document_version ADD COLUMN file_type VARCHAR(100)",
+        "ALTER TABLE document_version ADD COLUMN file_size VARCHAR(50)",
+        "ALTER TABLE document_version ADD COLUMN version_label VARCHAR(100)",
+        "ALTER TABLE user ADD COLUMN phone VARCHAR(20)",
+        "ALTER TABLE user ADD COLUMN reset_token_created_at DATETIME",
+        "ALTER TABLE user ADD COLUMN failed_attempts INTEGER DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN lock_until DATETIME",
+        "ALTER TABLE meeting ADD COLUMN description TEXT",
+        "ALTER TABLE meeting ADD COLUMN outcome VARCHAR(255)",
+        "ALTER TABLE meeting ADD COLUMN completed_at DATETIME",
+        "ALTER TABLE project_image ADD COLUMN meeting_id INTEGER",
+        "ALTER TABLE project_image ADD COLUMN requirement_id INTEGER",
+        "ALTER TABLE comment ADD COLUMN parent_id INTEGER",
+        # MeetingLog table is created by db.create_all() on first run.
+        # These ALTER statements handle columns added to existing tables only.
+    ]
+    with db.engine.raw_connection() as conn:
+        cursor = conn.cursor()
+        for sql in migrations:
+            try:
+                cursor.execute(sql)
+                conn.commit()
+            except Exception:
+                pass  # column already exists — safe to ignore

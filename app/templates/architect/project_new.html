@@ -1,0 +1,35 @@
+{% extends "base_architect.html" %}
+{% block title %}Create New Project{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div class="page-head-row">
+    <div>
+      <div class="page-eyebrow">Projects</div>
+      <h1 class="page-title">Create New Project</h1>
+    </div>
+  </div>
+</div>
+
+<form action="{{ url_for('projects.new_project') }}" method="post" class="card" style="padding:24px; max-width:560px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <label>Name</label>
+  <input name="name" class="input" required>
+
+  <label>Client</label>
+  <select name="client_id" class="input" required>
+    <option value="">Select client</option>
+    {% for c in clients %}
+      <option value="{{ c.id }}">{{ c.name }} ({{ c.email }})</option>
+    {% endfor %}
+  </select>
+
+  <label>Plot Zone</label>
+  <input name="plot_zone" class="input" value="Mixed">
+
+  <label>Total Budget</label>
+  <input name="total_budget" class="input" type="number" min="0" value="0">
+
+  <button type="submit" class="btn btn-primary">Create Project</button>
+</form>
+{% endblock %}

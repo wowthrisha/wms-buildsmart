@@ -14,6 +14,13 @@
 
 </head>
 <body>
+{% if config.DEBUG %}
+<div style="background:#ff9900; color:#000; padding:8px 16px; text-align:center; font-size:11px; font-weight:600; display:flex; gap:12px; align-items:center; justify-content:center;">
+  🔧 DEV MODE | User: <span style="color:#333; font-weight:700;">{{ dev_role_override if dev_role_override else current_user.role.upper() }}</span>
+  <a href="{{ url_for('dev.switch_role') }}" style="color:#000; text-decoration:underline; font-weight:600;">{{ 'Back to ' + current_user.role.upper() if dev_role_override else 'Test as CLIENT' }}</a>
+  <a href="{{ url_for('dev.reset_role') }}" style="color:#000; text-decoration:underline; font-weight:600;">Clear</a>
+</div>
+{% endif %}
 <div class="shell">
 
   <!-- SIDEBAR — 8 items, architect only -->

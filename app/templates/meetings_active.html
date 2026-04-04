@@ -1,0 +1,56 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% block title %}Active Meetings — BuildSmart{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Meetings Module</div>
+          <h1 class="meetings-title">Active / Scheduled</h1>
+          <p class="meetings-subtitle">Confirmed meetings live here with one clear action: open the meeting details page and continue into the MOM workspace.</p>
+        </div>
+        <div class="inline-actions">{% include '_meetings_nav.html' %}</div>
+      </div>
+    </section>
+
+    <section class="table-card">
+      <div class="table-toolbar">
+        <div>
+          <div class="section-kicker">Schedule</div>
+          <h3 style="margin:6px 0 0;">Confirmed Meetings</h3>
+        </div>
+      </div>
+      {% if meetings %}
+      <table class="dark-table">
+        <thead>
+          <tr>
+            <th>Meeting ID</th>
+            <th>Project</th>
+            <th>Selected Time</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for meeting in meetings %}
+          <tr>
+            <td>#{{ meeting.id }}</td>
+            <td>{{ meeting.project.name }}</td>
+            <td>{{ meeting.confirmed_slot|strftime('%d %b %Y · %H:%M') if meeting.confirmed_slot else 'TBD' }}</td>
+            <td><span class="status-pill confirmed">Confirmed</span></td>
+            <td><a class="ghost-link" href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}">Open →</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="mt-empty">No active meetings yet. Confirmed meetings will appear here.</div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+name: BuildSmart Production CI
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: pass
+          POSTGRES_DB: buildsmart_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+          
+      - name: Install Dependencies & Libraries
+        run: |
+          sudo apt-get install -y libmagic1 tesseract-ocr
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run Pytest Suite
+        env:
+          DATABASE_URL: postgresql://postgres:pass@localhost:5432/buildsmart_test
+          SECRET_KEY: test-key-ci-env
+          CELERY_BROKER_URL: memory://
+        run: |
+          pytest tests/ --cov=app --cov-report=xml
+          
+      - name: Security Linter (Bandit)
+        run: |
+          pip install bandit
+          bandit -r app/ -ll -ii

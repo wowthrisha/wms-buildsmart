@@ -1,0 +1,52 @@
+{% extends 'base_architect.html' %}
+{% block title %}Payments — BuildSmart{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Payments Module</div>
+          <h1 class="meetings-title">Shared Project Ledgers</h1>
+          <p class="meetings-subtitle">Every payment and expense now opens into a single project ledger, so architect and client are always looking at the same financial truth.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="project-card-grid">
+      {% for card in project_cards %}
+      <a class="project-link-card" href="{{ url_for('payments.project_overview', project_id=card.project.id) }}">
+        <div class="project-card-head">
+          <div>
+            <div class="section-kicker">Project</div>
+            <h3 style="margin-top:6px;">{{ card.project.name }}</h3>
+          </div>
+          <span class="status-pill {{ card.summary.status.label|lower|replace(' ', '-') }}">{{ card.summary.status.label }}</span>
+        </div>
+        <div class="project-balance">{{ card.summary.remaining|inr }}</div>
+        <div class="project-card-meta">Remaining balance</div>
+        <div class="summary-grid" style="margin-top:16px; grid-template-columns:repeat(2, minmax(0, 1fr));">
+          <article class="metric-card">
+            <div class="metric-label">Budget</div>
+            <div class="metric-value" style="font-size:24px;">{{ card.summary.total_budget|inr }}</div>
+            <div class="metric-foot">Total project cost</div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-label">Pending</div>
+            <div class="metric-value" style="font-size:24px;">{{ card.pending_count }}</div>
+            <div class="metric-foot">Client approvals waiting</div>
+          </article>
+        </div>
+      </a>
+      {% else %}
+      <div class="surface-card">
+        <div class="mt-empty">Create a project first to start tracking payments.</div>
+      </div>
+      {% endfor %}
+    </section>
+  </div>
+</div>
+{% endblock %}

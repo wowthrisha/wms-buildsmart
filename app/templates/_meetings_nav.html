@@ -1,0 +1,6 @@
+<nav class="meetings-nav" aria-label="Meetings navigation">
+  <a href="{{ url_for('meetings.index') }}" class="{% if request.endpoint == 'meetings.index' %}active{% endif %}">Overview</a>
+  <a href="{{ url_for('meetings.requests_page') }}" class="{% if request.endpoint == 'meetings.requests_page' %}active{% endif %}">Requests</a>
+  <a href="{{ url_for('meetings.active_page') }}" class="{% if request.endpoint == 'meetings.active_page' %}active{% endif %}">Active</a>
+  <a href="{{ url_for('meetings.completed_page') }}" class="{% if request.endpoint == 'meetings.completed_page' %}active{% endif %}">Completed</a>
+</nav>

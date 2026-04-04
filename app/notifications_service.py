@@ -9,12 +9,27 @@ from app.models import Notification, db
 logger = logging.getLogger(__name__)
 
 def notify_user(user_id: int, title: str, body: str):
+    """Create in-app DB notification only."""
     try:
         n = Notification(user_id=user_id, title=title, body=body)
         db.session.add(n)
         db.session.commit()
     except Exception as e:
         logger.error(f'notify_user: {e}')
+
+
+def notify_user_comms(user, title: str, body: str):
+    """Create in-app notification + send WhatsApp + send email for a User object."""
+    if user is None:
+        return
+    # In-app notification
+    notify_user(user.id, title, body)
+    # WhatsApp
+    if getattr(user, 'phone', None):
+        send_whatsapp(user.phone, f'{title}: {body}')
+    # Email
+    if getattr(user, 'email', None):
+        send_email(user.email, f'BuildSmart — {title}', f'<p>{body}</p>')
 
 
 def send_whatsapp(to_number: str, message: str) -> bool:

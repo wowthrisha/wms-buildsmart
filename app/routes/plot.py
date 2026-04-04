@@ -2,8 +2,8 @@ from flask import Blueprint, request, redirect, jsonify, render_template, abort
 from flask_login import login_required, current_user
 from app import db
 from app.models import Project, PlotData
-from app.auth import require_architect
-from datetime import datetime
+from app.auth import require_architect, roles_required
+from app.time_utils import utc_now
 
 bp = Blueprint('plot', __name__)
 
@@ -16,8 +16,8 @@ def index():
 
 @bp.route('/projects/<int:project_id>/plot/upload', methods=['POST'])
 @login_required
+@roles_required(['architect', 'client'])
 def upload(project_id):
-    require_architect()
     try:
         p = Project.query.get_or_404(project_id)
         if current_user.role == 'architect' and p.architect_id != current_user.id:
@@ -27,17 +27,30 @@ def upload(project_id):
             
         file = request.files.get('sketch')
         if file and file.filename:
-            ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-            from flask import current_app
-            if ext not in current_app.config.get('ALLOWED_EXTENSIONS', {'pdf','jpg','jpeg','png','dwg','dxf'}):
+            from app.storage import validate_secure_mime, save_file_securely
+            if not validate_secure_mime(file, ['application/pdf', 'image/jpeg', 'image/png']):
                 from flask import flash
-                flash('File type not allowed.', 'error')
+                flash('File type not allowed or malicious file detected.', 'error')
                 return redirect(request.referrer or '/dashboard')
-            from werkzeug.utils import secure_filename
-            import os
-            filename = secure_filename(file.filename)
-            os.makedirs(current_app.config['UPLOAD_FOLDER'], exist_ok=True)
-            file.save(os.path.join(current_app.config['UPLOAD_FOLDER'], filename))
+            
+            filename = save_file_securely(file)
+            
+            if not p.plot:
+                p.plot = PlotData(project_id=p.id)
+                db.session.add(p.plot)
+            
+            p.plot.sketch_filename = filename
+            p.plot.sketch_uploader = current_user.role
+            
+            # The previous synchronous OCR call accepted a file handle where the OCR
+            # parser expects a path, so it silently failed and added no production value.
+            # Keeping uploads stable is safer than running a broken extraction stub here.
+            
+            # Audit Log
+            from app.models import AuditLog
+            log = AuditLog(project_id=p.id, actor_id=current_user.id, action='UPLOAD', 
+                           description=f'Uploaded plot sketch: {file.filename}')
+            db.session.add(log)
             
         db.session.commit()
         from flask import flash
@@ -65,12 +78,29 @@ def update(project_id):
             abort(403)
             
         plot = p.plot
-        if plot:
-            from app.tnpcr import compute_compliance, fuzzy_confidence
-            import json
-            compliance_result = compute_compliance(plot)
-            plot.compliance_json = json.dumps(compliance_result)
-            plot.fuzzy_score = fuzzy_confidence(compliance_result)
+        if not plot:
+            plot = PlotData(project_id=p.id)
+            db.session.add(plot)
+            
+        # Update dimensions from form
+        for field in ['area', 'frontage', 'depth', 'front_setback', 'rear_setback', 'side_setback', 'road_width', 'height']:
+            val = request.form.get(field)
+            if val is not None and val.strip() != '':
+                setattr(plot, field, float(val))
+            else:
+                setattr(plot, field, None)
+                
+        from app.tnpcr import compute_compliance, fuzzy_confidence
+        import json
+        compliance_result = compute_compliance(plot)
+        plot.compliance_json = json.dumps(compliance_result)
+        plot.fuzzy_score = fuzzy_confidence(compliance_result)
+        
+        # Audit Log
+        from app.models import AuditLog
+        log = AuditLog(project_id=p.id, actor_id=current_user.id, action='UPDATE', 
+                       description='Updated plot dimensions')
+        db.session.add(log)
             
         db.session.commit()
         from flask import flash
@@ -99,7 +129,7 @@ def confirm(project_id):
             
         if p.plot:
             p.plot.confirmed = True
-            p.plot.confirmed_at = datetime.utcnow()
+            p.plot.confirmed_at = utc_now()
             
         db.session.commit()
         from flask import flash
@@ -122,7 +152,7 @@ def confirm(project_id):
 def rag_query():
     if current_user.role != 'client': abort(403)
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         question_val = data.get('question') or request.form.get('question') or ''
         question = str(question_val).strip()
         if not question:

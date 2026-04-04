@@ -34,6 +34,11 @@
     <div class="stat-val">{{ remaining_compliance }}</div>
     <div class="stat-sub">Items remaining</div>
   </div>
+  <div class="stat-card">
+    <div class="stat-label">New Requirements</div>
+    <div class="stat-val">{{ new_requirements }}</div>
+    <div class="stat-sub">Raised from meetings and workflows</div>
+  </div>
 </div>
 
 <!-- Consolidated System Stats -->
@@ -100,6 +105,29 @@
     {% endfor %}
   </div>
   {% endfor %}
+</div>
+
+<div class="card" style="margin-top:24px;">
+  <div class="section-title">Recent Requirements</div>
+  {% if recent_requirements %}
+  <table class="data-table" style="margin-top:16px;">
+    <thead>
+      <tr><th>Title</th><th>Project</th><th>Status</th><th>Created</th></tr>
+    </thead>
+    <tbody>
+      {% for requirement in recent_requirements %}
+      <tr>
+        <td>{{ requirement.title }}</td>
+        <td>{{ requirement.project.name if requirement.project else '—' }}</td>
+        <td>{{ requirement.status|replace('_', ' ')|title }}</td>
+        <td>{{ requirement.created_at|timeago }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--chalk-3); font-size:13px; margin-top:16px;">No requirements have been raised yet.</p>
+  {% endif %}
 </div>
 
 {% endblock %}

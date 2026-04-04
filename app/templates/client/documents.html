@@ -13,6 +13,7 @@
             <tr>
                 <th>Document</th>
                 <th>Category</th>
+                <th>Versions</th>
                 <th>Date</th>
                 <th>Actions</th>
             </tr>
@@ -20,16 +21,32 @@
         <tbody>
             {% for d in documents %}
             <tr>
-                <td><strong>{{ d.original_name }}</strong></td>
+                <td>
+                    <strong>{{ d.original_name }}</strong>
+                    <div style="margin-top:6px;">
+                        {% for v in d.versions.order_by('version_num') %}
+                        <div style="font-size:11px; color:var(--chalk-3); margin-top:2px;">
+                            <span class="badge badge-muted" style="font-size:10px;">{{ v.label }}</span>
+                            {{ v.filename }}
+                            {% if v.file_type %}<span style="color:var(--chalk-4);">&middot; {{ v.file_type.split('/')[-1]|upper }}</span>{% endif %}
+                            {% if v.file_size %}<span style="color:var(--chalk-4);">&middot; {{ v.file_size }}</span>{% endif %}
+                            &middot; {{ v.created_at|strftime('%d %b %Y') }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </td>
                 <td><span class="badge badge-muted">{{ d.category }}</span></td>
+                <td style="text-align:center;">
+                    <span class="badge badge-muted">{{ d.versions.count() }}</span>
+                </td>
                 <td>{{ d.created_at|strftime('%d %b %Y') }}</td>
                 <td>
-                    <a href="{{ url_for('documents.download', doc_id=d.id) }}" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;">Download</a>
+                    <a href="{{ url_for('documents.download', doc_id=d.id) }}" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;" target="_blank" rel="noopener">Download</a>
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="4" style="text-align:center; padding:40px; color:var(--chalk-3);">No documents have been shared yet.</td>
+                <td colspan="5" style="text-align:center; padding:40px; color:var(--chalk-3);">No documents have been shared yet.</td>
             </tr>
             {% endfor %}
         </tbody>

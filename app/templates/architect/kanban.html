@@ -1,0 +1,115 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% block title %}Kanban — {{ project.name }} — BuildSmart{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Requirement Board</div>
+          <h1 class="meetings-title">Kanban</h1>
+          <p class="meetings-subtitle">Small linked cards only. Drag between columns to update the database and keep the meeting workflow in sync.</p>
+        </div>
+        <div class="inline-actions">
+          <a class="mt-btn ghost" href="{{ url_for('meetings.index') }}">Back to Meetings</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="kanban-grid">
+      {% for state in kanban_states %}
+      <section class="kanban-column" data-state="{{ state }}">
+        <div class="kanban-head">
+          <div>
+            <div class="section-kicker">{{ kanban_labels[state] }}</div>
+          </div>
+          <span class="kanban-count" id="count-{{ state }}">{{ columns[state]|length }}</span>
+        </div>
+        <div class="kanban-dropzone" id="drop-{{ state }}">
+          {% for requirement in columns[state] %}
+          <article class="kanban-card" draggable="true" data-id="{{ requirement.id }}" data-state="{{ requirement.status }}">
+            <div class="kanban-card-title">{{ requirement.title }}</div>
+            <div class="kanban-card-meta">
+              <span>{{ requirement.category }}</span><br>
+              <span>{{ requirement.created_at|strftime('%d %b %Y') }}</span><br>
+              <span>{{ requirement.creator.name if requirement.creator else 'Unknown' }}</span><br>
+              <span>Meeting {{ requirement.meeting_id or '—' }}</span>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var dragged = null;
+
+  function updateCount(state) {
+    var count = document.querySelectorAll('#drop-' + state + ' .kanban-card').length;
+    var badge = document.getElementById('count-' + state);
+    if (badge) badge.textContent = count;
+  }
+
+  function moveCard(card, state) {
+    if (!card || card.dataset.state === state) return;
+    fetch('/requirements/' + card.dataset.id + '/update-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': csrf
+      },
+      body: 'status=' + encodeURIComponent(state)
+    }).then(function (response) {
+      return response.json();
+    }).then(function (data) {
+      if (!data.status) return;
+      var oldState = card.dataset.state;
+      card.dataset.state = data.status;
+      document.getElementById('drop-' + data.status).prepend(card);
+      updateCount(oldState);
+      updateCount(data.status);
+    });
+  }
+
+  document.querySelectorAll('.kanban-card').forEach(function (card) {
+    card.addEventListener('dragstart', function (event) {
+      dragged = card;
+      card.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', function () {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.kanban-dropzone').forEach(function (zone) {
+        zone.classList.remove('drag-over');
+      });
+      dragged = null;
+    });
+  });
+
+  document.querySelectorAll('.kanban-dropzone').forEach(function (zone) {
+    zone.addEventListener('dragover', function (event) {
+      event.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', function () {
+      zone.classList.remove('drag-over');
+    });
+    zone.addEventListener('drop', function (event) {
+      event.preventDefault();
+      zone.classList.remove('drag-over');
+      moveCard(dragged, zone.id.replace('drop-', ''));
+    });
+  });
+}());
+</script>
+{% endblock %}

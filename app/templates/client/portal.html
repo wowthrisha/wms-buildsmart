@@ -126,6 +126,8 @@
                 const any  = data.arch_checked || data.client_checked;
                 statusEl.textContent = both ? 'Complete' : any ? 'In Progress' : 'Pending';
                 statusEl.style.color = both ? '#4ADE80' : any ? '#F5C842' : 'var(--chalk-3)';
+                const bgColor = both ? 'rgba(74,222,128,0.15)' : any ? 'rgba(245,200,66,0.15)' : 'rgba(255,255,255,0.05)';
+                statusEl.style.background = bgColor;
             }
         } catch(e) { checkbox.checked = !checkbox.checked; }
     }

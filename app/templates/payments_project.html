@@ -1,0 +1,480 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% block title %}Payments — {{ project.name }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Payments Ledger</div>
+          <h1 class="meetings-title">{{ project.name }}</h1>
+          <p class="meetings-subtitle">A shared financial workspace for budget, client payments, project expenses, proofs, and approvals. Both sides see the exact same numbers and ledger rows.</p>
+        </div>
+        <div class="inline-actions">
+          {% if current_user.role == 'client' %}
+          <button type="button" class="mt-btn primary" data-open-modal="payment-modal">Add Payment</button>
+          {% endif %}
+          {% if current_user.role == 'architect' %}
+          <button type="button" class="mt-btn primary" data-open-modal="expense-modal">Add Expense</button>
+          <button type="button" class="mt-btn secondary" data-open-modal="budget-modal">Update Budget</button>
+          {% endif %}
+          {% if current_user.role == 'architect' %}
+          <a class="mt-btn ghost" href="{{ url_for('projects.workspace', project_id=project.id) }}">Back To Project</a>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="next-step-card status-bar {{ next_step.tone }}">
+      <div>
+        <div class="section-kicker">Next Step</div>
+        <div style="font-size:20px; font-weight:700; margin-top:6px;">{{ next_step.headline }}</div>
+        <div class="muted-copy" style="margin-top:6px;">{{ next_step.detail }}</div>
+      </div>
+      <span class="status-pill {{ summary.status.label|lower|replace(' ', '-') }}">{{ summary.status.label }}</span>
+    </section>
+
+    <section class="detail-grid">
+      <article class="section-card">
+        <div class="section-head" style="padding-left:0; padding-right:0; padding-top:0;">
+          <div>
+            <div class="section-kicker">Overview</div>
+            <h3 style="margin-top:6px;">Budget vs actual usage</h3>
+          </div>
+          <div class="muted-copy">{{ summary.remaining|inr }} remaining</div>
+        </div>
+        <div class="chart-shell">
+          <div class="chart-wrap">
+            <canvas id="payment-breakdown-chart" data-values='{{ chart_values|tojson }}'></canvas>
+            <div class="chart-center-copy">
+              <div>
+                <div class="section-kicker">Remaining</div>
+                <div class="stat-value">{{ summary.remaining|inr }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="legend-list">
+            <div>
+              <div class="legend-row">
+                <span class="legend-swatch client"></span>
+                <span class="legend-label">Client → Architect</span>
+              </div>
+              <div class="legend-help" style="margin-top:6px;">{{ summary.paid_to_architect|inr }} confirmed into architect fees</div>
+            </div>
+            <div>
+              <div class="legend-row">
+                <span class="legend-swatch expense"></span>
+                <span class="legend-label">Architect → Project Expenses</span>
+              </div>
+              <div class="legend-help" style="margin-top:6px;">{{ summary.spent_on_project|inr }} spent across vendors, labour, and materials</div>
+            </div>
+            <div>
+              <div class="legend-row">
+                <span class="legend-swatch remaining"></span>
+                <span class="legend-label">Remaining</span>
+              </div>
+              <div class="legend-help" style="margin-top:6px;">Shown as text in the center so the budget left is always explicit</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="surface-card">
+        <div class="summary-grid" style="grid-template-columns:repeat(2, minmax(0, 1fr));">
+          <article class="metric-card">
+            <div class="metric-label">Total Project Cost</div>
+            <div class="metric-value">{{ summary.total_budget|inr }}</div>
+            <div class="metric-foot">Approved budget baseline</div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-label">Paid To Architect</div>
+            <div class="metric-value">{{ summary.paid_to_architect|inr }}</div>
+            <div class="metric-foot">Confirmed client payments</div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-label">Spent On Project</div>
+            <div class="metric-value">{{ summary.spent_on_project|inr }}</div>
+            <div class="metric-foot">Architect expenses</div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-label">Remaining</div>
+            <div class="metric-value">{{ summary.remaining|inr }}</div>
+            <div class="metric-foot">Running balance</div>
+          </article>
+        </div>
+        <div style="margin-top:18px; display:grid; gap:12px;">
+          <div class="status-bar {{ summary.status.tone }}">
+            <div>
+              <div class="section-kicker">Status</div>
+              <div style="font-weight:700; margin-top:6px;">{{ summary.status.label }}</div>
+            </div>
+            <div class="muted-copy">{{ '%.0f'|format(summary.usage_pct) }}% of budget used</div>
+          </div>
+          <div>
+            <div class="section-kicker" style="margin-bottom:8px;">Budget Usage</div>
+            <div class="progress-track">
+              <div class="progress-fill {{ summary.status.tone }}" style="width:{{ [summary.usage_pct, 100]|min }}%;"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="table-card">
+      <div class="table-toolbar">
+        <div>
+          <div class="section-kicker">Ledger</div>
+          <h3 style="margin:6px 0 0;">Payment log</h3>
+        </div>
+        <div class="muted-copy">{{ logs|length }} visible rows</div>
+      </div>
+      <div class="table-card-body">
+        <form method="GET" class="inline-form-grid">
+          <div class="field">
+            <label>Type</label>
+            <select name="entry_type">
+              <option value="all" {% if filters.entry_type == 'all' %}selected{% endif %}>All</option>
+              <option value="client_payments" {% if filters.entry_type == 'client_payments' %}selected{% endif %}>Paid by client</option>
+              <option value="expenses" {% if filters.entry_type == 'expenses' %}selected{% endif %}>Expenses</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Paid By</label>
+            <select name="paid_by">
+              <option value="all" {% if filters.paid_by == 'all' %}selected{% endif %}>All</option>
+              <option value="client" {% if filters.paid_by == 'client' %}selected{% endif %}>Client</option>
+              <option value="architect" {% if filters.paid_by == 'architect' %}selected{% endif %}>Architect</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select name="category">
+              <option value="all">All</option>
+              {% for category in categories %}
+              <option value="{{ category }}" {% if filters.category == category %}selected{% endif %}>{{ category }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Stage</label>
+            <select name="stage">
+              <option value="all">All</option>
+              {% for stage in stages %}
+              <option value="{{ stage }}" {% if filters.stage == stage %}selected{% endif %}>{{ stage }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-row" style="justify-content:flex-start; align-items:end;">
+            <button type="submit">Apply Filters</button>
+            <a href="{{ url_for('payments.project_overview', project_id=project.id) }}">Reset</a>
+          </div>
+        </form>
+
+        {% if logs %}
+        <table class="dark-table" style="margin-top:18px;">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount</th>
+              <th>Paid By</th>
+              <th>Paid To</th>
+              <th>Method</th>
+              <th>Stage</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Proof</th>
+              <th>Comment</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in logs %}
+            <tr>
+              <td>
+                <div>{{ log.created_at|strftime('%d %b %Y') }}</div>
+                <div class="audit-text">Created by {{ log.creator.name if log.creator else 'Unknown' }}</div>
+                <div class="audit-text">Approved by {{ log.approver.name if log.approver else '—' }}</div>
+              </td>
+              <td>
+                <div style="font-weight:700;">{{ log.amount|inr }}</div>
+                <div class="audit-text">{{ log.description }}</div>
+              </td>
+              <td>{{ log.paid_by|replace('_', ' ')|title }}</td>
+              <td>{{ log.paid_to|replace('_', ' ')|title }}</td>
+              <td>
+                <div>{{ log.payment_method }}</div>
+                <div class="audit-text">{{ log.created_at|strftime('%H:%M') }}</div>
+              </td>
+              <td>{{ log.stage }}</td>
+              <td>{{ log.category }}</td>
+              <td><span class="status-pill {{ log.status|replace('_', '-') }}">{{ log.status_label }}</span></td>
+              <td><a class="proof-link" href="{{ url_for('payments.download_proof', payment_log_id=log.id) }}" target="_blank">Open Proof</a></td>
+              <td>
+                {% if log.comment %}
+                <div class="comment-block">{{ log.comment }}</div>
+                {% else %}
+                <div class="muted-copy">No comment</div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="action-stack">
+                  {% if current_user.role == 'architect' and log.paid_by == 'client' and log.status == 'pending' %}
+                  <button type="button" class="mt-btn secondary" data-open-approval="approve" data-payment-id="{{ log.id }}">Confirm</button>
+                  <button type="button" class="mt-btn danger" data-open-approval="reject" data-payment-id="{{ log.id }}">Reject</button>
+                  {% elif current_user.role == 'client' and log.paid_by == 'architect' %}
+                  <button type="button" class="mt-btn secondary" data-open-comment="{{ log.id }}">Comment</button>
+                  {% else %}
+                  <span class="muted-copy">—</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="mt-empty">No payment rows match the current filters yet.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="section-card">
+      <div class="section-head" style="padding-left:0; padding-right:0; padding-top:0;">
+        <div>
+          <div class="section-kicker">Analytics</div>
+          <h3 style="margin-top:6px;">Category totals</h3>
+        </div>
+      </div>
+      <div class="analytics-grid" style="grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));">
+        {% for item in analytics %}
+        <article class="analytics-card">
+          <div class="metric-label">{{ item.category }}</div>
+          <div class="metric-value" style="font-size:24px;">{{ item.amount|inr }}</div>
+          <div class="metric-foot">{{ item.count }} ledger entr{{ 'y' if item.count == 1 else 'ies' }}</div>
+        </article>
+        {% else %}
+        <div class="muted-copy">No category analytics available for the current filter set.</div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+
+{% if current_user.role == 'client' %}
+<div class="modal-backdrop mt-modal" id="payment-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Client Flow</div>
+      <h2 class="modal-title">Add Payment</h2>
+    </div>
+    <form method="POST" action="{{ url_for('payments.add', project_id=project.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div class="field-grid two">
+          <div class="field"><label>Amount</label><input type="number" step="0.01" min="0.01" name="amount" required></div>
+          <div class="field"><label>Paid To</label><input type="text" value="Architect" disabled></div>
+        </div>
+        <div class="field"><label>Description</label><textarea name="description" required placeholder="What is this payment for?"></textarea></div>
+        <div class="field-grid two">
+          <div class="field"><label>Category</label><select name="category" required>{% for category in categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Stage</label><select name="stage" required>{% for stage in stages %}<option value="{{ stage }}">{{ stage }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field-grid two">
+          <div class="field"><label>Payment Method</label><select name="payment_method" required>{% for method in methods %}<option value="{{ method }}">{{ method }}</option>{% endfor %}</select></div>
+          <div class="field file-field"><label>Proof Upload</label><input type="file" name="proof" accept=".pdf,.jpg,.jpeg,.png" required></div>
+        </div>
+        <div class="field"><label>Comment</label><textarea name="comment" placeholder="Optional note for the architect"></textarea></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="payment-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Save Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.role == 'architect' %}
+<div class="modal-backdrop mt-modal" id="expense-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Architect Flow</div>
+      <h2 class="modal-title">Add Expense</h2>
+    </div>
+    <form method="POST" action="{{ url_for('payments.add', project_id=project.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div class="field-grid two">
+          <div class="field"><label>Amount</label><input type="number" step="0.01" min="0.01" name="amount" required></div>
+          <div class="field"><label>Paid To</label><select name="paid_to" required><option value="vendor">Vendor</option><option value="other">Other</option><option value="architect">Architect</option></select></div>
+        </div>
+        <div class="field"><label>Description</label><textarea name="description" required placeholder="What did the project spend on?"></textarea></div>
+        <div class="field-grid two">
+          <div class="field"><label>Category</label><select name="category" required>{% for category in categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Stage</label><select name="stage" required>{% for stage in stages %}<option value="{{ stage }}">{{ stage }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field-grid two">
+          <div class="field"><label>Payment Method</label><select name="payment_method" required>{% for method in methods %}<option value="{{ method }}">{{ method }}</option>{% endfor %}</select></div>
+          <div class="field file-field"><label>Proof Upload</label><input type="file" name="proof" accept=".pdf,.jpg,.jpeg,.png" required></div>
+        </div>
+        <div class="field"><label>Comment</label><textarea name="comment" placeholder="Optional note for the client"></textarea></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="expense-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Save Expense</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop mt-modal" id="budget-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Budget</div>
+      <h2 class="modal-title">Update Total Project Cost</h2>
+    </div>
+    <form method="POST" action="{{ url_for('payments.update_budget', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div class="field"><label>Total Project Cost</label><input type="number" step="0.01" min="0" name="total_budget" value="{{ summary.total_budget }}" required></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="budget-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Save Budget</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop mt-modal" id="approval-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Approval</div>
+      <h2 class="modal-title" id="approval-modal-title">Confirm client payment</h2>
+    </div>
+    <form method="POST" id="approval-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div class="field"><label>Comment</label><textarea name="comment" placeholder="Optional approval or rejection note"></textarea></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="approval-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary" id="approval-submit-label">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.role == 'client' %}
+<div class="modal-backdrop mt-modal" id="comment-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Client Comment</div>
+      <h2 class="modal-title">Comment On Expense</h2>
+    </div>
+    <form method="POST" id="comment-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div class="field"><label>Comment</label><textarea name="comment" required placeholder="Ask a question or add context"></textarea></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="comment-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Save Comment</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  function openModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.add('open');
+  }
+  function closeModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.remove('open');
+  }
+
+  document.querySelectorAll('[data-open-modal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      openModal(button.getAttribute('data-open-modal'));
+    });
+  });
+
+  document.querySelectorAll('[data-close-modal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      closeModal(button.getAttribute('data-close-modal'));
+    });
+  });
+
+  document.querySelectorAll('.modal-backdrop.mt-modal').forEach(function (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) modal.classList.remove('open');
+    });
+  });
+
+  var approvalForm = document.getElementById('approval-form');
+  if (approvalForm) {
+    document.querySelectorAll('[data-open-approval]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var mode = button.getAttribute('data-open-approval');
+        var paymentId = button.getAttribute('data-payment-id');
+        approvalForm.action = '/payments/' + paymentId + '/' + mode;
+        document.getElementById('approval-modal-title').textContent = mode === 'approve' ? 'Confirm client payment' : 'Reject client payment';
+        document.getElementById('approval-submit-label').textContent = mode === 'approve' ? 'Confirm Payment' : 'Reject Payment';
+        openModal('approval-modal');
+      });
+    });
+  }
+
+  var commentForm = document.getElementById('comment-form');
+  if (commentForm) {
+    document.querySelectorAll('[data-open-comment]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        commentForm.action = '/payments/' + button.getAttribute('data-open-comment') + '/comment';
+        openModal('comment-modal');
+      });
+    });
+  }
+
+  var chartEl = document.getElementById('payment-breakdown-chart');
+  if (chartEl && window.Chart) {
+    var values = JSON.parse(chartEl.dataset.values || '[0,0]');
+    new Chart(chartEl, {
+      type: 'doughnut',
+      data: {
+        labels: ['Client to Architect', 'Architect Expenses'],
+        datasets: [{
+          data: values,
+          backgroundColor: ['#e8c97a', '#5eead4'],
+          borderColor: ['#1c1c21', '#1c1c21'],
+          borderWidth: 4,
+          hoverOffset: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        cutout: '72%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                return context.label + ': ₹' + Number(context.raw || 0).toLocaleString('en-IN');
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+}());
+</script>
+{% endblock %}

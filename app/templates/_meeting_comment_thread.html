@@ -1,0 +1,44 @@
+{% macro render_comments(comments, meeting, next_target='detail') %}
+  {% for comment in comments %}
+  <article class="comment-card{% if comment.parent_id %} reply{% endif %}">
+    <div class="comment-meta">
+      <strong>{{ comment.author.name if comment.author else 'Unknown' }}</strong>
+      <span>{{ comment.created_at|strftime('%d %b %Y · %H:%M') }}</span>
+      <span class="status-pill {{ 'confirmed' if comment.author and comment.author.role == 'architect' else 'proposed' }}">
+        {{ comment.author.role|title if comment.author else 'User' }}
+      </span>
+      {% if comment.requirement %}
+      <span class="requirement-tag">Linked: {{ comment.requirement.title }}</span>
+      {% endif %}
+    </div>
+    <div class="comment-body">{{ comment.content }}</div>
+    <div class="inline-actions" style="margin-top:14px;">
+      <button type="button" class="mt-btn ghost" data-toggle-reply="reply-{{ comment.id }}">Reply</button>
+      {% if not comment.requirement_id %}
+      <form method="POST" action="{{ url_for('requirements.convert_comment', comment_id=comment.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ next_target }}">
+        <input type="hidden" name="req_title" value="{{ comment.content[:80] }}">
+        <input type="hidden" name="req_category" value="General">
+        <button type="submit" class="mt-btn secondary">Create Requirement</button>
+      </form>
+      {% endif %}
+    </div>
+    <form id="reply-{{ comment.id }}" class="field-stack hide" method="POST" action="{{ url_for('requirements.add_comment', meeting_id=meeting.id) }}" style="margin-top:14px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="parent_id" value="{{ comment.id }}">
+      <input type="hidden" name="next" value="{{ next_target }}">
+      <div class="field">
+        <label>Reply</label>
+        <textarea name="content" placeholder="Reply in thread" required></textarea>
+      </div>
+      <button type="submit" class="mt-btn primary">Post Reply</button>
+    </form>
+    {% if comment.replies.count() %}
+    <div class="comment-thread">
+      {{ render_comments(comment.replies.all()|sort(attribute='created_at'), meeting, next_target) }}
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+{% endmacro %}

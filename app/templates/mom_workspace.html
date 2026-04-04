@@ -1,0 +1,493 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% from '_meeting_comment_thread.html' import render_comments %}
+{% block title %}MOM Workspace — Meeting #{{ meeting.id }} — BuildSmart{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">MOM Workspace</div>
+          <h1 class="meetings-title">{{ project.name }} · Meeting #{{ meeting.id }}</h1>
+          <p class="meetings-subtitle">One workspace for minutes, discussion, requirement changes, uploads, and the complete meeting activity history.</p>
+        </div>
+        <div class="inline-actions">
+          <span class="status-pill {{ meeting.normalized_status|replace('_', '-') }}">{{ meeting.status_label }}</span>
+          <a class="mt-btn ghost" href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}">Back to Details</a>
+        </div>
+      </div>
+    </section>
+
+    <div class="workspace-grid">
+      <div class="field-stack">
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section A</div>
+              <h3>MOM</h3>
+            </div>
+          </div>
+          <div style="padding:20px;" class="editor-shell">
+            <form method="POST" action="{{ url_for('meetings.notes', meeting_id=meeting.id) }}" id="mom-form" class="editor-shell">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="mom_content" id="mom-content-input">
+              <div class="field-grid two">
+                <div class="field">
+                  <label>Outcome</label>
+                  <input type="text" name="outcome" value="{{ meeting.outcome or '' }}" placeholder="Short outcome summary">
+                </div>
+                <div class="field">
+                  <label>Last Saved</label>
+                  <input type="text" value="{{ meeting.mom_date|strftime('%d %b %Y · %H:%M') if meeting.mom_date else 'Not saved yet' }}" readonly>
+                </div>
+              </div>
+              <div class="editor-toolbar">
+                <button type="button" data-editor-cmd="bold">Bold</button>
+                <button type="button" data-editor-cmd="insertUnorderedList">Bullets</button>
+                <button type="button" data-editor-cmd="insertOrderedList">Numbered</button>
+              </div>
+              <div id="mom-editor" class="editor-output" contenteditable="true">{{ meeting.mom_content|safe if meeting.mom_content else '' }}</div>
+              <div class="inline-actions">
+                <button type="submit" class="mt-btn primary">Save / Update MOM</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section B</div>
+              <h3>Discussion</h3>
+            </div>
+          </div>
+          <div style="padding:20px;" class="field-stack">
+            {% if comments %}
+            {{ render_comments(comments, meeting, 'mom') }}
+            {% else %}
+            <div class="mt-empty" style="padding:0;">No comments yet. Start the discussion below.</div>
+            {% endif %}
+            <form method="POST" action="{{ url_for('requirements.add_comment', meeting_id=meeting.id) }}" class="field-stack">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="mom">
+              <div class="field">
+                <label>Add Comment</label>
+                <textarea name="content" placeholder="Add a threaded discussion point" required></textarea>
+              </div>
+              <button type="submit" class="mt-btn secondary">Add Comment</button>
+            </form>
+          </div>
+        </section>
+      </div>
+
+      <div class="field-stack">
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section C</div>
+              <h3>Client Action Panel</h3>
+            </div>
+          </div>
+          <div style="padding:20px;" class="action-grid">
+            <button type="button" class="mt-btn primary" data-open-modal="client-requirement-modal">Raise Requirement Change</button>
+            <button type="button" class="mt-btn ghost" data-open-modal="document-modal">Upload Document</button>
+            <button type="button" class="mt-btn ghost" data-open-modal="image-modal">Upload Image</button>
+          </div>
+        </section>
+
+        {% if current_user.role == 'architect' %}
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section D</div>
+              <h3>Architect Panel</h3>
+            </div>
+          </div>
+          <div style="padding:20px;" class="action-grid">
+            <button type="button" class="mt-btn primary" data-open-modal="architect-requirement-modal">Add Requirement</button>
+            {% if new_requirements %}
+            <button type="button" class="mt-btn secondary" data-open-modal="confirm-requirement-modal">Confirm Requirement</button>
+            {% endif %}
+            <button type="button" class="mt-btn ghost" data-open-modal="complete-modal">Mark Meeting Completed</button>
+          </div>
+        </section>
+        {% endif %}
+
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Linked Requirements</div>
+              <h3>Kanban Sync</h3>
+            </div>
+            <a class="ghost-link" href="{{ url_for('requirements.kanban', project_id=project.id) }}">Open Board</a>
+          </div>
+          {% if requirements %}
+          <div class="requirement-grid" style="padding:20px;">
+            {% for requirement in requirements %}
+            <article class="requirement-card">
+              <div class="meetings-head">
+                <h3>{{ requirement.title }}</h3>
+                <span class="status-pill {{ requirement.status|replace('_', '-') }}">{{ requirement.status|replace('_', ' ')|title }}</span>
+              </div>
+              <div class="requirement-meta">
+                <span>{{ requirement.category }}</span>
+                <span>{{ requirement.created_at|strftime('%d %b %Y') }}</span>
+                <span>{{ requirement.creator.name if requirement.creator else 'Unknown' }}</span>
+                <span>Meeting #{{ meeting.id }}</span>
+              </div>
+              {% if current_user.role == 'architect' and requirement.status == 'new' %}
+              <form method="POST" action="{{ url_for('requirements.update_status', req_id=requirement.id) }}" style="margin-top:14px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="status" value="confirmed">
+                <input type="hidden" name="next" value="mom">
+                <button type="submit" class="mt-btn secondary">Confirm Requirement</button>
+              </form>
+              {% endif %}
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="mt-empty">No requirements linked yet.</div>
+          {% endif %}
+        </section>
+
+        <section class="section-card">
+          <div class="section-head">
+            <div>
+              <div class="section-kicker">Section E</div>
+              <h3>Activity Log</h3>
+            </div>
+          </div>
+          {% if logs %}
+          <div class="log-list" style="padding:20px;">
+            {% for log in logs %}
+            <article class="log-card">
+              <div class="log-row">
+                <span class="activity-dot"></span>
+                <strong>{{ log.action|replace('_', ' ')|title }}</strong>
+              </div>
+              <p style="margin-top:10px;">{{ log.note or 'Recorded in the meeting timeline.' }}</p>
+              <div class="log-meta">
+                <span>{{ log.actor.name if log.actor else 'System' }}</span>
+                <span>{{ log.created_at|strftime('%d %b %Y · %H:%M') }}</span>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="mt-empty">No activity logged yet.</div>
+          {% endif %}
+        </section>
+      </div>
+    </div>
+
+    <section class="section-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Uploads</div>
+          <h3>Document Vault + Image Board Links</h3>
+        </div>
+      </div>
+      <div style="padding:20px;" class="vault-grid">
+        <div class="field-stack">
+          <div class="workspace-links">
+            <a class="mt-btn ghost" href="{{ url_for('documents.index') if current_user.role == 'architect' else url_for('client.documents') }}">Open Document Vault</a>
+          </div>
+          {% if documents %}
+          <div class="file-chip-row">
+            {% for document in documents %}
+            <div class="file-chip">
+              <strong>{{ document.original_name }}</strong>
+              <span>{{ document.category }} · {{ document.created_at|strftime('%d %b %Y · %H:%M') }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="mt-empty" style="padding:0;">No linked documents yet.</div>
+          {% endif %}
+        </div>
+        <div class="field-stack">
+          <div class="workspace-links">
+            <a class="mt-btn ghost" href="{{ url_for('projects.workspace', project_id=project.id) if current_user.role == 'architect' else url_for('client.portal') }}">Open Image Board</a>
+          </div>
+          {% if images %}
+          <div class="file-chip-row">
+            {% for image in images %}
+            <div class="file-chip">
+              <strong>{{ image.filename }}</strong>
+              <span>{{ image.tag }} · {{ image.created_at|strftime('%d %b %Y · %H:%M') }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="mt-empty" style="padding:0;">No linked images yet.</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="modal-backdrop mt-modal" id="client-requirement-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Client Action</div>
+      <h2 class="modal-title">Raise Requirement Change</h2>
+    </div>
+    <form method="POST" action="{{ url_for('requirements.add_requirement', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="meeting_id" value="{{ meeting.id }}">
+      <input type="hidden" name="source" value="meeting_change">
+      <input type="hidden" name="category" value="Client Request">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Description</label>
+          <textarea name="description" placeholder="Describe the new client requirement" required></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="client-requirement-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Create Requirement</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop mt-modal" id="document-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Upload</div>
+      <h2 class="modal-title">Upload Document</h2>
+    </div>
+    <form method="POST" action="{{ url_for('documents.upload', project_id=project.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="meeting_id" value="{{ meeting.id }}">
+      <input type="hidden" name="next" value="mom">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Title</label>
+          <input type="text" name="title" placeholder="Document title">
+        </div>
+        <div>
+          <label>Category</label>
+          <select name="category">
+            <option value="Client Docs">Client Docs</option>
+            <option value="Site Plan">Site Plan</option>
+            <option value="Structural">Structural</option>
+            <option value="Legal">Legal</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+        {% if requirements %}
+        <div>
+          <label>Requirement Link</label>
+          <select name="requirement_id">
+            <option value="">No specific requirement</option>
+            {% for requirement in requirements %}
+            <option value="{{ requirement.id }}">{{ requirement.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div>
+          <label>File</label>
+          <input type="file" name="doc" required>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="document-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Upload Document</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop mt-modal" id="image-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Upload</div>
+      <h2 class="modal-title">Upload Image</h2>
+    </div>
+    <form method="POST" action="{{ url_for('projects.upload_image', project_id=project.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="meeting_id" value="{{ meeting.id }}">
+      <input type="hidden" name="next" value="mom">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Tag</label>
+          <select name="tag">
+            <option value="Reference">Reference</option>
+            <option value="Drawing">Drawing</option>
+            <option value="3D Render">3D Render</option>
+          </select>
+        </div>
+        {% if requirements %}
+        <div>
+          <label>Requirement Link</label>
+          <select name="requirement_id">
+            <option value="">No specific requirement</option>
+            {% for requirement in requirements %}
+            <option value="{{ requirement.id }}">{{ requirement.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+        <div>
+          <label>Image</label>
+          <input type="file" name="image" accept="image/png,image/jpeg" required>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="image-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Upload Image</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if current_user.role == 'architect' %}
+<div class="modal-backdrop mt-modal" id="architect-requirement-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Architect Action</div>
+      <h2 class="modal-title">Add Requirement</h2>
+    </div>
+    <form method="POST" action="{{ url_for('requirements.add_requirement', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="meeting_id" value="{{ meeting.id }}">
+      <input type="hidden" name="status" value="confirmed">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Title</label>
+          <input type="text" name="title" placeholder="Requirement title" required>
+        </div>
+        <div>
+          <label>Category</label>
+          <select name="category">
+            <option value="General">General</option>
+            <option value="Design">Design</option>
+            <option value="Structural">Structural</option>
+            <option value="Compliance">Compliance</option>
+            <option value="Budget">Budget</option>
+          </select>
+        </div>
+        <div>
+          <label>Description</label>
+          <textarea name="description" placeholder="Architect requirement details"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="architect-requirement-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Add Requirement</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if new_requirements %}
+<div class="modal-backdrop mt-modal" id="confirm-requirement-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Architect Action</div>
+      <h2 class="modal-title">Confirm Requirement</h2>
+    </div>
+    <form method="POST" action="{{ url_for('requirements.update_status', req_id=new_requirements[0].id) }}" id="confirm-requirement-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="status" value="confirmed">
+      <input type="hidden" name="next" value="mom">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Requirement</label>
+          <select id="confirm-requirement-select">
+            {% for requirement in new_requirements %}
+            <option value="{{ requirement.id }}">{{ requirement.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="confirm-requirement-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Confirm Requirement</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="modal-backdrop mt-modal" id="complete-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Architect Action</div>
+      <h2 class="modal-title">Complete Meeting</h2>
+    </div>
+    <form method="POST" action="{{ url_for('meetings.complete', meeting_id=meeting.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Outcome</label>
+          <textarea name="outcome" placeholder="Short closure note for the completed meetings page"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="complete-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Move to Completed</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  function openModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.add('open');
+  }
+  function closeModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.remove('open');
+  }
+  document.querySelectorAll('[data-open-modal]').forEach(function (button) {
+    button.addEventListener('click', function () { openModal(button.getAttribute('data-open-modal')); });
+  });
+  document.querySelectorAll('[data-close-modal]').forEach(function (button) {
+    button.addEventListener('click', function () { closeModal(button.getAttribute('data-close-modal')); });
+  });
+  document.querySelectorAll('.modal-backdrop.mt-modal').forEach(function (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) modal.classList.remove('open');
+    });
+  });
+  document.querySelectorAll('[data-toggle-reply]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var target = document.getElementById(button.getAttribute('data-toggle-reply'));
+      if (target) target.classList.toggle('hide');
+    });
+  });
+  document.querySelectorAll('[data-editor-cmd]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      document.execCommand(button.getAttribute('data-editor-cmd'), false, null);
+    });
+  });
+  var editor = document.getElementById('mom-editor');
+  var form = document.getElementById('mom-form');
+  var input = document.getElementById('mom-content-input');
+  if (form && editor && input) {
+    form.addEventListener('submit', function () {
+      input.value = editor.innerHTML.trim();
+    });
+  }
+  var confirmSelect = document.getElementById('confirm-requirement-select');
+  var confirmForm = document.getElementById('confirm-requirement-form');
+  if (confirmSelect && confirmForm) {
+    confirmSelect.addEventListener('change', function () {
+      confirmForm.action = '/requirements/' + confirmSelect.value + '/update-status';
+    });
+  }
+}());
+</script>
+{% endblock %}
