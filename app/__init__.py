@@ -27,7 +27,8 @@ def _notify(user_id, title, body):
     except: pass
 
 def seed_db(app):
-    from app.models import User, Project, ComplianceItem
+    from app.compliance_service import ensure_project_compliance_items
+    from app.models import User, Project
     from werkzeug.security import generate_password_hash
     from sqlalchemy.exc import IntegrityError
     
@@ -59,10 +60,7 @@ def seed_db(app):
                             status='Design', plot_zone='Mixed')
                 db.session.add(p)
                 db.session.commit()
-                
-                # Default Compliance
-                for label in ['Building Plan Approval', 'Fire NOC']:
-                    db.session.add(ComplianceItem(project_id=p.id, label=label))
+                ensure_project_compliance_items(p.id)
                 db.session.commit()
         except Exception as e:
             db.session.rollback()
@@ -139,6 +137,15 @@ def create_app(test_config=None):
     def fromjson_filter(s):
         return json.loads(s) if s else {}
 
+    @app.template_filter('from_json')
+    def from_json_filter(value):
+        if not value:
+            return []
+        try:
+            return json.loads(value)
+        except Exception:
+            return []
+
     @app.template_filter('strftime')
     def strftime_filter(value, format='%d %b %Y'):
         if not value or not hasattr(value, 'strftime'): return ""
@@ -172,20 +179,21 @@ def create_app(test_config=None):
 
     # Register blueprints
     from app.auth     import bp as auth_bp
-    from app.routes.projects   import bp as proj_bp
-    from app.routes.plot       import bp as plot_bp
-    from app.routes.documents  import bp as docs_bp
-    from app.routes.compliance import bp as comp_bp
-    from app.routes.meetings   import bp as meet_bp
-    from app.routes.payments   import bp as pay_bp
-    from app.routes.activity   import bp as act_bp
-    from app.routes.client     import bp as client_bp
-    from app.routes.settings   import bp as settings_api
+    from app.routes.projects      import bp as proj_bp
+    from app.routes.plot_analysis import bp as plot_analysis_bp
+    from app.routes.documents     import bp as docs_bp
+    from app.routes.compliance    import bp as comp_bp
+    from app.routes.meetings      import bp as meet_bp
+    from app.routes.payments      import bp as pay_bp
+    from app.routes.activity      import bp as act_bp
+    from app.routes.client        import bp as client_bp
+    from app.routes.settings      import bp as settings_api
     from app.routes.notifications import bp as notif_api
-    from app.routes.dev          import bp as dev_bp
-    from app.routes.requirements import bp as req_bp
+    from app.routes.dev           import bp as dev_bp
+    from app.routes.requirements  import bp as req_bp
 
-    for bp in [auth_bp, proj_bp, plot_bp, docs_bp, comp_bp, meet_bp, pay_bp, act_bp, client_bp, settings_api, notif_api, dev_bp, req_bp]:
+    for bp in [auth_bp, proj_bp, plot_analysis_bp, docs_bp, comp_bp, meet_bp,
+               pay_bp, act_bp, client_bp, settings_api, notif_api, dev_bp, req_bp]:
         app.register_blueprint(bp)
 
     # P2-15: Custom error pages
@@ -223,9 +231,41 @@ def _apply_migrations():
     Each statement is attempted individually; failures are silently ignored because
     SQLite raises an error if a column already exists."""
     migrations = [
+        # Plot Analysis tables
+        "ALTER TABLE plot_analysis ADD COLUMN original_filename VARCHAR(255)",
+        "ALTER TABLE plot_analysis ADD COLUMN raw_text TEXT",
+        "ALTER TABLE plot_analysis ADD COLUMN processed_json TEXT",
+        "ALTER TABLE plot_analysis ADD COLUMN input_payload TEXT",
+        "ALTER TABLE plot_analysis ADD COLUMN result_payload TEXT",
+        "ALTER TABLE plot_analysis ADD COLUMN data_completeness_score FLOAT",
+        "ALTER TABLE plot_analysis ADD COLUMN trust_level VARCHAR(20)",
+        "ALTER TABLE plot_extracted_data ADD COLUMN unit VARCHAR(50)",
+        "ALTER TABLE plot_extracted_data ADD COLUMN normalized_value VARCHAR(255)",
+        "ALTER TABLE plot_extracted_data ADD COLUMN value_original VARCHAR(255)",
+        "ALTER TABLE plot_extracted_data ADD COLUMN unit_original VARCHAR(50)",
+        "ALTER TABLE plot_extracted_data ADD COLUMN source VARCHAR(20)",
+        "ALTER TABLE plot_extracted_data ADD COLUMN document_id INTEGER",
+        "ALTER TABLE plot_analysis ADD COLUMN road_direction VARCHAR(10)",
+        "ALTER TABLE plot_analysis ADD COLUMN authority VARCHAR(200)",
+        "ALTER TABLE plot_compliance_result ADD COLUMN rule_label VARCHAR(200)",
+        "ALTER TABLE plot_compliance_result ADD COLUMN suggestion TEXT",
+        "ALTER TABLE plot_analysis_version ADD COLUMN snapshot_json TEXT",
+        # Existing column migrations
         "ALTER TABLE document ADD COLUMN visible_to_client BOOLEAN DEFAULT 0",
+        "ALTER TABLE document ADD COLUMN file_path VARCHAR(255)",
+        "ALTER TABLE document ADD COLUMN doc_type VARCHAR(50)",
+        "ALTER TABLE document ADD COLUMN uploaded_by INTEGER",
+        "ALTER TABLE document ADD COLUMN source_module VARCHAR(50)",
+        "ALTER TABLE document ADD COLUMN extracted_data TEXT",
+        "ALTER TABLE document ADD COLUMN confidence_score FLOAT",
         "ALTER TABLE document ADD COLUMN meeting_id INTEGER",
         "ALTER TABLE document ADD COLUMN requirement_id INTEGER",
+        "ALTER TABLE compliance_item ADD COLUMN doc_type VARCHAR(50)",
+        "ALTER TABLE compliance_item ADD COLUMN category VARCHAR(50)",
+        "ALTER TABLE compliance_item ADD COLUMN required BOOLEAN DEFAULT 1",
+        "ALTER TABLE compliance_item ADD COLUMN status VARCHAR(20) DEFAULT 'missing'",
+        "ALTER TABLE compliance_item ADD COLUMN document_id INTEGER",
+        "ALTER TABLE compliance_item ADD COLUMN updated_at DATETIME",
         "ALTER TABLE document_version ADD COLUMN file_type VARCHAR(100)",
         "ALTER TABLE document_version ADD COLUMN file_size VARCHAR(50)",
         "ALTER TABLE document_version ADD COLUMN version_label VARCHAR(100)",
@@ -241,6 +281,33 @@ def _apply_migrations():
         "ALTER TABLE comment ADD COLUMN parent_id INTEGER",
         # MeetingLog table is created by db.create_all() on first run.
         # These ALTER statements handle columns added to existing tables only.
+        # ── Document-as-source-of-truth additions ──────────────────────────
+        "ALTER TABLE document ADD COLUMN pending_verification BOOLEAN DEFAULT 0",
+        "ALTER TABLE document ADD COLUMN verified_by INTEGER",
+        "ALTER TABLE document ADD COLUMN verified_at DATETIME",
+        "ALTER TABLE document ADD COLUMN compliance_doc_type VARCHAR(50)",
+        # ── ComplianceItem additions ────────────────────────────────────────
+        "ALTER TABLE compliance_item ADD COLUMN custom_label VARCHAR(200)",
+        "ALTER TABLE compliance_item ADD COLUMN added_by INTEGER",
+        "ALTER TABLE compliance_item ADD COLUMN added_at DATETIME",
+        # ── PlotDocument bridge FK ──────────────────────────────────────────
+        "ALTER TABLE plot_document ADD COLUMN document_id INTEGER",
+        # ── VisualReference pipeline columns ───────────────────────────────
+        "ALTER TABLE visual_reference ADD COLUMN uploader_role VARCHAR(20)",
+        "ALTER TABLE visual_reference ADD COLUMN source_url TEXT",
+        "ALTER TABLE visual_reference ADD COLUMN tags_json TEXT",
+        "ALTER TABLE visual_reference ADD COLUMN style_primary VARCHAR(100)",
+        "ALTER TABLE visual_reference ADD COLUMN colors_json TEXT",
+        "ALTER TABLE visual_reference ADD COLUMN clip_scores TEXT",
+        # ── RequirementCard project-level fusion columns ────────────────────
+        "ALTER TABLE requirement_card ADD COLUMN project_id INTEGER",
+        "ALTER TABLE requirement_card ADD COLUMN visual_style VARCHAR(200)",
+        "ALTER TABLE requirement_card ADD COLUMN materials_json TEXT",
+        "ALTER TABLE requirement_card ADD COLUMN spatial_tags TEXT",
+        "ALTER TABLE requirement_card ADD COLUMN nlp_intent TEXT",
+        "ALTER TABLE requirement_card ADD COLUMN conflicts_json TEXT",
+        "ALTER TABLE requirement_card ADD COLUMN feasibility_pct FLOAT",
+        "ALTER TABLE requirement_card ADD COLUMN generated_at DATETIME",
     ]
     with db.engine.raw_connection() as conn:
         cursor = conn.cursor()

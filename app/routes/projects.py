@@ -1,6 +1,8 @@
 from flask import Blueprint, render_template, redirect, request, jsonify, abort, url_for
 from flask_login import login_required, current_user
+import json
 from app import db
+from app.compliance_service import build_compliance_tree, compliance_summary, coverage_by_category, ensure_project_compliance_items
 from app.models import Project, User, Document, Meeting, ComplianceItem, Requirement
 from app.auth import require_architect, roles_required
 from datetime import datetime
@@ -29,7 +31,7 @@ def dashboard():
     # Dynamic metrics
     pending_approvals = Document.query.filter(Document.project_id.in_(project_ids), Document.approval_status == 'pending').count() if project_ids else 0
     confirmed_meetings = Meeting.query.join(Project).filter(Project.architect_id == current_user.id, Meeting.status == 'confirmed').count()
-    remaining_compliance = ComplianceItem.query.filter(ComplianceItem.project_id.in_(project_ids), ComplianceItem.arch_checked == False).count() if project_ids else 0
+    remaining_compliance = ComplianceItem.query.filter(ComplianceItem.project_id.in_(project_ids), ComplianceItem.status == 'missing').count() if project_ids else 0
     new_requirements = Requirement.query.filter(Requirement.project_id.in_(project_ids), Requirement.status == 'new').count() if project_ids else 0
     recent_requirements = Requirement.query.filter(Requirement.project_id.in_(project_ids)).order_by(Requirement.created_at.desc()).limit(5).all() if project_ids else []
     
@@ -88,9 +90,7 @@ def new_project():
     db.session.add(p)
     db.session.commit()
     
-    # Add default items
-    for label in ['Building Plan Approval', 'Fire NOC']:
-        db.session.add(ComplianceItem(project_id=p.id, label=label))
+    ensure_project_compliance_items(p.id)
     db.session.commit()
 
     return redirect(f'/projects/{p.id}')
@@ -106,11 +106,45 @@ def workspace(project_id):
     require_architect()
     p = Project.query.get_or_404(project_id)
     if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
-    if request.args.get('tab') == 'meetings':
-        return redirect(url_for('meetings.index'))
     if request.args.get('tab') == 'payments':
         return redirect(url_for('payments.project_overview', project_id=p.id))
-    return render_template('architect/project_workspace.html', project=p, active_project=p, Meeting=Meeting)
+    from app.models import PlotAnalysis
+    latest_pa = (PlotAnalysis.query
+                 .filter_by(project_id=p.id)
+                 .order_by(PlotAnalysis.created_at.desc())
+                 .first())
+    try:
+        latest_pa_result = json.loads(latest_pa.result_payload) if latest_pa and latest_pa.result_payload else None
+    except Exception:
+        latest_pa_result = None
+    pa_count = PlotAnalysis.query.filter_by(project_id=p.id).count()
+    checklist_items = ensure_project_compliance_items(p.id)
+    compliance_tree = build_compliance_tree(p)
+    compliance_stats = compliance_summary(p)
+    compliance_coverage = coverage_by_category(p)
+    from app.models import Document, AuditLog
+    docs_list = (Document.query
+                 .filter_by(project_id=p.id)
+                 .order_by(Document.created_at.desc())
+                 .all())
+    audit_logs = (AuditLog.query
+                  .filter_by(project_id=p.id)
+                  .order_by(AuditLog.created_at.desc())
+                  .all())
+    all_meetings = (Meeting.query
+                    .filter_by(project_id=p.id)
+                    .order_by(Meeting.created_at.desc())
+                    .all())
+    db.session.commit()
+    return render_template('architect/project_workspace.html', project=p, active_project=p,
+                           Meeting=Meeting, latest_pa=latest_pa, latest_pa_result=latest_pa_result, pa_count=pa_count,
+                           checklist_items=checklist_items,
+                           compliance_tree=compliance_tree,
+                           compliance_stats=compliance_stats,
+                           compliance_coverage=compliance_coverage,
+                           docs_list=docs_list,
+                           audit_logs=audit_logs,
+                           all_meetings=all_meetings)
 
 # REMOVED:
 # @bp.route('/api/debug-clients')
@@ -282,52 +316,187 @@ def delete_image(project_id, image_id):
 
 @bp.route('/projects/<int:project_id>/references/add', methods=['POST'])
 @login_required
+@roles_required(['architect', 'client'])
 def upload_reference(project_id):
-    """Uploads a reference image and triggers the AI pipeline."""
-    require_architect()
+    """Upload a reference image, run CLIP synchronously, update RequirementCard."""
+    from app.storage import validate_secure_mime, save_file_securely
+    from app.models import VisualReference
+    from app.vision import analyse_image
+    from app.requirement_fusion import generate_requirement_card
+    from flask import current_app
+    import os
+
+    p = Project.query.get_or_404(project_id)
+    if current_user.role == 'architect' and p.architect_id != current_user.id:
+        return jsonify({'error': 'Forbidden'}), 403
+    if current_user.role == 'client' and p.client_id != current_user.id:
+        return jsonify({'error': 'Forbidden'}), 403
+
+    file    = request.files.get('file')
+    caption = request.form.get('caption', '').strip()
+
+    if not file or not file.filename:
+        return jsonify({'error': 'No file provided'}), 400
+
+    if not validate_secure_mime(file, ['image/jpeg', 'image/png', 'image/webp']):
+        return jsonify({'error': 'Only JPG, PNG, WebP images allowed'}), 400
+
+    filename = save_file_securely(file, filename_prefix='ref')
+
+    ref = VisualReference(
+        project_id=p.id,
+        filename=filename,
+        caption=caption,
+        uploader_id=current_user.id,
+        uploader_role=current_user.role,
+        source_url=request.form.get('source_url', '').strip(),
+    )
+    db.session.add(ref)
+    db.session.flush()
+
+    # Run CLIP synchronously (< 1 s on CPU, fine for demo)
+    abs_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(abs_path):
+        vision = analyse_image(abs_path)
+        ref.tags_json     = json.dumps(vision.get('tags', []))
+        ref.style_primary = vision.get('style_primary', '')
+        ref.colors_json   = vision.get('colors_json', '[]')
+        ref.clip_scores   = vision.get('clip_scores', '{}')
+    else:
+        ref.tags_json     = '[]'
+        ref.style_primary = ''
+        ref.colors_json   = '[]'
+        ref.clip_scores   = '{}'
+
+    db.session.commit()
+
+    # Update project-level RequirementCard
+    card = None
+    try:
+        card = generate_requirement_card(project_id)
+    except Exception as e:
+        print(f"[upload_reference] fusion error: {e}")
+
+    return jsonify({
+        'success': True,
+        'reference_id': ref.id,
+        'tags': json.loads(ref.tags_json or '[]'),
+        'style_primary': ref.style_primary,
+        'card_generated': card is not None,
+        'divergence_score': card.divergence_score if card else None,
+        'feasibility_pct':  card.feasibility_pct  if card else None,
+    })
+
+
+@bp.route('/projects/<int:project_id>/references', methods=['GET'])
+@login_required
+@roles_required(['architect', 'client'])
+def ref_index(project_id):
+    """Visual Reference moodboard — visible to both architect and client."""
+    from app.models import VisualReference, RequirementCard
+
     p = Project.query.get_or_404(project_id)
     if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
-    
-    file = request.files.get('image')
-    caption = request.form.get('caption', '')
-    
-    if file and file.filename:
-        from app.storage import validate_secure_mime, save_file_securely
-        import os
-        # Security: MIME validation with fallback
-        if not validate_secure_mime(file, ['image/jpeg', 'image/png']):
-            from flask import flash
-            flash('Invalid reference image. Only JPG/PNG allowed.', 'error')
-            return redirect(request.referrer or '/dashboard')
-            
-        filename = save_file_securely(file, filename_prefix="ref")
-        
-        from app.models import VisualReference
-        ref = VisualReference(
-            project_id=p.id,
-            filename=filename,
-            caption=caption,
-            uploader_id=current_user.id
-        )
-        db.session.add(ref)
-        db.session.commit()
-        
-        # Trigger Pipeline (Async)
-        from app.tasks import process_visual_reference
-        try:
-            # Use delay() if Celery is running, else fallback to direct (for dev simplicity)
-            if os.environ.get('CELERY_BROKER_URL'):
-                process_visual_reference.delay(ref.id)
-            else:
-                import threading
-                threading.Thread(target=process_visual_reference, args=(ref.id,)).start()
-        except Exception:
-            pass
-            
-        from flask import flash
-        flash('Reference uploaded. Processing intent in background...', 'success')
-        
-    return redirect(request.referrer or '/dashboard')
+    if current_user.role == 'client'    and p.client_id    != current_user.id: abort(403)
+
+    refs = (VisualReference.query
+            .filter_by(project_id=project_id)
+            .order_by(VisualReference.created_at.desc())
+            .all())
+
+    card = RequirementCard.query.filter_by(project_id=project_id).first()
+
+    refs_data = []
+    for ref in refs:
+        refs_data.append({
+            'id':           ref.id,
+            'filename':     ref.filename,
+            'caption':      ref.caption,
+            'uploader_role': ref.uploader_role,
+            'style_primary': ref.style_primary or 'Analysing...',
+            'tags':          json.loads(ref.tags_json   or '[]'),
+            'colors':        json.loads(ref.colors_json or '[]'),
+            'created_at':    ref.created_at,
+        })
+
+    return render_template(
+        'architect/references.html',
+        project=p,
+        active_project=p,
+        active_tab='references',
+        refs=refs_data,
+        card=card,
+        client_refs=[r for r in refs_data if r['uploader_role'] == 'client'],
+        arch_refs=[r   for r in refs_data if r['uploader_role'] == 'architect'],
+    )
+
+
+@bp.route('/projects/<int:project_id>/references/<int:ref_id>/delete', methods=['POST'])
+@login_required
+@roles_required(['architect', 'client'])
+def ref_delete(project_id, ref_id):
+    """Owner or architect can delete a reference."""
+    from app.models import VisualReference
+
+    ref = VisualReference.query.filter_by(id=ref_id, project_id=project_id).first_or_404()
+    if current_user.id != ref.uploader_id and current_user.role != 'architect':
+        return jsonify({'error': 'Forbidden'}), 403
+
+    db.session.delete(ref)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/projects/<int:project_id>/requirement-card', methods=['GET'])
+@login_required
+@roles_required(['architect', 'client'])
+def req_card(project_id):
+    """Returns the current RequirementCard as JSON."""
+    from app.models import RequirementCard
+
+    p = Project.query.get_or_404(project_id)
+    if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
+    if current_user.role == 'client'    and p.client_id    != current_user.id: abort(403)
+
+    card = RequirementCard.query.filter_by(project_id=project_id).first()
+    if not card:
+        return jsonify({'card': None})
+
+    return jsonify({'card': {
+        'visual_style':   card.visual_style,
+        'materials':      json.loads(card.materials_json  or '[]'),
+        'spatial_tags':   json.loads(card.spatial_tags    or '[]'),
+        'nlp_intents':    json.loads(card.nlp_intent      or '[]'),
+        'conflicts':      json.loads(card.conflicts_json  or '[]'),
+        'divergence_score': card.divergence_score,
+        'feasibility_pct':  card.feasibility_pct,
+        'generated_at': card.generated_at.isoformat() if card.generated_at else None,
+    }})
+
+
+@bp.route('/projects/<int:project_id>/requirement-card/generate', methods=['POST'])
+@login_required
+@roles_required(['architect', 'client'])
+def req_generate(project_id):
+    """Triggers full dual-pipeline reanalysis and regenerates the RequirementCard."""
+    from app.requirement_fusion import generate_requirement_card
+
+    p = Project.query.get_or_404(project_id)
+    if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
+    if current_user.role == 'client'    and p.client_id    != current_user.id: abort(403)
+
+    try:
+        card = generate_requirement_card(project_id)
+        if not card:
+            return jsonify({'error': 'No references uploaded yet'}), 400
+        return jsonify({
+            'success': True,
+            'divergence_score': card.divergence_score,
+            'feasibility_pct':  card.feasibility_pct,
+            'conflicts_count':  len(json.loads(card.conflicts_json or '[]')),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('/projects/<int:project_id>/update-status-api', methods=['POST'])
 @login_required

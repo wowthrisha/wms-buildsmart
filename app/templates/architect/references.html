@@ -1,0 +1,302 @@
+{% extends "base_architect.html" %}
+{% block title %}Visual References — {{ project.name }}{% endblock %}
+
+{% block content %}
+<div class="meetings-shell">
+
+  <!-- HERO -->
+  <div class="meetings-hero">
+    <div>
+      <span class="section-kicker">PROJECT WORKSPACE</span>
+      <h1 class="meetings-title">Visual References</h1>
+      <p class="meetings-subtitle">
+        {{ project.name }} · Dual-Pipeline AI Analysis
+      </p>
+    </div>
+    <div class="hero-actions">
+      <button class="mt-btn mt-btn-secondary" onclick="openUploadModal()">+ Add Reference</button>
+      {% if card %}
+      <button class="mt-btn mt-btn-primary" onclick="regenerateCard()">↻ Regenerate Card</button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- AI REQUIREMENT CARD -->
+  {% if card %}
+  <div class="section-card" style="margin-bottom:24px; border-left:3px solid var(--gold);">
+    <div class="section-kicker">AI REQUIREMENT CARD</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:16px;">
+
+      <div class="detail-card">
+        <div class="detail-label">Primary Visual Style</div>
+        <div class="detail-value">{{ card.visual_style or 'Analysing...' }}</div>
+      </div>
+
+      <div class="detail-card">
+        <div class="detail-label">Feasibility Score</div>
+        <div class="detail-value" style="color:
+          {%- if card.feasibility_pct and card.feasibility_pct >= 75 %}#1D9E75
+          {%- elif card.feasibility_pct and card.feasibility_pct >= 50 %}#EF9F27
+          {%- else %}#E24B4A{%- endif %};">
+          {{ card.feasibility_pct | round(1) if card.feasibility_pct else '—' }}%
+        </div>
+      </div>
+
+      <div class="detail-card">
+        <div class="detail-label">Style Divergence</div>
+        <div class="detail-value" style="color:
+          {%- if card.divergence_score is none %}var(--chalk-3)
+          {%- elif card.divergence_score < 40 %}#1D9E75
+          {%- elif card.divergence_score < 60 %}#EF9F27
+          {%- else %}#E24B4A{%- endif %};">
+          {% if card.divergence_score is none %}
+            Upload refs from both roles to compute
+          {% else %}
+            {{ card.divergence_score }}% mismatch
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if card.conflicts_json and card.conflicts_json != '[]' %}
+    <div style="margin-top:16px;">
+      <div class="detail-label" style="color:#E24B4A;">⚠ Compliance Conflicts Detected</div>
+      <ul style="margin-top:8px; padding-left:16px;">
+        {% for conflict in card.conflicts_json | from_json %}
+        <li style="color:var(--chalk-2); margin-bottom:4px;">{{ conflict }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if card.spatial_tags and card.spatial_tags != '[]' %}
+    <div style="margin-top:16px;">
+      <div class="detail-label">Spatial Features Detected</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+        {% for tag in card.spatial_tags | from_json %}
+        <span class="status-badge" style="background:rgba(83,74,183,0.2); color:#a09de8;">{{ tag }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div style="margin-top:12px; color:var(--chalk-3); font-size:11px;">
+      Generated {{ card.generated_at.strftime('%d %b %Y %H:%M') if card.generated_at else 'just now' }}
+      · {{ refs | length }} reference(s) analysed
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- HIGH-DIVERGENCE WARNING -->
+  {% if card and card.divergence_score is not none and card.divergence_score > 60 %}
+  <div class="section-card" style="border-left:3px solid #E24B4A; margin-bottom:24px;">
+    <strong style="color:#E24B4A;">⚠ High Style Divergence ({{ card.divergence_score }}%)</strong>
+    <p style="margin-top:8px; color:var(--chalk-2);">
+      Client and architect visual references show significant style mismatch.
+      A visual alignment meeting is recommended before design begins.
+    </p>
+  </div>
+  {% endif %}
+
+  <!-- REFERENCES GRID -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:16px;">
+
+    {% for ref in refs %}
+    <div class="section-card" style="padding:0; overflow:hidden; position:relative;">
+
+      <!-- Role badge -->
+      <div style="position:absolute; top:8px; left:8px; z-index:2;">
+        <span class="status-badge" style="
+          {% if ref.uploader_role == 'client' %}background:rgba(239,159,39,0.2); color:#EF9F27;
+          {% else %}background:rgba(83,74,183,0.2); color:#a09de8;{% endif %}">
+          {{ ref.uploader_role | capitalize }}
+        </span>
+      </div>
+
+      <!-- Delete button -->
+      {% if current_user.role == 'architect' or current_user.id == ref.id %}
+      <button onclick="deleteRef({{ ref.id }})"
+              style="position:absolute; top:8px; right:8px; z-index:2;
+                     background:rgba(226,75,74,0.85); border:none; color:#fff;
+                     border-radius:4px; padding:2px 8px; cursor:pointer; font-size:11px;">✕</button>
+      {% endif %}
+
+      <!-- Image -->
+      <div style="height:180px; overflow:hidden; background:#0d1117;">
+        <img src="/uploads/{{ ref.filename }}"
+             style="width:100%; height:100%; object-fit:cover;"
+             onerror="this.style.display='none'">
+      </div>
+
+      <!-- Card body -->
+      <div style="padding:12px;">
+        <div style="font-size:12px; color:var(--gold); font-weight:600; margin-bottom:4px;">
+          {{ ref.style_primary }}
+        </div>
+
+        {% if ref.caption %}
+        <div style="font-size:12px; color:var(--chalk-2); margin-bottom:8px; line-height:1.4;">
+          {{ ref.caption[:120] }}{% if ref.caption | length > 120 %}…{% endif %}
+        </div>
+        {% endif %}
+
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          {% for tag in ref.tags[:3] %}
+          <span style="font-size:10px; background:rgba(255,255,255,0.05);
+                       color:var(--chalk-3); padding:2px 6px; border-radius:3px;">
+            {{ tag[:40] }}
+          </span>
+          {% endfor %}
+        </div>
+
+        {% if ref.colors %}
+        <div style="display:flex; gap:4px; margin-top:8px;">
+          {% for color in ref.colors[:5] %}
+          <div style="width:16px; height:16px; border-radius:50%;
+                      background:{{ color }}; border:1px solid rgba(255,255,255,0.2);"
+               title="{{ color }}"></div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div style="font-size:10px; color:var(--chalk-3); margin-top:8px;">
+          {{ ref.created_at.strftime('%d %b') }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    {% if not refs %}
+    <div style="grid-column:1/-1; text-align:center; padding:60px 20px; color:var(--chalk-3);">
+      <div style="font-size:32px; margin-bottom:12px;">🖼</div>
+      <div style="font-size:16px; margin-bottom:8px;">No references yet</div>
+      <div style="font-size:13px; margin-bottom:20px;">
+        Upload inspiration images. CLIP analyses style and materials automatically.
+      </div>
+      <button class="mt-btn mt-btn-primary" onclick="openUploadModal()">+ Add First Reference</button>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- UPLOAD MODAL -->
+<div id="uploadModal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
+            z-index:1000; align-items:center; justify-content:center;">
+  <div class="section-card" style="width:480px; max-width:90vw;">
+    <h3 style="margin-bottom:16px;">Add Visual Reference</h3>
+
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block; margin-bottom:6px; color:var(--chalk-2); font-size:13px;">
+          Image (JPG, PNG, WebP — max 20 MB)
+        </label>
+        <input type="file" name="file" accept="image/*" required
+               style="width:100%; padding:8px; background:#141821;
+                      border:1px solid rgba(255,255,255,0.1);
+                      border-radius:6px; color:var(--chalk-1);">
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block; margin-bottom:6px; color:var(--chalk-2); font-size:13px;">
+          Caption / Notes <span style="color:var(--chalk-3);">(optional — helps AI extract requirements)</span>
+        </label>
+        <textarea name="caption" rows="3"
+                  placeholder="e.g. I want an open kitchen that connects to the garden with warm wood tones"
+                  style="width:100%; padding:8px; background:#141821;
+                         border:1px solid rgba(255,255,255,0.1);
+                         border-radius:6px; color:var(--chalk-1);
+                         resize:vertical; font-size:13px;"></textarea>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block; margin-bottom:6px; color:var(--chalk-2); font-size:13px;">
+          Source URL <span style="color:var(--chalk-3);">(optional)</span>
+        </label>
+        <input type="text" name="source_url" placeholder="https://pinterest.com/..."
+               style="width:100%; padding:8px; background:#141821;
+                      border:1px solid rgba(255,255,255,0.1);
+                      border-radius:6px; color:var(--chalk-1); font-size:13px;">
+      </div>
+
+      <div id="uploadStatus"
+           style="display:none; margin-bottom:12px; padding:10px;
+                  border-radius:6px; font-size:13px;"></div>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" onclick="closeUploadModal()" class="mt-btn mt-btn-secondary">Cancel</button>
+        <button type="submit" id="uploadBtn" class="mt-btn mt-btn-primary">Upload + Analyse</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openUploadModal()  { document.getElementById('uploadModal').style.display = 'flex'; }
+function closeUploadModal() {
+  document.getElementById('uploadModal').style.display = 'none';
+  document.getElementById('uploadStatus').style.display = 'none';
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn    = document.getElementById('uploadBtn');
+  const status = document.getElementById('uploadStatus');
+  btn.disabled = true;
+  btn.textContent = 'Analysing…';
+  status.style.display = 'block';
+  status.style.background = 'rgba(83,74,183,0.2)';
+  status.style.color = '#a09de8';
+  status.textContent = '⏳ Running CLIP vision analysis + NLP pipeline…';
+
+  try {
+    const resp = await fetch('/projects/{{ project.id }}/references/add',
+                             { method: 'POST', body: new FormData(this) });
+    const data = await resp.json();
+    if (data.success) {
+      status.style.background = 'rgba(29,158,117,0.2)';
+      status.style.color = '#1D9E75';
+      const div = data.divergence_score !== null ? ` · Divergence: ${data.divergence_score}%` : '';
+      status.textContent = `✓ Analysed. Feasibility: ${data.feasibility_pct}%${div}`;
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      throw new Error(data.error || 'Upload failed');
+    }
+  } catch(err) {
+    status.style.background = 'rgba(226,75,74,0.2)';
+    status.style.color = '#E24B4A';
+    status.textContent = '✗ ' + err.message;
+    btn.disabled = false;
+    btn.textContent = 'Upload + Analyse';
+  }
+});
+
+async function deleteRef(refId) {
+  if (!confirm('Remove this reference?')) return;
+  const resp = await fetch(`/projects/{{ project.id }}/references/${refId}/delete`,
+    { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token() }}'} });
+  const data = await resp.json();
+  if (data.success) window.location.reload();
+  else alert('Delete failed: ' + (data.error || 'Unknown'));
+}
+
+async function regenerateCard() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '↻ Regenerating…';
+  try {
+    const resp = await fetch('/projects/{{ project.id }}/requirement-card/generate',
+      { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token() }}'} });
+    const data = await resp.json();
+    if (data.success) window.location.reload();
+    else { btn.disabled = false; btn.textContent = '↻ Regenerate Card'; alert(data.error); }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '↻ Regenerate Card';
+  }
+}
+</script>
+{% endblock %}
