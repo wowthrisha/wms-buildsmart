@@ -1,302 +1,837 @@
 {% extends "base_architect.html" %}
 {% block title %}Visual References — {{ project.name }}{% endblock %}
 
-{% block content %}
-<div class="meetings-shell">
+{% block extra_css %}
+<style>
+/* ══════════════════════════════════════════════
+   VISUAL REFERENCES PAGE
+   Uses design-system.css variables:
+   --ink / --ink-1 / --ink-2 / --ink-3
+   --chalk / --chalk-2 / --chalk-3
+   --gold / --gold-dim / --gold-glow / --gold-grad
+   --line / --line-hi
+   --teal / --rose
+   ══════════════════════════════════════════════ */
 
-  <!-- HERO -->
-  <div class="meetings-hero">
+/* Shell */
+.vr-shell { padding: 32px 40px; max-width: 1280px; }
+
+/* ── Hero ── */
+.vr-hero {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; flex-wrap: wrap; gap: 16px;
+  margin-bottom: 32px;
+}
+.vr-kicker {
+  font-size: 10px; letter-spacing: 2.5px; font-weight: 700;
+  text-transform: uppercase; color: var(--gold); margin-bottom: 8px;
+}
+.vr-title {
+  font-size: 30px; font-weight: 700; color: var(--chalk);
+  margin: 0 0 6px; font-family: 'Syne', sans-serif;
+}
+.vr-sub { font-size: 13px; color: var(--chalk-3); margin: 0; }
+.vr-hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── Stats row ── */
+.vr-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 14px; margin-bottom: 28px;
+}
+.vr-stat-card {
+  background: var(--ink-1); border: 1px solid var(--line);
+  border-radius: 12px; padding: 18px 20px;
+  transition: border-color 0.2s;
+}
+.vr-stat-card:hover { border-color: var(--line-hi); }
+.vr-stat-label {
+  font-size: 10px; color: var(--chalk-3); text-transform: uppercase;
+  letter-spacing: 1.5px; font-weight: 600; margin-bottom: 10px;
+}
+.vr-stat-value { font-size: 26px; font-weight: 700; color: var(--chalk); line-height: 1; }
+.vr-stat-sub { font-size: 11px; color: var(--chalk-3); margin-top: 6px; }
+.color-green { color: var(--teal) !important; }
+.color-amber { color: var(--gold) !important; }
+.color-red   { color: var(--rose) !important; }
+.color-muted { color: var(--chalk-3) !important; }
+
+/* ── Divergence warning ── */
+.vr-warn {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: rgba(251,113,133,0.07);
+  border: 1px solid rgba(251,113,133,0.25);
+  border-left: 3px solid var(--rose);
+  border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;
+}
+.vr-warn-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.vr-warn-title { font-size: 13px; font-weight: 600; color: var(--rose); margin-bottom: 4px; }
+.vr-warn-body { font-size: 13px; color: var(--chalk-2); line-height: 1.55; }
+
+/* ── AI Requirement Card ── */
+.ai-card {
+  position: relative; overflow: hidden;
+  background: var(--ink-1);
+  border: 1px solid rgba(232,201,122,0.2);
+  border-radius: 14px; padding: 24px; margin-bottom: 28px;
+}
+.ai-card::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--gold-grad);
+}
+.ai-card-header {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 22px;
+}
+.ai-card-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--gold);
+}
+.ai-badge {
+  font-size: 9px; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--chalk-2);
+  background: var(--ink-2); border: 1px solid var(--line);
+  padding: 2px 8px; border-radius: 20px;
+}
+.ai-card-time { font-size: 11px; color: var(--chalk-3); }
+.ai-metrics {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 20px; margin-bottom: 22px;
+  padding-bottom: 22px; border-bottom: 1px solid var(--line);
+}
+.ai-metric-label {
+  font-size: 10px; color: var(--chalk-3); text-transform: uppercase;
+  letter-spacing: 1.5px; font-weight: 600; margin-bottom: 8px;
+}
+.ai-metric-value {
+  font-size: 22px; font-weight: 700; color: var(--chalk); line-height: 1;
+}
+.ai-metric-sub { font-size: 11px; color: var(--chalk-3); margin-top: 5px; }
+
+.ai-section { margin-top: 16px; }
+.ai-section-label {
+  font-size: 10px; color: var(--chalk-3); text-transform: uppercase;
+  letter-spacing: 1.5px; font-weight: 600; margin-bottom: 10px;
+}
+.ai-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-tag {
+  font-size: 11px; padding: 4px 12px; border-radius: 20px;
+  border: 1px solid var(--line-hi); color: var(--chalk-2);
+  background: var(--ink-2); white-space: nowrap;
+}
+.ai-tag.conflict {
+  border-color: rgba(251,113,133,0.35);
+  background: rgba(251,113,133,0.08); color: var(--rose);
+}
+.ai-tag.spatial {
+  border-color: rgba(96,165,250,0.35);
+  background: rgba(96,165,250,0.08); color: var(--sky);
+}
+.ai-tag.material {
+  border-color: rgba(232,201,122,0.35);
+  background: var(--gold-dim); color: var(--gold);
+}
+
+/* ── Filter tabs ── */
+.vr-filters {
+  display: flex; gap: 8px; margin-bottom: 22px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--line);
+}
+.vr-filter {
+  padding: 6px 18px; border-radius: 20px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--line); background: transparent; color: var(--chalk-3);
+  cursor: pointer; transition: all 0.18s;
+}
+.vr-filter.active { background: var(--gold-dim); border-color: var(--gold-glow); color: var(--gold); }
+.vr-filter:hover:not(.active) { border-color: var(--line-hi); color: var(--chalk-2); }
+
+/* ── Grid ── */
+.vr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
+}
+
+/* ── Reference card ── */
+.ref-card {
+  background: var(--ink-1); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden; position: relative;
+  cursor: pointer; transition: all 0.2s;
+  display: flex; flex-direction: column;
+}
+.ref-card:hover {
+  border-color: var(--gold-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+}
+.ref-img {
+  height: 200px; overflow: hidden; position: relative;
+  background: var(--ink-2); flex-shrink: 0;
+}
+.ref-img img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.3s;
+}
+.ref-card:hover .ref-img img { transform: scale(1.04); }
+.ref-img-empty {
+  width: 100%; height: 100%; display: flex; align-items: center;
+  justify-content: center; font-size: 36px; color: var(--chalk-3);
+}
+.ref-badges {
+  position: absolute; top: 10px; left: 10px;
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.role-pill {
+  font-size: 10px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; padding: 3px 10px; border-radius: 20px;
+}
+.role-pill.client {
+  background: rgba(232,201,122,0.2); color: var(--gold);
+  border: 1px solid rgba(232,201,122,0.4);
+}
+.role-pill.architect {
+  background: rgba(96,165,250,0.15); color: var(--sky);
+  border: 1px solid rgba(96,165,250,0.35);
+}
+.ref-del-btn {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(251,113,133,0.85); border: none;
+  color: #fff; border-radius: 6px; padding: 4px 10px;
+  cursor: pointer; font-size: 10px; font-weight: 600;
+  opacity: 0; transition: opacity 0.18s;
+}
+.ref-card:hover .ref-del-btn { opacity: 1; }
+
+.ref-body { padding: 14px 16px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.ref-style {
+  font-size: 12px; font-weight: 600; color: var(--gold);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ref-caption {
+  font-size: 12px; color: var(--chalk-2); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.ref-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.ref-tag {
+  font-size: 10px; color: var(--chalk-3); background: var(--ink-2);
+  border: 1px solid var(--line); padding: 2px 8px; border-radius: 4px;
+  white-space: nowrap; max-width: 150px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ref-colors { display: flex; gap: 5px; }
+.ref-dot {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
+}
+.ref-footer {
+  display: flex; justify-content: space-between;
+  align-items: center; padding-top: 4px;
+}
+.ref-date { font-size: 10px; color: var(--chalk-3); }
+.ref-link { font-size: 10px; color: var(--gold); text-decoration: none; }
+.ref-link:hover { text-decoration: underline; }
+
+/* ── Empty state ── */
+.vr-empty {
+  grid-column: 1 / -1; text-align: center;
+  padding: 80px 24px;
+  border: 1px dashed var(--line-hi); border-radius: 12px;
+  background: var(--ink-1);
+}
+.vr-empty-icon { font-size: 44px; margin-bottom: 16px; }
+.vr-empty-title { font-size: 18px; font-weight: 700; color: var(--chalk); margin-bottom: 8px; }
+.vr-empty-sub { font-size: 13px; color: var(--chalk-3); line-height: 1.7; margin-bottom: 24px; }
+
+/* ══ MODALS ══ */
+.vr-overlay {
+  display: none; position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,0.72); backdrop-filter: blur(6px);
+  align-items: center; justify-content: center;
+}
+.vr-overlay.open { display: flex; }
+.vr-modal {
+  background: var(--ink-1); border: 1px solid var(--line-hi);
+  border-radius: 16px; width: 520px; max-width: 94vw;
+  max-height: 92vh; overflow-y: auto;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.65);
+}
+.vr-modal-wide { width: 860px; }
+.vr-modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 22px 26px 0; margin-bottom: 20px;
+}
+.vr-modal-title { font-size: 16px; font-weight: 700; color: var(--chalk); }
+.vr-modal-close {
+  background: none; border: none; color: var(--chalk-3);
+  font-size: 20px; cursor: pointer; line-height: 1; padding: 4px;
+  transition: color 0.15s;
+}
+.vr-modal-close:hover { color: var(--chalk); }
+.vr-modal-body { padding: 0 26px 26px; }
+
+/* Form */
+.vr-label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--chalk-2); margin-bottom: 6px;
+}
+.vr-label span { font-weight: 400; color: var(--chalk-3); }
+.vr-input {
+  width: 100%; padding: 10px 14px;
+  background: var(--ink-2); border: 1px solid var(--line);
+  border-radius: 8px; color: var(--chalk); font-size: 13px;
+  box-sizing: border-box; transition: border-color 0.18s;
+  font-family: 'Outfit', sans-serif;
+}
+.vr-input:focus { outline: none; border-color: var(--gold-glow); box-shadow: 0 0 0 3px var(--gold-dim); }
+.vr-textarea { resize: vertical; min-height: 80px; }
+.vr-field { margin-bottom: 18px; }
+
+.vr-drop {
+  border: 2px dashed var(--line-hi); border-radius: 10px;
+  padding: 28px 20px; text-align: center;
+  cursor: pointer; position: relative; transition: all 0.18s;
+}
+.vr-drop:hover, .vr-drop.over {
+  border-color: var(--gold-glow); background: var(--gold-dim);
+}
+.vr-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.vr-drop-icon { font-size: 28px; margin-bottom: 8px; }
+.vr-drop-text { font-size: 13px; color: var(--chalk-2); }
+.vr-drop-sub { font-size: 11px; color: var(--chalk-3); margin-top: 4px; }
+
+.vr-preview { display: none; margin-top: 14px; text-align: center; }
+.vr-preview img { max-height: 110px; border-radius: 8px; border: 1px solid var(--line); }
+.vr-preview-name { font-size: 11px; color: var(--chalk-3); margin-top: 6px; }
+
+.vr-status {
+  padding: 10px 14px; border-radius: 8px; font-size: 13px;
+  margin-bottom: 16px; display: none;
+}
+.vr-status.info    { background: rgba(96,165,250,0.1);  color: var(--sky);  border: 1px solid rgba(96,165,250,0.3); }
+.vr-status.success { background: rgba(94,234,212,0.08); color: var(--teal); border: 1px solid rgba(94,234,212,0.3); }
+.vr-status.error   { background: rgba(251,113,133,0.08);color: var(--rose); border: 1px solid rgba(251,113,133,0.3); }
+
+.vr-modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+/* Detail modal grid */
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.detail-img {
+  border-radius: 10px; overflow: hidden; max-height: 320px;
+  background: var(--ink-2);
+}
+.detail-img img { width: 100%; height: 100%; object-fit: cover; }
+.detail-field { margin-bottom: 18px; }
+.detail-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--chalk-3); margin-bottom: 6px;
+}
+.detail-value { font-size: 13px; color: var(--chalk-2); line-height: 1.6; }
+.detail-colors { display: flex; gap: 8px; }
+.detail-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--line-hi);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .vr-stats { grid-template-columns: 1fr 1fr; }
+  .ai-metrics { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr; }
+  .vr-shell { padding: 20px; }
+}
+@media (max-width: 540px) {
+  .vr-stats { grid-template-columns: 1fr; }
+  .vr-title { font-size: 22px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vr-shell">
+
+  {# ── HERO ── #}
+  <div class="vr-hero">
     <div>
-      <span class="section-kicker">PROJECT WORKSPACE</span>
-      <h1 class="meetings-title">Visual References</h1>
-      <p class="meetings-subtitle">
-        {{ project.name }} · Dual-Pipeline AI Analysis
+      <div class="vr-kicker">Project Workspace</div>
+      <h1 class="vr-title">Visual References</h1>
+      <p class="vr-sub">
+        {{ project.name }} &nbsp;·&nbsp; Dual-Pipeline AI Analysis &nbsp;·&nbsp;
+        {{ refs | length }} reference{{ 's' if refs | length != 1 else '' }}
       </p>
     </div>
-    <div class="hero-actions">
-      <button class="mt-btn mt-btn-secondary" onclick="openUploadModal()">+ Add Reference</button>
-      {% if card %}
-      <button class="mt-btn mt-btn-primary" onclick="regenerateCard()">↻ Regenerate Card</button>
+    <div class="vr-hero-actions">
+      <button class="btn btn-ghost" onclick="openUpload()">+ Add Reference</button>
+      {% if refs %}
+      <button class="btn btn-primary" id="regenBtn" onclick="regenerateCard()">
+        ↻ Regenerate Analysis
+      </button>
       {% endif %}
     </div>
   </div>
 
-  <!-- AI REQUIREMENT CARD -->
-  {% if card %}
-  <div class="section-card" style="margin-bottom:24px; border-left:3px solid var(--gold);">
-    <div class="section-kicker">AI REQUIREMENT CARD</div>
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:16px;">
+  {# ── STATS ROW ── #}
+  <div class="vr-stats">
+    <div class="vr-stat-card">
+      <div class="vr-stat-label">Total References</div>
+      <div class="vr-stat-value">{{ refs | length }}</div>
+      <div class="vr-stat-sub">{{ client_refs | length }} client · {{ arch_refs | length }} architect</div>
+    </div>
 
-      <div class="detail-card">
-        <div class="detail-label">Primary Visual Style</div>
-        <div class="detail-value">{{ card.visual_style or 'Analysing...' }}</div>
-      </div>
-
-      <div class="detail-card">
-        <div class="detail-label">Feasibility Score</div>
-        <div class="detail-value" style="color:
-          {%- if card.feasibility_pct and card.feasibility_pct >= 75 %}#1D9E75
-          {%- elif card.feasibility_pct and card.feasibility_pct >= 50 %}#EF9F27
-          {%- else %}#E24B4A{%- endif %};">
-          {{ card.feasibility_pct | round(1) if card.feasibility_pct else '—' }}%
+    <div class="vr-stat-card">
+      <div class="vr-stat-label">Feasibility Score</div>
+      {% if card and card.feasibility_pct is not none %}
+        {% set fp = card.feasibility_pct | round(0) | int %}
+        <div class="vr-stat-value {% if fp >= 75 %}color-green{% elif fp >= 50 %}color-amber{% else %}color-red{% endif %}">
+          {{ fp }}%
         </div>
-      </div>
+      {% else %}
+        <div class="vr-stat-value color-muted">—</div>
+      {% endif %}
+      <div class="vr-stat-sub">TNPCR compliance estimate</div>
+    </div>
 
-      <div class="detail-card">
-        <div class="detail-label">Style Divergence</div>
-        <div class="detail-value" style="color:
-          {%- if card.divergence_score is none %}var(--chalk-3)
-          {%- elif card.divergence_score < 40 %}#1D9E75
-          {%- elif card.divergence_score < 60 %}#EF9F27
-          {%- else %}#E24B4A{%- endif %};">
-          {% if card.divergence_score is none %}
-            Upload refs from both roles to compute
-          {% else %}
-            {{ card.divergence_score }}% mismatch
-          {% endif %}
+    <div class="vr-stat-card">
+      <div class="vr-stat-label">Style Divergence</div>
+      {% if card and card.divergence_score is not none %}
+        {% set ds = card.divergence_score | round(0) | int %}
+        <div class="vr-stat-value {% if ds < 40 %}color-green{% elif ds < 60 %}color-amber{% else %}color-red{% endif %}">
+          {{ ds }}%
         </div>
-      </div>
+      {% else %}
+        <div class="vr-stat-value color-muted">—</div>
+      {% endif %}
+      <div class="vr-stat-sub">Client vs architect mismatch</div>
     </div>
 
-    {% if card.conflicts_json and card.conflicts_json != '[]' %}
-    <div style="margin-top:16px;">
-      <div class="detail-label" style="color:#E24B4A;">⚠ Compliance Conflicts Detected</div>
-      <ul style="margin-top:8px; padding-left:16px;">
-        {% for conflict in card.conflicts_json | from_json %}
-        <li style="color:var(--chalk-2); margin-bottom:4px;">{{ conflict }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-
-    {% if card.spatial_tags and card.spatial_tags != '[]' %}
-    <div style="margin-top:16px;">
-      <div class="detail-label">Spatial Features Detected</div>
-      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
-        {% for tag in card.spatial_tags | from_json %}
-        <span class="status-badge" style="background:rgba(83,74,183,0.2); color:#a09de8;">{{ tag }}</span>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-
-    <div style="margin-top:12px; color:var(--chalk-3); font-size:11px;">
-      Generated {{ card.generated_at.strftime('%d %b %Y %H:%M') if card.generated_at else 'just now' }}
-      · {{ refs | length }} reference(s) analysed
+    <div class="vr-stat-card">
+      <div class="vr-stat-label">Conflicts Detected</div>
+      {% if card %}
+        {% set nc = card.conflicts_json | from_json | length %}
+        <div class="vr-stat-value {% if nc > 0 %}color-red{% else %}color-green{% endif %}">{{ nc }}</div>
+      {% else %}
+        <div class="vr-stat-value color-muted">—</div>
+      {% endif %}
+      <div class="vr-stat-sub">TNPCR rule violations</div>
     </div>
   </div>
-  {% endif %}
 
-  <!-- HIGH-DIVERGENCE WARNING -->
+  {# ── DIVERGENCE WARNING ── #}
   {% if card and card.divergence_score is not none and card.divergence_score > 60 %}
-  <div class="section-card" style="border-left:3px solid #E24B4A; margin-bottom:24px;">
-    <strong style="color:#E24B4A;">⚠ High Style Divergence ({{ card.divergence_score }}%)</strong>
-    <p style="margin-top:8px; color:var(--chalk-2);">
-      Client and architect visual references show significant style mismatch.
-      A visual alignment meeting is recommended before design begins.
-    </p>
+  <div class="vr-warn">
+    <div class="vr-warn-icon">⚠</div>
+    <div>
+      <div class="vr-warn-title">High Style Divergence — {{ card.divergence_score | round(0) | int }}% Mismatch</div>
+      <div class="vr-warn-body">
+        Client and architect visual references show significant style differences.
+        A visual alignment meeting is recommended before design begins —
+        projects with divergence above 60% see <strong>3× more revision requests</strong>.
+      </div>
+    </div>
   </div>
   {% endif %}
 
-  <!-- REFERENCES GRID -->
-  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:16px;">
+  {# ── AI REQUIREMENT CARD ── #}
+  {% if card %}
+  <div class="ai-card">
+    <div class="ai-card-header">
+      <div class="ai-card-label">
+        ✦ AI Requirement Card
+        <span class="ai-badge">Dual Pipeline</span>
+      </div>
+      <div class="ai-card-time">
+        {% if card.generated_at %}{{ card.generated_at.strftime('%d %b %Y · %H:%M') }}{% endif %}
+        · {{ refs | length }} ref{{ 's' if refs | length != 1 else '' }} analysed
+      </div>
+    </div>
+
+    <div class="ai-metrics">
+      <div>
+        <div class="ai-metric-label">Primary Visual Style</div>
+        <div class="ai-metric-value" style="font-size:16px; color:var(--chalk);">
+          {{ card.visual_style or 'Analysing...' }}
+        </div>
+        <div class="ai-metric-sub">CLIP ViT-B/32</div>
+      </div>
+      <div>
+        <div class="ai-metric-label">Feasibility Score</div>
+        {% if card.feasibility_pct is not none %}
+          {% set fp = card.feasibility_pct | round(1) %}
+          <div class="ai-metric-value {% if fp >= 75 %}color-green{% elif fp >= 50 %}color-amber{% else %}color-red{% endif %}">
+            {{ fp }}%
+          </div>
+          <div class="ai-metric-sub">Claude NLP + TNPCR</div>
+        {% else %}
+          <div class="ai-metric-value color-muted">—</div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="ai-metric-label">Style Divergence</div>
+        {% if card.divergence_score is not none %}
+          {% set ds = card.divergence_score | round(0) | int %}
+          <div class="ai-metric-value {% if ds < 40 %}color-green{% elif ds < 60 %}color-amber{% else %}color-red{% endif %}">
+            {{ ds }}%
+          </div>
+          <div class="ai-metric-sub">
+            {% if ds < 40 %}Good alignment{% elif ds < 60 %}Minor differences{% else %}Alignment meeting needed{% endif %}
+          </div>
+        {% else %}
+          <div class="ai-metric-value color-muted" style="font-size:14px;">Upload both roles</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Materials #}
+    {% set mats = card.materials_json | from_json %}
+    {% if mats %}
+    <div class="ai-section">
+      <div class="ai-section-label">Materials Detected</div>
+      <div class="ai-tags">
+        {% for m in mats %}<span class="ai-tag material">{{ m }}</span>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Spatial #}
+    {% set spatial = card.spatial_tags | from_json %}
+    {% if spatial %}
+    <div class="ai-section">
+      <div class="ai-section-label">Spatial Features</div>
+      <div class="ai-tags">
+        {% for s in spatial %}<span class="ai-tag spatial">{{ s }}</span>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Conflicts #}
+    {% set conflicts = card.conflicts_json | from_json %}
+    {% if conflicts %}
+    <div class="ai-section">
+      <div class="ai-section-label" style="color:var(--rose);">⚠ Compliance Conflicts</div>
+      <div class="ai-tags">
+        {% for c in conflicts %}<span class="ai-tag conflict">{{ c }}</span>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── FILTER TABS ── #}
+  <div class="vr-filters">
+    <button class="vr-filter active" onclick="filterRefs('all',this)">All ({{ refs|length }})</button>
+    <button class="vr-filter" onclick="filterRefs('client',this)">Client ({{ client_refs|length }})</button>
+    <button class="vr-filter" onclick="filterRefs('architect',this)">Architect ({{ arch_refs|length }})</button>
+  </div>
+
+  {# ── REFERENCES GRID ── #}
+  <div class="vr-grid" id="refsGrid">
 
     {% for ref in refs %}
-    <div class="section-card" style="padding:0; overflow:hidden; position:relative;">
+    <div class="ref-card" data-role="{{ ref.uploader_role }}" onclick="openDetail({{ ref.id }})">
 
-      <!-- Role badge -->
-      <div style="position:absolute; top:8px; left:8px; z-index:2;">
-        <span class="status-badge" style="
-          {% if ref.uploader_role == 'client' %}background:rgba(239,159,39,0.2); color:#EF9F27;
-          {% else %}background:rgba(83,74,183,0.2); color:#a09de8;{% endif %}">
-          {{ ref.uploader_role | capitalize }}
-        </span>
-      </div>
-
-      <!-- Delete button -->
-      {% if current_user.role == 'architect' or current_user.id == ref.id %}
-      <button onclick="deleteRef({{ ref.id }})"
-              style="position:absolute; top:8px; right:8px; z-index:2;
-                     background:rgba(226,75,74,0.85); border:none; color:#fff;
-                     border-radius:4px; padding:2px 8px; cursor:pointer; font-size:11px;">✕</button>
+      {% if current_user.role == 'architect' or current_user.id == ref.uploader_id %}
+      <button class="ref-del-btn"
+              onclick="event.stopPropagation(); deleteRef({{ ref.id }})">✕ Remove</button>
       {% endif %}
 
-      <!-- Image -->
-      <div style="height:180px; overflow:hidden; background:#0d1117;">
-        <img src="/uploads/{{ ref.filename }}"
-             style="width:100%; height:100%; object-fit:cover;"
-             onerror="this.style.display='none'">
+      <div class="ref-img">
+        <div class="ref-badges">
+          <span class="role-pill {{ ref.uploader_role }}">{{ ref.uploader_role | capitalize }}</span>
+          {% if ref.source_url %}<span class="role-pill" style="background:var(--ink-2);color:var(--chalk-3);border-color:var(--line);">🔗</span>{% endif %}
+        </div>
+        <img src="/projects/{{ project.id }}/references/{{ ref.id }}/image"
+             alt="{{ ref.style_primary }}"
+             onerror="this.parentElement.innerHTML='<div class=ref-img-empty>🖼</div>'">
       </div>
 
-      <!-- Card body -->
-      <div style="padding:12px;">
-        <div style="font-size:12px; color:var(--gold); font-weight:600; margin-bottom:4px;">
-          {{ ref.style_primary }}
+      <div class="ref-body">
+        <div class="ref-style">{{ ref.style_primary or 'Analysing...' }}</div>
+        {% if ref.caption %}<div class="ref-caption">{{ ref.caption }}</div>{% endif %}
+        <div class="ref-tags">
+          {% for tag in ref.tags[:3] %}<span class="ref-tag" title="{{ tag }}">{{ tag[:44] }}</span>{% endfor %}
         </div>
-
-        {% if ref.caption %}
-        <div style="font-size:12px; color:var(--chalk-2); margin-bottom:8px; line-height:1.4;">
-          {{ ref.caption[:120] }}{% if ref.caption | length > 120 %}…{% endif %}
-        </div>
-        {% endif %}
-
-        <div style="display:flex; flex-wrap:wrap; gap:4px;">
-          {% for tag in ref.tags[:3] %}
-          <span style="font-size:10px; background:rgba(255,255,255,0.05);
-                       color:var(--chalk-3); padding:2px 6px; border-radius:3px;">
-            {{ tag[:40] }}
-          </span>
-          {% endfor %}
-        </div>
-
         {% if ref.colors %}
-        <div style="display:flex; gap:4px; margin-top:8px;">
-          {% for color in ref.colors[:5] %}
-          <div style="width:16px; height:16px; border-radius:50%;
-                      background:{{ color }}; border:1px solid rgba(255,255,255,0.2);"
-               title="{{ color }}"></div>
-          {% endfor %}
+        <div class="ref-colors">
+          {% for c in ref.colors[:5] %}<div class="ref-dot" style="background:{{ c }}" title="{{ c }}"></div>{% endfor %}
         </div>
         {% endif %}
-
-        <div style="font-size:10px; color:var(--chalk-3); margin-top:8px;">
-          {{ ref.created_at.strftime('%d %b') }}
+        <div class="ref-footer">
+          <span class="ref-date">{{ ref.created_at.strftime('%d %b %Y') }}</span>
+          {% if ref.source_url %}
+          <a href="{{ ref.source_url }}" target="_blank" rel="noopener"
+             class="ref-link" onclick="event.stopPropagation()">Source ↗</a>
+          {% endif %}
         </div>
       </div>
     </div>
     {% endfor %}
 
     {% if not refs %}
-    <div style="grid-column:1/-1; text-align:center; padding:60px 20px; color:var(--chalk-3);">
-      <div style="font-size:32px; margin-bottom:12px;">🖼</div>
-      <div style="font-size:16px; margin-bottom:8px;">No references yet</div>
-      <div style="font-size:13px; margin-bottom:20px;">
-        Upload inspiration images. CLIP analyses style and materials automatically.
+    <div class="vr-empty">
+      <div class="vr-empty-icon">🖼</div>
+      <div class="vr-empty-title">No Visual References Yet</div>
+      <div class="vr-empty-sub">
+        Upload inspiration images from Pinterest, Instagram, or your phone.<br>
+        CLIP analyses style, Claude extracts requirements,<br>
+        and the AI card updates automatically after every upload.
       </div>
-      <button class="mt-btn mt-btn-primary" onclick="openUploadModal()">+ Add First Reference</button>
+      <button class="btn btn-primary" onclick="openUpload()">+ Add First Reference</button>
     </div>
     {% endif %}
-  </div>
 
-</div>
-
-<!-- UPLOAD MODAL -->
-<div id="uploadModal"
-     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
-            z-index:1000; align-items:center; justify-content:center;">
-  <div class="section-card" style="width:480px; max-width:90vw;">
-    <h3 style="margin-bottom:16px;">Add Visual Reference</h3>
-
-    <form id="uploadForm" enctype="multipart/form-data">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-      <div style="margin-bottom:16px;">
-        <label style="display:block; margin-bottom:6px; color:var(--chalk-2); font-size:13px;">
-          Image (JPG, PNG, WebP — max 20 MB)
-        </label>
-        <input type="file" name="file" accept="image/*" required
-               style="width:100%; padding:8px; background:#141821;
-                      border:1px solid rgba(255,255,255,0.1);
-                      border-radius:6px; color:var(--chalk-1);">
-      </div>
-
-      <div style="margin-bottom:16px;">
-        <label style="display:block; margin-bottom:6px; color:var(--chalk-2); font-size:13px;">
-          Caption / Notes <span style="color:var(--chalk-3);">(optional — helps AI extract requirements)</span>
-        </label>
-        <textarea name="caption" rows="3"
-                  placeholder="e.g. I want an open kitchen that connects to the garden with warm wood tones"
-                  style="width:100%; padding:8px; background:#141821;
-                         border:1px solid rgba(255,255,255,0.1);
-                         border-radius:6px; color:var(--chalk-1);
-                         resize:vertical; font-size:13px;"></textarea>
-      </div>
-
-      <div style="margin-bottom:16px;">
-        <label style="display:block; margin-bottom:6px; color:var(--chalk-2); font-size:13px;">
-          Source URL <span style="color:var(--chalk-3);">(optional)</span>
-        </label>
-        <input type="text" name="source_url" placeholder="https://pinterest.com/..."
-               style="width:100%; padding:8px; background:#141821;
-                      border:1px solid rgba(255,255,255,0.1);
-                      border-radius:6px; color:var(--chalk-1); font-size:13px;">
-      </div>
-
-      <div id="uploadStatus"
-           style="display:none; margin-bottom:12px; padding:10px;
-                  border-radius:6px; font-size:13px;"></div>
-
-      <div style="display:flex; gap:10px; justify-content:flex-end;">
-        <button type="button" onclick="closeUploadModal()" class="mt-btn mt-btn-secondary">Cancel</button>
-        <button type="submit" id="uploadBtn" class="mt-btn mt-btn-primary">Upload + Analyse</button>
-      </div>
-    </form>
   </div>
 </div>
 
+
+{# ══ UPLOAD MODAL ══ #}
+<div class="vr-overlay" id="uploadOverlay">
+  <div class="vr-modal">
+    <div class="vr-modal-head">
+      <div class="vr-modal-title">Add Visual Reference</div>
+      <button class="vr-modal-close" onclick="closeUpload()">✕</button>
+    </div>
+    <div class="vr-modal-body">
+      <div id="upStatus" class="vr-status"></div>
+      <form id="uploadForm" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="vr-field">
+          <label class="vr-label">Image <span>(JPG, PNG, WebP)</span></label>
+          <div class="vr-drop" id="dropArea">
+            <input type="file" name="file" accept="image/*"
+                   id="fileInput" onchange="previewFile(this)">
+            <div id="dropContent">
+              <div class="vr-drop-icon">📁</div>
+              <div class="vr-drop-text">Click to browse or drag &amp; drop</div>
+              <div class="vr-drop-sub">Pinterest screenshot, phone photo, any inspiration image</div>
+            </div>
+            <div class="vr-preview" id="filePreview">
+              <img id="previewImg" src="" alt="">
+              <div class="vr-preview-name" id="previewName"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="vr-field">
+          <label class="vr-label">Caption / Notes <span>(helps Claude extract requirements)</span></label>
+          <textarea name="caption" class="vr-input vr-textarea"
+            placeholder="e.g. I love the open kitchen connecting to the garden with warm wooden counters and earthy tones..."></textarea>
+        </div>
+
+        <div class="vr-field">
+          <label class="vr-label">Source Link <span>(optional)</span></label>
+          <input type="url" name="source_url" class="vr-input"
+                 placeholder="https://pinterest.com/pin/...">
+        </div>
+
+        <div class="vr-modal-foot">
+          <button type="button" class="btn btn-ghost" onclick="closeUpload()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="uploadBtn">Upload + Analyse ✦</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+{# ══ DETAIL MODAL ══ #}
+<div class="vr-overlay" id="detailOverlay">
+  <div class="vr-modal vr-modal-wide">
+    <div class="vr-modal-head">
+      <div class="vr-modal-title" id="detailTitle">Reference Detail</div>
+      <button class="vr-modal-close" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="vr-modal-body">
+      <div class="detail-grid">
+        <div class="detail-img">
+          <img id="detailImg" src="" alt="">
+        </div>
+        <div>
+          <div class="detail-field">
+            <div class="detail-label">Detected Style</div>
+            <div class="detail-value" id="detailStyle" style="font-size:15px; font-weight:600; color:var(--chalk);"></div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">Caption</div>
+            <div class="detail-value" id="detailCaption"></div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">Style Tags</div>
+            <div class="ai-tags" id="detailTags" style="margin-top:4px;"></div>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">Dominant Colors</div>
+            <div class="detail-colors" id="detailColors" style="margin-top:4px;"></div>
+          </div>
+          <div class="detail-field" id="detailSrcWrap" style="display:none;">
+            <div class="detail-label">Source</div>
+            <a id="detailSrc" href="#" target="_blank" rel="noopener"
+               style="font-size:13px; color:var(--gold);">View original ↗</a>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">Uploaded By</div>
+            <div class="detail-value" id="detailRole"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{# ══ JAVASCRIPT ══ #}
 <script>
-function openUploadModal()  { document.getElementById('uploadModal').style.display = 'flex'; }
-function closeUploadModal() {
-  document.getElementById('uploadModal').style.display = 'none';
-  document.getElementById('uploadStatus').style.display = 'none';
+/* ── Data ── */
+const REFS = {
+  {% for ref in refs %}
+  {{ ref.id }}: {
+    id: {{ ref.id }},
+    style: {{ ref.style_primary | tojson }},
+    caption: {{ (ref.caption or '') | tojson }},
+    tags: {{ ref.tags | tojson }},
+    colors: {{ (ref.colors or []) | tojson }},
+    role: {{ (ref.uploader_role or 'architect') | tojson }},
+    src: {{ (ref.source_url or '') | tojson }},
+    img: '/projects/{{ project.id }}/references/{{ ref.id }}/image',
+    date: {{ ref.created_at.strftime('%d %b %Y') | tojson }},
+  },
+  {% endfor %}
+};
+const PID  = {{ project.id }};
+const CSRF = document.querySelector('meta[name=csrf-token]')?.content || '{{ csrf_token() }}';
+
+/* ── Upload ── */
+function openUpload()  { document.getElementById('uploadOverlay').classList.add('open'); }
+function closeUpload() {
+  document.getElementById('uploadOverlay').classList.remove('open');
+  document.getElementById('upStatus').style.display = 'none';
+  document.getElementById('filePreview').style.display = 'none';
+  document.getElementById('dropContent').style.display = 'block';
+  document.getElementById('uploadForm').reset();
+  const b = document.getElementById('uploadBtn');
+  b.disabled = false; b.textContent = 'Upload + Analyse ✦';
 }
 
-document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-  e.preventDefault();
-  const btn    = document.getElementById('uploadBtn');
-  const status = document.getElementById('uploadStatus');
-  btn.disabled = true;
-  btn.textContent = 'Analysing…';
-  status.style.display = 'block';
-  status.style.background = 'rgba(83,74,183,0.2)';
-  status.style.color = '#a09de8';
-  status.textContent = '⏳ Running CLIP vision analysis + NLP pipeline…';
+function previewFile(input) {
+  if (!input.files?.[0]) return;
+  const f = input.files[0];
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById('dropContent').style.display = 'none';
+    document.getElementById('filePreview').style.display = 'block';
+    document.getElementById('previewImg').src = e.target.result;
+    document.getElementById('previewName').textContent =
+      f.name + ' · ' + (f.size / 1024).toFixed(0) + ' KB';
+  };
+  r.readAsDataURL(f);
+}
 
+document.getElementById('uploadForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('uploadBtn');
+  if (!document.getElementById('fileInput').files?.[0]) {
+    setStatus('error', 'Please select an image first.'); return;
+  }
+  btn.disabled = true; btn.textContent = '⏳ Analysing...';
+  setStatus('info', '⏳ Pipeline 1: CLIP vision · Pipeline 2: Claude NLP...');
   try {
-    const resp = await fetch('/projects/{{ project.id }}/references/add',
-                             { method: 'POST', body: new FormData(this) });
+    const resp = await fetch(`/projects/${PID}/references/add`,
+      { method: 'POST', body: new FormData(e.target) });
     const data = await resp.json();
     if (data.success) {
-      status.style.background = 'rgba(29,158,117,0.2)';
-      status.style.color = '#1D9E75';
-      const div = data.divergence_score !== null ? ` · Divergence: ${data.divergence_score}%` : '';
-      status.textContent = `✓ Analysed. Feasibility: ${data.feasibility_pct}%${div}`;
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      throw new Error(data.error || 'Upload failed');
-    }
+      let msg = '✓ Analysed successfully';
+      if (data.feasibility_pct != null) msg += ` · Feasibility: ${data.feasibility_pct}%`;
+      if (data.divergence_score != null) msg += ` · Divergence: ${data.divergence_score}%`;
+      setStatus('success', msg);
+      setTimeout(() => location.reload(), 1800);
+    } else throw new Error(data.error || 'Upload failed');
   } catch(err) {
-    status.style.background = 'rgba(226,75,74,0.2)';
-    status.style.color = '#E24B4A';
-    status.textContent = '✗ ' + err.message;
-    btn.disabled = false;
-    btn.textContent = 'Upload + Analyse';
+    setStatus('error', '✗ ' + err.message);
+    btn.disabled = false; btn.textContent = 'Upload + Analyse ✦';
   }
 });
 
-async function deleteRef(refId) {
-  if (!confirm('Remove this reference?')) return;
-  const resp = await fetch(`/projects/{{ project.id }}/references/${refId}/delete`,
-    { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token() }}'} });
-  const data = await resp.json();
-  if (data.success) window.location.reload();
-  else alert('Delete failed: ' + (data.error || 'Unknown'));
+function setStatus(type, msg) {
+  const el = document.getElementById('upStatus');
+  el.className = 'vr-status ' + type;
+  el.textContent = msg; el.style.display = 'block';
 }
 
-async function regenerateCard() {
-  const btn = event.target;
-  btn.disabled = true;
-  btn.textContent = '↻ Regenerating…';
-  try {
-    const resp = await fetch('/projects/{{ project.id }}/requirement-card/generate',
-      { method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token() }}'} });
-    const data = await resp.json();
-    if (data.success) window.location.reload();
-    else { btn.disabled = false; btn.textContent = '↻ Regenerate Card'; alert(data.error); }
-  } catch(e) {
-    btn.disabled = false;
-    btn.textContent = '↻ Regenerate Card';
-  }
+/* ── Filter ── */
+function filterRefs(role, btn) {
+  document.querySelectorAll('.vr-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.ref-card').forEach(c => {
+    c.style.display = (role === 'all' || c.dataset.role === role) ? '' : 'none';
+  });
 }
+
+/* ── Detail modal ── */
+function openDetail(id) {
+  const r = REFS[id]; if (!r) return;
+  document.getElementById('detailImg').src = r.img;
+  document.getElementById('detailTitle').textContent = r.style || 'Visual Reference';
+  document.getElementById('detailStyle').textContent = r.style || 'Analysing...';
+  document.getElementById('detailCaption').textContent = r.caption || 'No caption provided';
+  document.getElementById('detailRole').textContent =
+    r.role.charAt(0).toUpperCase() + r.role.slice(1) + ' · ' + r.date;
+  document.getElementById('detailTags').innerHTML =
+    r.tags.slice(0,5).map(t => `<span class="ai-tag">${t.substring(0,58)}</span>`).join('');
+  document.getElementById('detailColors').innerHTML =
+    (r.colors||[]).map(c =>
+      `<div class="detail-dot" style="background:${c}" title="${c}"></div>`).join('');
+  if (r.src) {
+    document.getElementById('detailSrcWrap').style.display = 'block';
+    document.getElementById('detailSrc').href = r.src;
+  } else {
+    document.getElementById('detailSrcWrap').style.display = 'none';
+  }
+  document.getElementById('detailOverlay').classList.add('open');
+}
+function closeDetail() { document.getElementById('detailOverlay').classList.remove('open'); }
+
+/* ── Delete ── */
+async function deleteRef(id) {
+  if (!confirm('Remove this reference? The AI card will regenerate.')) return;
+  try {
+    const r = await fetch(`/projects/${PID}/references/${id}/delete`,
+      { method: 'POST', headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' } });
+    const d = await r.json();
+    if (d.success) location.reload();
+    else alert('Delete failed: ' + (d.error || 'Unknown'));
+  } catch { alert('Network error.'); }
+}
+
+/* ── Regenerate ── */
+async function regenerateCard() {
+  const btn = document.getElementById('regenBtn');
+  btn.disabled = true; btn.textContent = '↻ Regenerating...';
+  try {
+    const r = await fetch(`/projects/${PID}/requirement-card/generate`,
+      { method: 'POST', headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' } });
+    const d = await r.json();
+    if (d.success) location.reload();
+    else { alert(d.error || 'Failed'); btn.disabled=false; btn.textContent='↻ Regenerate Analysis'; }
+  } catch { alert('Network error.'); btn.disabled=false; btn.textContent='↻ Regenerate Analysis'; }
+}
+
+/* ── Close overlay on background click ── */
+['uploadOverlay','detailOverlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === e.currentTarget)
+      e.currentTarget.id === 'uploadOverlay' ? closeUpload() : closeDetail();
+  });
+});
+
+/* ── Drag and drop ── */
+const drop = document.getElementById('dropArea');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('over');
+  const files = e.dataTransfer.files;
+  if (files.length) { document.getElementById('fileInput').files = files; previewFile(document.getElementById('fileInput')); }
+});
 </script>
 {% endblock %}

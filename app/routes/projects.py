@@ -346,6 +346,7 @@ def upload_reference(project_id):
     ref = VisualReference(
         project_id=p.id,
         filename=filename,
+        file_path=filename,   # same value — used by serve route
         caption=caption,
         uploader_id=current_user.id,
         uploader_role=current_user.role,
@@ -409,13 +410,15 @@ def ref_index(project_id):
     refs_data = []
     for ref in refs:
         refs_data.append({
-            'id':           ref.id,
-            'filename':     ref.filename,
-            'caption':      ref.caption,
-            'uploader_role': ref.uploader_role,
+            'id':            ref.id,
+            'filename':      ref.filename,
+            'caption':       ref.caption,
+            'uploader_role': ref.uploader_role or 'architect',
             'style_primary': ref.style_primary or 'Analysing...',
             'tags':          json.loads(ref.tags_json   or '[]'),
             'colors':        json.loads(ref.colors_json or '[]'),
+            'source_url':    ref.source_url or '',
+            'uploader_id':   ref.uploader_id,
             'created_at':    ref.created_at,
         })
 
@@ -480,23 +483,53 @@ def req_card(project_id):
 def req_generate(project_id):
     """Triggers full dual-pipeline reanalysis and regenerates the RequirementCard."""
     from app.requirement_fusion import generate_requirement_card
+    from app.models import VisualReference
 
     p = Project.query.get_or_404(project_id)
     if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
     if current_user.role == 'client'    and p.client_id    != current_user.id: abort(403)
 
+    ref_count = VisualReference.query.filter_by(project_id=project_id).count()
+    if ref_count == 0:
+        return jsonify({'error': 'No references uploaded yet. Add at least one image first.'}), 400
+
     try:
         card = generate_requirement_card(project_id)
         if not card:
-            return jsonify({'error': 'No references uploaded yet'}), 400
+            return jsonify({'error': 'Card generation failed. Try again.'}), 500
         return jsonify({
             'success': True,
-            'divergence_score': card.divergence_score,
+            'visual_style':     card.visual_style,
             'feasibility_pct':  card.feasibility_pct,
-            'conflicts_count':  len(json.loads(card.conflicts_json or '[]')),
+            'divergence_score': card.divergence_score,
+            'conflicts':        json.loads(card.conflicts_json or '[]'),
+            'spatial_tags':     json.loads(card.spatial_tags   or '[]'),
+            'materials':        json.loads(card.materials_json or '[]'),
+            'generated_at': card.generated_at.strftime('%d %b %Y %H:%M') if card.generated_at else '',
+            'ref_count': ref_count,
         })
     except Exception as e:
+        print(f"[req_generate] error: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/projects/<int:project_id>/references/<int:ref_id>/image')
+@login_required
+@roles_required(['architect', 'client'])
+def serve_reference_image(project_id, ref_id):
+    """Serve a reference image securely."""
+    from app.models import VisualReference
+    from app.storage import send_file_securely
+
+    p = Project.query.get_or_404(project_id)
+    if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
+    if current_user.role == 'client'    and p.client_id    != current_user.id: abort(403)
+
+    ref = VisualReference.query.filter_by(id=ref_id, project_id=project_id).first_or_404()
+    path = ref.file_path or ref.filename
+    if not path:
+        abort(404)
+    return send_file_securely(path)
 
 @bp.route('/projects/<int:project_id>/update-status-api', methods=['POST'])
 @login_required

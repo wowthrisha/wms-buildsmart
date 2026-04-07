@@ -50,6 +50,7 @@ class VisualReference(db.Model):
     style_primary = db.Column(db.String(100))
     colors_json   = db.Column(db.Text)                # JSON list of hex colors
     clip_scores   = db.Column(db.Text)                # full scores JSON
+    file_path     = db.Column(db.String(500))         # storage path for serving
     created_at    = db.Column(db.DateTime, default=utc_now)
 
 class RequirementCard(db.Model):
