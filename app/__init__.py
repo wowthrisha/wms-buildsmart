@@ -299,6 +299,7 @@ def _apply_migrations():
         "ALTER TABLE visual_reference ADD COLUMN style_primary VARCHAR(100)",
         "ALTER TABLE visual_reference ADD COLUMN colors_json TEXT",
         "ALTER TABLE visual_reference ADD COLUMN clip_scores TEXT",
+        "ALTER TABLE visual_reference ADD COLUMN file_path VARCHAR(500)",
         # ── RequirementCard project-level fusion columns ────────────────────
         "ALTER TABLE requirement_card ADD COLUMN project_id INTEGER",
         "ALTER TABLE requirement_card ADD COLUMN visual_style VARCHAR(200)",
