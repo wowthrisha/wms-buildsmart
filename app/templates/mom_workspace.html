@@ -2,7 +2,7 @@
 {% from '_meeting_comment_thread.html' import render_comments %}
 {% block title %}MOM Workspace — Meeting #{{ meeting.id }} — BuildSmart{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
 <div class="meetings-page">
@@ -16,7 +16,7 @@
         </div>
         <div class="inline-actions">
           <span class="status-pill {{ meeting.normalized_status|replace('_', '-') }}">{{ meeting.status_label }}</span>
-          <a class="mt-btn ghost" href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}">Back to Details</a>
+          <a class="mt-btn ghost" href="/projects/{{ project.id }}/meetings/{{ meeting.id }}">Back to Details</a>
         </div>
       </div>
     </section>
@@ -31,7 +31,7 @@
             </div>
           </div>
           <div style="padding:20px;" class="editor-shell">
-            <form method="POST" action="{{ url_for('meetings.notes', meeting_id=meeting.id) }}" id="mom-form" class="editor-shell">
+            <form method="POST" action="{{ url_for('meetings.notes', project_id=project.id, meeting_id=meeting.id) }}" id="mom-form" class="editor-shell">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="mom_content" id="mom-content-input">
               <div class="field-grid two">
@@ -70,7 +70,7 @@
             {% else %}
             <div class="mt-empty" style="padding:0;">No comments yet. Start the discussion below.</div>
             {% endif %}
-            <form method="POST" action="{{ url_for('requirements.add_comment', meeting_id=meeting.id) }}" class="field-stack">
+            <form method="POST" action="{{ url_for('requirements.add_comment', project_id=project.id, meeting_id=meeting.id) }}" class="field-stack">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="next" value="mom">
               <div class="field">
@@ -122,7 +122,7 @@
               <div class="section-kicker">Linked Requirements</div>
               <h3>Kanban Sync</h3>
             </div>
-            <a class="ghost-link" href="{{ url_for('requirements.kanban', project_id=project.id) }}">Open Board</a>
+            <a class="ghost-link" href="/projects/{{ project.id }}">Open Project</a>
           </div>
           {% if requirements %}
           <div class="requirement-grid" style="padding:20px;">
@@ -139,7 +139,7 @@
                 <span>Meeting #{{ meeting.id }}</span>
               </div>
               {% if current_user.role == 'architect' and requirement.status == 'new' %}
-              <form method="POST" action="{{ url_for('requirements.update_status', req_id=requirement.id) }}" style="margin-top:14px;">
+              <form method="POST" action="{{ url_for('requirements.update_status', project_id=project.id, req_id=requirement.id) }}" style="margin-top:14px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="status" value="confirmed">
                 <input type="hidden" name="next" value="mom">
@@ -194,7 +194,7 @@
       <div style="padding:20px;" class="vault-grid">
         <div class="field-stack">
           <div class="workspace-links">
-            <a class="mt-btn ghost" href="{{ url_for('documents.index') if current_user.role == 'architect' else url_for('client.documents') }}">Open Document Vault</a>
+            <a class="mt-btn ghost" href="{{ url_for('projects.project_documents', project_id=project.id) }}">Open Document Vault</a>
           </div>
           {% if documents %}
           <div class="file-chip-row">
@@ -211,7 +211,9 @@
         </div>
         <div class="field-stack">
           <div class="workspace-links">
-            <a class="mt-btn ghost" href="{{ url_for('projects.workspace', project_id=project.id) if current_user.role == 'architect' else url_for('client.portal') }}">Open Image Board</a>
+            <button class="mt-btn mt-btn-secondary" type="button" disabled title="Coming soon">
+              Image Board <span class="coming-soon-badge">Soon</span>
+            </button>
           </div>
           {% if images %}
           <div class="file-chip-row">
@@ -394,7 +396,7 @@
       <div class="section-kicker">Architect Action</div>
       <h2 class="modal-title">Confirm Requirement</h2>
     </div>
-    <form method="POST" action="{{ url_for('requirements.update_status', req_id=new_requirements[0].id) }}" id="confirm-requirement-form">
+    <form method="POST" action="{{ url_for('requirements.update_status', project_id=project.id, req_id=new_requirements[0].id) }}" id="confirm-requirement-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="status" value="confirmed">
       <input type="hidden" name="next" value="mom">
@@ -423,7 +425,7 @@
       <div class="section-kicker">Architect Action</div>
       <h2 class="modal-title">Complete Meeting</h2>
     </div>
-    <form method="POST" action="{{ url_for('meetings.complete', meeting_id=meeting.id) }}">
+    <form method="POST" action="{{ url_for('meetings.complete', project_id=project.id, meeting_id=meeting.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-body modal-fields">
         <div>
@@ -485,7 +487,7 @@
   var confirmForm = document.getElementById('confirm-requirement-form');
   if (confirmSelect && confirmForm) {
     confirmSelect.addEventListener('change', function () {
-      confirmForm.action = '/requirements/' + confirmSelect.value + '/update-status';
+      confirmForm.action = '/projects/{{ project.id }}/requirements/' + confirmSelect.value + '/update-status';
     });
   }
 }());

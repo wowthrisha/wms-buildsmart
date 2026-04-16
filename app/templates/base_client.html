@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}BuildSmart Client Portal{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -33,15 +34,10 @@
     <nav class="nav-section">
       <div class="nav-section-label">My Project</div>
 
-      {% if projects %}
-      <div class="nav-item-dropdown" style="margin-bottom:15px; padding:0 12px;">
-        <select onchange="location.href=this.value" style="width:100%; background:var(--deep); color:var(--gold); border:1px solid var(--gold-glow); padding:8px; border-radius:6px; font-family:inherit; font-size:13px; cursor:pointer;">
-          {% for p in projects %}
-          <option value="{{ url_for('client.select', project_id=p.id) }}" {% if project and p.id == project.id %}selected{% endif %}>
-            {{ p.name }}
-          </option>
-          {% endfor %}
-        </select>
+      {% if project %}
+      <div style="margin:0 12px 15px; padding:10px 12px; border:1px solid var(--gold-glow); border-radius:8px; background:var(--ink-2);">
+        <div style="font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--chalk-3); margin-bottom:4px;">Current Project</div>
+        <div style="font-size:13px; color:var(--gold); font-weight:600;">{{ project.name }}</div>
       </div>
       {% endif %}
 
@@ -58,7 +54,7 @@
       </a>
 
       <a href="{{ url_for('client.plot_info') }}"
-         class="nav-item {% if 'plot_info' in request.endpoint %}active{% endif %}">
+         class="nav-item {% if 'plot_info' in request.endpoint or 'plot_analysis' in request.endpoint %}active{% endif %}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M9 3v18"/></svg></span>
         Plot Analysis
       </a>

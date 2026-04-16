@@ -1,13 +1,20 @@
 {% extends "base_client.html" %}
 {% block title %}No Project — BuildSmart{% endblock %}
-
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 {% block content %}
-<div style="text-align:center; padding:100px 40px;">
-    <div class="logo-gem" style="margin: 0 auto 24px; width:64px; height:64px;">
-        <svg viewBox="0 0 24 24" style="width:32px; height:32px;"><polygon points="12,2 22,8 22,16 12,22 2,16 2,8"/></svg>
-    </div>
-    <h1 class="page-title">Welcome to BuildSmart</h1>
-    <p class="page-subtitle">Your architect hasn't assigned a project to this account yet.</p>
-    <p style="margin-top:24px; color:var(--chalk-3);">Please contact your architect to get started.</p>
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero" style="text-align:center; padding:72px 40px;">
+      <div class="logo-gem" style="margin: 0 auto 24px; width:64px; height:64px;">
+          <svg viewBox="0 0 24 24" style="width:32px; height:32px;"><polygon points="12,2 22,8 22,16 12,22 2,16 2,8"/></svg>
+      </div>
+      <div class="meetings-kicker">Client Portal</div>
+      <h1 class="meetings-title">Welcome to BuildSmart</h1>
+      <p class="meetings-subtitle" style="margin-left:auto; margin-right:auto;">Your architect hasn't assigned a project to this account yet.</p>
+      <p class="muted-copy" style="margin-top:24px;">Please contact your architect to get started.</p>
+    </section>
+  </div>
 </div>
 {% endblock %}

@@ -1,7 +1,7 @@
 {% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
 {% block title %}Payments — {{ project.name }}{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
 <div class="meetings-page">
@@ -20,9 +20,6 @@
           {% if current_user.role == 'architect' %}
           <button type="button" class="mt-btn primary" data-open-modal="expense-modal">Add Expense</button>
           <button type="button" class="mt-btn secondary" data-open-modal="budget-modal">Update Budget</button>
-          {% endif %}
-          {% if current_user.role == 'architect' %}
-          <a class="mt-btn ghost" href="{{ url_for('projects.workspace', project_id=project.id) }}">Back To Project</a>
           {% endif %}
         </div>
       </div>

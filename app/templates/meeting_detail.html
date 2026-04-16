@@ -2,7 +2,7 @@
 {% from '_meeting_comment_thread.html' import render_comments %}
 {% block title %}Meeting #{{ meeting.id }} — BuildSmart{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
 <div class="meetings-page">
@@ -11,21 +11,20 @@
       <div class="meetings-head">
         <div>
           <div class="meetings-kicker">Meeting Details</div>
-          <h1 class="meetings-title">Meeting #{{ meeting.id }}</h1>
+          <h1 class="meetings-title">{{ meeting.title or 'Meeting #' + meeting.id|string }}</h1>
           <p class="meetings-subtitle">{{ project.name }}{% if meeting.requested_description %} · {{ meeting.requested_description }}{% endif %}</p>
         </div>
         <div class="inline-actions">
           <span class="status-pill {{ meeting.normalized_status|replace('_', '-') }}">{{ meeting.status_label }}</span>
-          <a class="mt-btn ghost" href="{{ url_for('meetings.mom_workspace', meeting_id=meeting.id) }}">Open MOM Workspace</a>
+          <a class="mt-btn ghost" href="/projects/{{ project.id }}/meetings/{{ meeting.id }}/mom">Open MOM Workspace</a>
         </div>
       </div>
       <div class="inline-actions" style="margin-top:18px;">
-        <a class="mt-btn ghost" href="{{ url_for('meetings.requests_page') }}">← Back to Requests</a>
-        <a class="mt-btn ghost" href="{{ url_for('meetings.active_page') }}">Scheduled Meetings</a>
+        <a class="mt-btn ghost" href="/projects/{{ project.id }}/meetings">← Back to Meetings</a>
       </div>
     </section>
 
-    <div class="detail-grid">
+    <div class="detail-grid meetings-detail">
       <div class="field-stack">
         <section class="section-card">
           <div class="section-head">
@@ -35,36 +34,50 @@
             </div>
           </div>
           <div style="padding:20px;">
-            {% if meeting.normalized_status == 'requested' %}
-            <p>This request is waiting for the architect to propose slots.</p>
+            {% if meeting.normalized_status == 'pending_request' %}
+            {% if current_user.role == 'architect' %}
+            <form method="POST" action="{{ url_for('meetings.propose', project_id=project.id) }}" class="field-stack">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="meeting_id" value="{{ meeting.id }}">
+              <div class="field">
+                <label>Proposed Slot 1</label>
+                <input type="datetime-local" name="slot_1" class="form-input">
+              </div>
+              <div class="field">
+                <label>Proposed Slot 2</label>
+                <input type="datetime-local" name="slot_2" class="form-input">
+              </div>
+              <div class="field">
+                <label>Proposed Slot 3</label>
+                <input type="datetime-local" name="slot_3" class="form-input">
+              </div>
+              <button type="submit" class="mt-btn primary">Propose Slots</button>
+            </form>
+            {% else %}
+            <p class="muted-text">
+              Your meeting request has been sent.
+              Your architect will propose available time slots shortly.
+            </p>
+            {% endif %}
             {% elif meeting.normalized_status == 'proposed' %}
               {% if current_user.role == 'client' %}
-              <form method="POST" action="{{ url_for('meetings.confirm', meeting_id=meeting.id) }}" class="field-stack">
+              <form method="POST" action="{{ url_for('meetings.confirm', project_id=project.id, meeting_id=meeting.id) }}" class="field-stack">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="slot-list">
                   {% for slot_name, slot in [('slot_1', meeting.slot_1), ('slot_2', meeting.slot_2), ('slot_3', meeting.slot_3)] if slot %}
                   <label class="slot-option">
-                    <input type="radio" name="slot" value="{{ slot_name }}" {% if loop.first %}checked{% endif %}>
+                    <input type="radio" name="selected_slot" value="{{ slot_name }}" {% if loop.first %}checked{% endif %}>
                     <div>
-                      <div class="slot-time">{{ slot|strftime('%d %b %Y · %H:%M') }}</div>
+                      <div class="slot-time">{{ slot.strftime('%d %b %Y at %H:%M') }}</div>
                       <div class="slot-caption">Choose this option to confirm the meeting</div>
                     </div>
                   </label>
                   {% endfor %}
                 </div>
-                <button type="submit" class="mt-btn primary">Confirm Selected Slot</button>
+                <button type="submit" class="mt-btn primary">Confirm This Slot</button>
               </form>
               {% else %}
-              <div class="slot-list">
-                {% for slot in meeting.proposed_slots %}
-                <div class="slot-option">
-                  <div>
-                    <div class="slot-time">{{ slot|strftime('%d %b %Y · %H:%M') }}</div>
-                    <div class="slot-caption">Waiting for client selection</div>
-                  </div>
-                </div>
-                {% endfor %}
-              </div>
+              <p class="muted-text">Slots proposed. Waiting for client to select a time.</p>
               {% endif %}
             {% elif meeting.normalized_status == 'counter_proposed' %}
               {% if current_user.role == 'architect' %}
@@ -74,9 +87,9 @@
                   <div class="slot-caption">Client counter proposal ready for approval</div>
                 </div>
               </div>
-              <form method="POST" action="{{ url_for('meetings.confirm', meeting_id=meeting.id) }}" style="margin-top:18px;">
+              <form method="POST" action="{{ url_for('meetings.confirm', project_id=project.id, meeting_id=meeting.id) }}" style="margin-top:18px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="slot" value="counter_slot">
+                <input type="hidden" name="selected_slot" value="counter_slot">
                 <button type="submit" class="mt-btn primary">Approve Counter Proposal</button>
               </form>
               {% else %}
@@ -88,10 +101,19 @@
                 </div>
               </div>
               {% endif %}
+            {% elif meeting.normalized_status == 'confirmed' %}
+            {% set display_time = meeting.confirmed_time or meeting.confirmed_slot %}
+            <div class="confirmed-card">
+              <span class="status-badge status-confirmed">Confirmed</span>
+              <p>
+                Meeting confirmed for
+                <strong>{{ display_time.strftime('%d %b %Y at %H:%M') if display_time else 'No time selected' }}</strong>
+              </p>
+            </div>
             {% else %}
             <div class="slot-option" style="margin-top:18px;">
               <div>
-                <div class="slot-time">{{ meeting.confirmed_slot|strftime('%d %b %Y · %H:%M') if meeting.confirmed_slot else 'No time selected' }}</div>
+                <div class="slot-time">{{ (meeting.confirmed_time or meeting.confirmed_slot)|strftime('%d %b %Y · %H:%M') if (meeting.confirmed_time or meeting.confirmed_slot) else 'No time selected' }}</div>
                 <div class="slot-caption">Confirmed meeting time</div>
               </div>
             </div>
@@ -108,7 +130,7 @@
           </div>
           <div style="padding:20px;" class="field-stack">
             {% if current_user.role == 'client' and meeting.normalized_status == 'proposed' %}
-            <form method="POST" action="{{ url_for('meetings.counter', meeting_id=meeting.id) }}" class="field-stack">
+            <form method="POST" action="{{ url_for('meetings.counter', project_id=project.id, meeting_id=meeting.id) }}" class="field-stack">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <div class="field">
                 <label>Counter Propose</label>
@@ -134,7 +156,7 @@
           <div style="padding:20px;">
             <p>Minutes, discussion, requirement changes, uploads, and the activity log all live in the MOM workspace.</p>
             <div class="inline-actions" style="margin-top:18px;">
-              <a class="mt-btn primary" href="{{ url_for('meetings.mom_workspace', meeting_id=meeting.id) }}">Open MOM Workspace</a>
+              <a class="mt-btn primary" href="/projects/{{ project.id }}/meetings/{{ meeting.id }}/mom">Open MOM Workspace</a>
             </div>
           </div>
         </section>
@@ -147,7 +169,7 @@
               <div class="section-kicker">Requirements</div>
               <h3>Meeting-linked Requirements</h3>
             </div>
-            <a class="ghost-link" href="{{ url_for('requirements.kanban', project_id=project.id) }}">Open Kanban</a>
+            <a class="ghost-link" href="/projects/{{ project.id }}">Open Project</a>
           </div>
           {% if requirements %}
           <div class="requirement-grid" style="padding:20px;">

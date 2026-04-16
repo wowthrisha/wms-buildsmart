@@ -79,16 +79,33 @@ def login(client, email):
 def propose_meeting(client, project_id, slot='2025-06-01T10:00'):
     return client.post(
         f'/projects/{project_id}/meetings/propose',
-        data={'slot_1': slot},
+        data={'title': 'Design Review', 'slot_1': slot},
         follow_redirects=True,
     )
 
 
-def seed_meeting(app, project_id, arch_id, status='awaiting_client'):
+def comment_url(project_id, meeting_id):
+    return f'/projects/{project_id}/meetings/{meeting_id}/comment'
+
+
+def convert_url(project_id, comment_id):
+    return f'/projects/{project_id}/comments/{comment_id}/convert'
+
+
+def update_status_url(project_id, req_id):
+    return f'/projects/{project_id}/requirements/{req_id}/update-status'
+
+
+def requirements_url(project_id):
+    return f'/projects/{project_id}/requirements'
+
+
+def seed_meeting(app, project_id, arch_id, status='proposed'):
     """Insert a meeting directly into DB and return its id."""
     with app.app_context():
         m = Meeting(
             project_id=project_id,
+            title='Seed Meeting',
             slot_1=datetime(2025, 6, 1, 10, 0),
             status=status,
         )
@@ -179,7 +196,7 @@ class TestMeetingConfirm:
 
         resp = client.post(
             f'/meetings/{mid}/confirm',
-            data={'slot_choice': 'slot_1'},
+            data={'selected_slot': 'slot_1'},
             follow_redirects=True,
         )
         assert resp.status_code == 200
@@ -195,7 +212,7 @@ class TestMeetingConfirm:
 
         resp = client.post(
             f'/meetings/{mid}/confirm',
-            data={'slot_choice': 'slot_1'},
+            data={'selected_slot': 'slot_1'},
             follow_redirects=True,
         )
         assert resp.status_code == 200
@@ -242,7 +259,7 @@ class TestComments:
         login(client, 'arch@t.com')
 
         resp = client.post(
-            f'/meetings/{mid}/comment',
+            comment_url(seed['project_id'], mid),
             data={'content': 'Add a skylight to the bedroom.'},
             follow_redirects=True,
         )
@@ -258,7 +275,7 @@ class TestComments:
         login(client, 'client@t.com')
 
         resp = client.post(
-            f'/meetings/{mid}/comment',
+            comment_url(seed['project_id'], mid),
             data={'content': 'Client comment here.'},
             follow_redirects=True,
         )
@@ -272,7 +289,7 @@ class TestComments:
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'arch@t.com')
 
-        client.post(f'/meetings/{mid}/comment', data={'content': '   '}, follow_redirects=True)
+        client.post(comment_url(seed['project_id'], mid), data={'content': '   '}, follow_redirects=True)
 
         with app.app_context():
             count = Comment.query.filter_by(meeting_id=mid).count()
@@ -283,7 +300,7 @@ class TestComments:
         login(client, 'arch@t.com')
 
         client.post(
-            f'/meetings/{mid}/comment',
+            comment_url(seed['project_id'], mid),
             data={'content': 'A' * 3000},
             follow_redirects=True,
         )
@@ -302,7 +319,7 @@ class TestConvertComment:
         login(client, 'arch@t.com')
 
         resp = client.post(
-            f'/comments/{cid}/convert',
+            convert_url(seed['project_id'], cid),
             data={'req_title': 'AC in master bedroom', 'req_category': 'Design'},
             follow_redirects=True,
         )
@@ -321,7 +338,7 @@ class TestConvertComment:
         cid = seed_comment(app, mid, seed['arch_id'], 'Add fire escape stairs')
         login(client, 'arch@t.com')
 
-        client.post(f'/comments/{cid}/convert', data={'req_title': 'Fire Escape'}, follow_redirects=True)
+        client.post(convert_url(seed['project_id'], cid), data={'req_title': 'Fire Escape'}, follow_redirects=True)
 
         with app.app_context():
             c = db.session.get(Comment, cid)
@@ -334,8 +351,8 @@ class TestConvertComment:
         cid = seed_comment(app, mid, seed['arch_id'], 'Duplicate test')
         login(client, 'arch@t.com')
 
-        client.post(f'/comments/{cid}/convert', data={'req_title': 'First'}, follow_redirects=True)
-        client.post(f'/comments/{cid}/convert', data={'req_title': 'Second'}, follow_redirects=True)
+        client.post(convert_url(seed['project_id'], cid), data={'req_title': 'First'}, follow_redirects=True)
+        client.post(convert_url(seed['project_id'], cid), data={'req_title': 'Second'}, follow_redirects=True)
 
         with app.app_context():
             count = Requirement.query.filter_by(project_id=seed['project_id']).count()
@@ -347,14 +364,14 @@ class TestConvertComment:
         cid = seed_comment(app, mid, seed['arch_id'], content)
         login(client, 'arch@t.com')
 
-        client.post(f'/comments/{cid}/convert', data={'req_title': 'Test Req'}, follow_redirects=True)
+        client.post(convert_url(seed['project_id'], cid), data={'req_title': 'Test Req'}, follow_redirects=True)
 
         with app.app_context():
             req = Requirement.query.filter_by(project_id=seed['project_id']).first()
             assert req.description == content
 
 
-# ── Kanban Data ───────────────────────────────────────────────────────────────
+# ── Requirement Detail JSON ───────────────────────────────────────────────────
 
 class TestKanbanData:
     def _seed_requirement(self, app, project_id, arch_id, title='Test Req', status='new'):
@@ -367,43 +384,42 @@ class TestKanbanData:
             db.session.commit()
             return req.id
 
-    def test_kanban_data_returns_json(self, client, app, seed):
-        self._seed_requirement(app, seed['project_id'], seed['arch_id'])
+    def test_requirement_detail_returns_json(self, client, app, seed):
+        rid = self._seed_requirement(app, seed['project_id'], seed['arch_id'])
         login(client, 'arch@t.com')
 
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban/data')
+        resp = client.get(f'/projects/{seed["project_id"]}/requirements/{rid}')
         assert resp.status_code == 200
         data = resp.get_json()
-        assert 'new' in data
-        assert 'confirmed' in data
-        assert 'in_progress' in data
-        assert 'done' in data
+        assert data['id'] == rid
+        assert data['status'] == 'new'
+        assert data['comments'] == []
 
-    def test_requirement_appears_in_correct_column(self, client, app, seed):
-        self._seed_requirement(app, seed['project_id'], seed['arch_id'], title='Skylight', status='confirmed')
+    def test_requirement_detail_returns_expected_requirement(self, client, app, seed):
+        rid = self._seed_requirement(app, seed['project_id'], seed['arch_id'], title='Skylight', status='confirmed')
         login(client, 'arch@t.com')
 
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban/data')
+        resp = client.get(f'/projects/{seed["project_id"]}/requirements/{rid}')
         data = resp.get_json()
-        titles = [r['title'] for r in data['confirmed']]
-        assert 'Skylight' in titles
-        assert all(r['title'] != 'Skylight' for r in data['new'])
+        assert data['title'] == 'Skylight'
+        assert data['status'] == 'confirmed'
 
-    def test_kanban_data_includes_required_fields(self, client, app, seed):
-        self._seed_requirement(app, seed['project_id'], seed['arch_id'], title='Field Test')
+    def test_requirement_detail_includes_required_fields(self, client, app, seed):
+        rid = self._seed_requirement(app, seed['project_id'], seed['arch_id'], title='Field Test')
         login(client, 'arch@t.com')
 
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban/data')
+        resp = client.get(f'/projects/{seed["project_id"]}/requirements/{rid}')
         data = resp.get_json()
-        req = data['new'][0]
-        assert 'id' in req
-        assert 'title' in req
-        assert 'category' in req
-        assert 'status' not in req  # JSON helper doesn't include status key
+        assert 'id' in data
+        assert 'title' in data
+        assert 'category' in data
+        assert 'status' in data
+        assert 'comments' in data
 
-    def test_other_architect_cannot_access_kanban_data(self, client, app, seed):
+    def test_other_architect_cannot_access_requirement_detail(self, client, app, seed):
+        rid = self._seed_requirement(app, seed['project_id'], seed['arch_id'])
         login(client, 'other@t.com')
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban/data')
+        resp = client.get(f'/projects/{seed["project_id"]}/requirements/{rid}')
         assert resp.status_code == 403
 
 
@@ -425,7 +441,7 @@ class TestUpdateStatus:
         login(client, 'arch@t.com')
 
         resp = client.post(
-            f'/requirements/{rid}/update-status',
+            update_status_url(seed['project_id'], rid),
             data={'status': 'confirmed'},
             follow_redirects=True,
         )
@@ -439,7 +455,7 @@ class TestUpdateStatus:
         rid = self._seed_req(app, seed['project_id'], seed['arch_id'], status='in_progress')
         login(client, 'arch@t.com')
 
-        client.post(f'/requirements/{rid}/update-status', data={'status': 'done'}, follow_redirects=True)
+        client.post(update_status_url(seed['project_id'], rid), data={'status': 'done'}, follow_redirects=True)
 
         with app.app_context():
             req = db.session.get(Requirement, rid)
@@ -450,7 +466,7 @@ class TestUpdateStatus:
         login(client, 'arch@t.com')
 
         resp = client.post(
-            f'/requirements/{rid}/update-status',
+            update_status_url(seed['project_id'], rid),
             data={'status': 'hacked'},
         )
         assert resp.status_code == 400
@@ -460,7 +476,7 @@ class TestUpdateStatus:
         login(client, 'arch@t.com')
 
         resp = client.post(
-            f'/requirements/{rid}/update-status',
+            update_status_url(seed['project_id'], rid),
             data={'status': 'in_progress'},
             headers={'X-Requested-With': 'XMLHttpRequest'},
         )
@@ -474,7 +490,7 @@ class TestUpdateStatus:
         login(client, 'other@t.com')
 
         resp = client.post(
-            f'/requirements/{rid}/update-status',
+            update_status_url(seed['project_id'], rid),
             data={'status': 'confirmed'},
         )
         assert resp.status_code == 403
@@ -548,7 +564,7 @@ class TestAddRequirement:
 class TestKanbanPage:
     def test_kanban_page_renders(self, client, app, seed):
         login(client, 'arch@t.com')
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban')
+        resp = client.get(requirements_url(seed["project_id"]))
         assert resp.status_code == 200
         assert b'kanban-grid' in resp.data
 
@@ -562,17 +578,17 @@ class TestKanbanPage:
             db.session.commit()
 
         login(client, 'arch@t.com')
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban')
+        resp = client.get(requirements_url(seed["project_id"]))
         assert b'Skylight Req' in resp.data
 
     def test_client_can_view_kanban(self, client, app, seed):
         login(client, 'client@t.com')
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban')
+        resp = client.get(requirements_url(seed["project_id"]))
         assert resp.status_code == 200
 
     def test_other_architect_gets_403(self, client, app, seed):
         login(client, 'other@t.com')
-        resp = client.get(f'/projects/{seed["project_id"]}/kanban')
+        resp = client.get(requirements_url(seed["project_id"]))
         assert resp.status_code == 403
 
 
@@ -585,14 +601,15 @@ class TestClientMeetingRequest:
 
         resp = client.post(
             f'/projects/{pid}/meetings/request',
-            data={'description': 'Want to discuss balcony design'},
+            data={'title': 'Balcony Design', 'notes': 'Want to discuss balcony design'},
             follow_redirects=True,
         )
         assert resp.status_code == 200
 
         with app.app_context():
-            m = Meeting.query.filter_by(project_id=pid, status='requested').first()
+            m = Meeting.query.filter_by(project_id=pid, status='pending_request').first()
             assert m is not None
+            assert m.title == 'Balcony Design'
             assert m.description == 'Want to discuss balcony design'
 
     def test_client_request_without_description(self, client, app, seed):
@@ -602,7 +619,7 @@ class TestClientMeetingRequest:
         client.post(f'/projects/{pid}/meetings/request', data={}, follow_redirects=True)
 
         with app.app_context():
-            m = Meeting.query.filter_by(project_id=pid, status='requested').first()
+            m = Meeting.query.filter_by(project_id=pid, status='pending_request').first()
             assert m is None
 
     def test_architect_cannot_request_meeting(self, client, app, seed):
@@ -611,7 +628,7 @@ class TestClientMeetingRequest:
 
         resp = client.post(
             f'/projects/{pid}/meetings/request',
-            data={'description': 'Architect trying to request'},
+            data={'title': 'Architect trying to request'},
             follow_redirects=True,
         )
         assert resp.status_code == 403
@@ -627,18 +644,18 @@ class TestClientMeetingRequest:
         login(client, 'other_client@t.com')
         resp = client.post(
             f'/projects/{seed["project_id"]}/meetings/request',
-            data={'description': 'Unauthorized'},
+            data={'title': 'Unauthorized'},
             follow_redirects=True,
         )
         assert resp.status_code == 403
 
-    def test_propose_fills_requested_meeting(self, client, app, seed):
-        """Architect proposing slots for an existing 'requested' meeting updates it."""
+    def test_propose_fills_pending_request_meeting(self, client, app, seed):
+        """Architect proposing slots for an existing pending request updates it."""
         pid = seed['project_id']
 
-        # Directly seed a 'requested' meeting
+        # Directly seed a pending-request meeting
         with app.app_context():
-            m = Meeting(project_id=pid, status='requested', description='Discuss roof')
+            m = Meeting(project_id=pid, title='Discuss roof', status='pending_request', description='Discuss roof')
             db.session.add(m)
             db.session.commit()
             mid = m.id
@@ -663,7 +680,7 @@ class TestClientMeetingRequest:
 
         client.post(
             f'/projects/{pid}/meetings/request',
-            data={'description': 'Need to align on ventilation changes'},
+            data={'title': 'Ventilation Alignment', 'notes': 'Need to align on ventilation changes'},
             follow_redirects=True,
         )
 
@@ -682,7 +699,7 @@ class TestMeetingLog:
 
         client.post(
             f'/projects/{pid}/meetings/propose',
-            data={'slot_1': '2025-07-01T10:00'},
+            data={'title': 'Loggable Proposal', 'slot_1': '2025-07-01T10:00'},
             follow_redirects=True,
         )
 
@@ -743,7 +760,7 @@ class TestMeetingLog:
         login(client, 'arch@t.com')
         resp = client.post(
             f'/meetings/{mid}/confirm',
-            data={'slot_choice': 'counter_slot'},
+            data={'selected_slot': 'counter_slot'},
             follow_redirects=True,
         )
         assert resp.status_code == 200
@@ -883,28 +900,28 @@ class TestMeetingRedirects:
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'arch@t.com')
         resp = client.post(
-            f'/meetings/{mid}/comment',
+            comment_url(seed['project_id'], mid),
             data={'content': 'Looks good'},
         )
         assert resp.status_code == 302
-        assert f'/meetings/{mid}' in resp.headers['Location']
+        assert f'/projects/{seed["project_id"]}/meetings/{mid}' in resp.headers['Location']
 
     def test_client_add_comment_redirects_to_detail(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'client@t.com')
         resp = client.post(
-            f'/meetings/{mid}/comment',
+            comment_url(seed['project_id'], mid),
             data={'content': 'Please confirm the balcony width'},
         )
         assert resp.status_code == 302
-        assert f'/meetings/{mid}' in resp.headers['Location']
+        assert f'/projects/{seed["project_id"]}/meetings/{mid}' in resp.headers['Location']
 
     def test_empty_comment_still_redirects_to_detail(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'arch@t.com')
-        resp = client.post(f'/meetings/{mid}/comment', data={'content': ''})
+        resp = client.post(comment_url(seed['project_id'], mid), data={'content': ''})
         assert resp.status_code == 302
-        assert f'/meetings/{mid}' in resp.headers['Location']
+        assert f'/projects/{seed["project_id"]}/meetings/{mid}' in resp.headers['Location']
 
     def test_convert_comment_redirects_to_detail(self, client, app, seed):
         """Converting a comment should redirect back to the same meeting detail."""
@@ -912,11 +929,11 @@ class TestMeetingRedirects:
         cid = seed_comment(app, mid, seed['arch_id'], 'Add ventilation shaft')
         login(client, 'arch@t.com')
         resp = client.post(
-            f'/comments/{cid}/convert',
+            convert_url(seed['project_id'], cid),
             data={'req_title': 'Ventilation shaft', 'req_category': 'Structural'},
         )
         assert resp.status_code == 302
-        assert f'/meetings/{mid}' in resp.headers['Location']
+        assert f'/projects/{seed["project_id"]}/meetings/{mid}' in resp.headers['Location']
 
     def test_convert_already_converted_redirects_to_detail(self, client, app, seed):
         """Re-converting should also redirect to meeting detail."""
@@ -924,11 +941,11 @@ class TestMeetingRedirects:
         cid = seed_comment(app, mid, seed['arch_id'], 'Some comment')
         # First convert
         login(client, 'arch@t.com')
-        client.post(f'/comments/{cid}/convert', data={'req_title': 'Title'})
+        client.post(convert_url(seed['project_id'], cid), data={'req_title': 'Title'})
         # Try again
-        resp = client.post(f'/comments/{cid}/convert', data={'req_title': 'Title2'})
+        resp = client.post(convert_url(seed['project_id'], cid), data={'req_title': 'Title2'})
         assert resp.status_code == 302
-        assert f'/meetings/{mid}' in resp.headers['Location']
+        assert f'/projects/{seed["project_id"]}/meetings/{mid}' in resp.headers['Location']
 
 
 # ── Requirement Initial Status ────────────────────────────────────────────────
@@ -965,7 +982,7 @@ class TestRequirementInitialStatus:
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         cid = seed_comment(app, mid, seed['arch_id'], 'Raise ceiling height')
         login(client, 'arch@t.com')
-        client.post(f'/comments/{cid}/convert', data={'req_title': 'Raise ceiling height'})
+        client.post(convert_url(seed['project_id'], cid), data={'req_title': 'Raise ceiling height'})
         with app.app_context():
             req = Requirement.query.filter_by(
                 project_id=seed['project_id'], title='Raise ceiling height'
@@ -974,25 +991,25 @@ class TestRequirementInitialStatus:
             assert req.status == 'new'
 
     def test_client_request_meeting_created(self, client, app, seed):
-        """Client requesting a meeting creates a Meeting with status='requested'."""
+        """Client requesting a meeting creates a Meeting with status='pending_request'."""
         login(client, 'client@t.com')
         pid = seed['project_id']
         resp = client.post(
             f'/projects/{pid}/meetings/request',
-            data={'description': 'Want to discuss roof design'},
+            data={'title': 'Roof Design', 'notes': 'Want to discuss roof design'},
         )
         assert resp.status_code in (302, 200)
         with app.app_context():
-            m = Meeting.query.filter_by(project_id=pid, status='requested').first()
+            m = Meeting.query.filter_by(project_id=pid, status='pending_request').first()
             assert m is not None
 
-    def test_architect_proposal_creates_awaiting_client(self, client, app, seed):
-        """Architect proposing slots sets status='awaiting_client'."""
+    def test_architect_proposal_creates_proposed(self, client, app, seed):
+        """Architect proposing slots sets status='proposed'."""
         login(client, 'arch@t.com')
         pid = seed['project_id']
         resp = client.post(
             f'/projects/{pid}/meetings/propose',
-            data={'slot_1': '2026-06-01T10:00'},
+            data={'title': 'Architect Proposal', 'slot_1': '2026-06-01T10:00'},
         )
         assert resp.status_code in (302, 200)
         with app.app_context():
@@ -1000,9 +1017,9 @@ class TestRequirementInitialStatus:
             assert m is not None
 
     def test_client_confirms_slot_status_becomes_confirmed(self, client, app, seed):
-        mid = seed_meeting(app, seed['project_id'], seed['arch_id'], status='awaiting_client')
+        mid = seed_meeting(app, seed['project_id'], seed['arch_id'], status='proposed')
         login(client, 'client@t.com')
-        resp = client.post(f'/meetings/{mid}/confirm', data={'slot_idx': '1'})
+        resp = client.post(f'/meetings/{mid}/confirm', data={'selected_slot': 'slot_1'})
         assert resp.status_code in (302, 200)
         with app.app_context():
             m = db.session.get(Meeting, mid)

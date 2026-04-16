@@ -10,6 +10,18 @@ import mimetypes
 
 s3_client = None
 
+
+def _detect_mime_from_bytes(header: bytes):
+    if header[:3] == b'\xff\xd8\xff':
+        return 'image/jpeg'
+    if header[:4] == b'\x89PNG':
+        return 'image/png'
+    if len(header) >= 12 and header[:4] == b'RIFF' and header[8:12] == b'WEBP':
+        return 'image/webp'
+    if header[:4] == b'%PDF':
+        return 'application/pdf'
+    return None
+
 def get_s3_client():
     global s3_client
     if s3_client is None and os.environ.get('AWS_ACCESS_KEY_ID'):
@@ -22,23 +34,39 @@ def get_s3_client():
 
 def validate_secure_mime(file_obj, allowed_mimes=None):
     if not allowed_mimes:
-        allowed_mimes = ['application/pdf', 'image/jpeg', 'image/png']
-    
-    # Fallback if libmagic is missing
+        allowed_mimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp']
+
+    header = file_obj.read(4096)
+    file_obj.seek(0)
+
+    detected = _detect_mime_from_bytes(header)
+    if detected:
+        return detected in allowed_mimes
+
+    # Fallback if libmagic is missing — use mimetypes guess + extension whitelist
     if magic is None:
-        # Simple extension-based fallback + basic header check
         filename = getattr(file_obj, 'filename', '').lower()
         content_type, _ = mimetypes.guess_type(filename)
-        return content_type in allowed_mimes
+        if content_type in allowed_mimes:
+            return True
+        # DWG/DXF and Office files that mimetypes may not guess correctly
+        return any(filename.endswith(ext) for ext in ['.dwg', '.dxf', '.doc', '.docx',
+                                                       '.xls', '.xlsx', '.ppt', '.pptx'])
 
-    header = file_obj.read(2048)
-    file_obj.seek(0)
     try:
         mime = magic.from_buffer(header, mime=True)
-        return mime in allowed_mimes
+        if mime in allowed_mimes:
+            return True
+        # DWG/DXF have no reliable MIME — fall through to extension check
+        filename = getattr(file_obj, 'filename', '').lower()
+        if filename.endswith(('.dwg', '.dxf')):
+            return True
+        return False
     except Exception:
         # If magic exists but fails (e.g. libmagic missing at runtime)
-        return any(file_obj.filename.lower().endswith(ext) for ext in ['.pdf', '.jpg', '.jpeg', '.png'])
+        filename = getattr(file_obj, 'filename', '').lower()
+        return any(filename.endswith(ext) for ext in ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif', '.dwg', '.dxf',
+                                                       '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'])
 
 def save_file_securely(file_obj, filename_prefix=""):
     """

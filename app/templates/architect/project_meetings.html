@@ -1,0 +1,221 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% block title %}Meetings — {{ project.name }} — BuildSmart{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
+{% block content %}
+
+{% set pending = meetings | selectattr('normalized_status', 'equalto', 'pending_request') | list %}
+
+<div class="page-shell">
+
+  <div class="page-hero">
+    <p class="page-kicker">Meetings</p>
+    <h1 class="page-title">{{ project.name }}</h1>
+    <p class="page-subtitle">
+      Schedule, propose, and confirm meetings. Log minutes and
+      convert decisions into tracked requirements.
+    </p>
+    {% if current_user.role == 'architect' %}
+      <button class="hero-cta" type="button" onclick="openScheduleModal()">
+        + Schedule Meeting
+      </button>
+    {% else %}
+      <button class="hero-cta" type="button" onclick="openRequestModal()">
+        + Request a Meeting
+      </button>
+    {% endif %}
+  </div>
+
+  {% if pending %}
+  <div class="next-step-bar">
+    <p class="ns-kicker">Next Step</p>
+    <p class="ns-title">{{ pending|length }} meeting request{{ 's' if pending|length != 1 }} awaiting response</p>
+    <p class="ns-body">Review and propose time slots for pending client requests.</p>
+  </div>
+  {% else %}
+  <div class="next-step-bar">
+    <p class="ns-kicker">Status</p>
+    <p class="ns-title">All meetings up to date</p>
+    <p class="ns-body">No pending scheduling actions.</p>
+  </div>
+  {% endif %}
+
+  <div class="meetings-page">
+    {% if pending and current_user.role == 'architect' %}
+    <div class="section-card">
+      <div class="section-head" style="padding-left:0; padding-right:0; padding-top:0;">
+        <div>
+          <div class="section-kicker">Action Needed</div>
+          <h3 style="margin-top:6px;">Pending Requests</h3>
+        </div>
+      </div>
+      <div class="meeting-row-list">
+        {% for m in pending %}
+        <div class="meeting-row meeting-row-pending">
+          <div class="meeting-row-info">
+            <span class="meeting-row-title">{{ m.title or 'Meeting Request' }}</span>
+            <span class="meeting-row-meta">
+              Requested {{ m.created_at.strftime('%d %b %Y') }}
+            </span>
+          </div>
+          <div class="meeting-row-actions">
+            <span class="status-badge status-pending-request">Pending</span>
+            <a href="{{ url_for('meetings.project_detail', project_id=project.id, meeting_id=m.id) }}"
+               class="mt-btn mt-btn-sm">Review →</a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="section-card">
+      <div class="section-head" style="padding-left:0; padding-right:0; padding-top:0;">
+        <div>
+          <div class="section-kicker">Meetings</div>
+          <h3 style="margin-top:6px;">All Meetings</h3>
+        </div>
+      </div>
+
+      {% set non_pending = meetings | rejectattr('normalized_status', 'equalto', 'pending_request') | list %}
+      {% if non_pending %}
+      <div class="meetings-table">
+        <div class="meetings-table-header">
+          <span>#</span>
+          <span>Topic</span>
+          <span>Date</span>
+          <span>Status</span>
+          <span></span>
+        </div>
+        {% for m in non_pending | sort(attribute='created_at', reverse=True) %}
+        {% set display_time = m.confirmed_time or m.confirmed_slot %}
+        <div class="meetings-table-row">
+          <span class="meeting-num">{{ loop.index }}</span>
+          <span class="meeting-topic">{{ m.title or 'Meeting #' + m.id|string }}</span>
+          <span class="meeting-date">
+            {% if display_time %}
+              {{ display_time.strftime('%d %b %Y, %H:%M') }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+          <span>
+            <span class="status-badge status-{{ m.normalized_status | replace('_','-') }}">
+              {{ m.normalized_status | replace('_', ' ') | title }}
+            </span>
+          </span>
+          <span>
+            <a href="{{ url_for('meetings.project_detail', project_id=project.id, meeting_id=m.id) }}"
+               class="mt-btn mt-btn-sm">Open →</a>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <p>No meetings yet.</p>
+        <p class="muted-text">
+          {% if current_user.role == 'architect' %}
+            Schedule the first meeting or wait for a client request.
+          {% else %}
+            Request a meeting with your architect to get started.
+          {% endif %}
+        </p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if current_user.role == 'architect' %}
+<div id="schedule-modal" class="modal-backdrop mt-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Schedule a Meeting</h3>
+    </div>
+    <form method="POST" action="{{ url_for('meetings.propose', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div class="form-group">
+          <label class="ds-label">Topic / Title</label>
+          <input type="text" name="title" class="ds-input" required placeholder="e.g. Design Review — Kitchen">
+        </div>
+        <div class="form-group">
+          <label class="ds-label">Proposed Slot 1</label>
+          <input type="datetime-local" name="slot_1" class="ds-input">
+        </div>
+        <div class="form-group">
+          <label class="ds-label">Proposed Slot 2</label>
+          <input type="datetime-local" name="slot_2" class="ds-input">
+        </div>
+        <div class="form-group">
+          <label class="ds-label">Proposed Slot 3</label>
+          <input type="datetime-local" name="slot_3" class="ds-input">
+        </div>
+      </div>
+      <div class="modal-foot form-actions">
+        <button type="button" onclick="closeModal('schedule-modal')" class="mt-btn mt-btn-secondary">Cancel</button>
+        <button type="submit" class="mt-btn mt-btn-primary">Send to Client</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.role == 'client' %}
+<div id="request-modal" class="modal-backdrop mt-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Request a Meeting</h3>
+    </div>
+    <form method="POST" action="{{ url_for('meetings.request_meeting', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div class="form-group">
+          <label class="ds-label">Topic</label>
+          <input type="text" name="title" class="ds-input" required placeholder="What do you want to discuss?">
+        </div>
+        <div class="form-group">
+          <label class="ds-label">Preferred Date 1 (optional)</label>
+          <input type="datetime-local" name="preferred_1" class="ds-input">
+        </div>
+        <div class="form-group">
+          <label class="ds-label">Preferred Date 2 (optional)</label>
+          <input type="datetime-local" name="preferred_2" class="ds-input">
+        </div>
+        <div class="form-group">
+          <label class="ds-label">Notes (optional)</label>
+          <textarea name="notes" class="ds-input" rows="3" placeholder="Any additional context..."></textarea>
+        </div>
+      </div>
+      <div class="modal-foot form-actions">
+        <button type="button" onclick="closeModal('request-modal')" class="mt-btn mt-btn-secondary">Cancel</button>
+        <button type="submit" class="mt-btn mt-btn-primary">Send Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+function openScheduleModal() {
+  var modal = document.getElementById('schedule-modal');
+  if (modal) modal.classList.add('open');
+}
+function openRequestModal() {
+  var modal = document.getElementById('request-modal');
+  if (modal) modal.classList.add('open');
+}
+function closeModal(id) {
+  var modal = document.getElementById(id);
+  if (modal) modal.classList.remove('open');
+}
+document.querySelectorAll('.modal-backdrop.mt-modal').forEach(function (modal) {
+  modal.addEventListener('click', function (event) {
+    if (event.target === modal) modal.classList.remove('open');
+  });
+});
+</script>
+{% endblock %}

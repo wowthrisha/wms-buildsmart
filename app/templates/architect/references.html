@@ -1,4 +1,4 @@
-{% extends "base_architect.html" %}
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
 {% block title %}Visual References — {{ project.name }}{% endblock %}
 
 {% block extra_css %}
@@ -383,7 +383,7 @@
       <div class="vr-stat-label">Feasibility Score</div>
       {% if card and card.feasibility_pct is not none %}
         {% set fp = card.feasibility_pct | round(0) | int %}
-        <div class="vr-stat-value {% if fp >= 75 %}color-green{% elif fp >= 50 %}color-amber{% else %}color-red{% endif %}">
+        <div class="vr-stat-value {% if fp >= 70 %}color-green{% elif fp >= 40 %}color-amber{% else %}color-red{% endif %}">
           {{ fp }}%
         </div>
       {% else %}
@@ -458,7 +458,7 @@
         <div class="ai-metric-label">Feasibility Score</div>
         {% if card.feasibility_pct is not none %}
           {% set fp = card.feasibility_pct | round(1) %}
-          <div class="ai-metric-value {% if fp >= 75 %}color-green{% elif fp >= 50 %}color-amber{% else %}color-red{% endif %}">
+          <div class="ai-metric-value {% if fp >= 70 %}color-green{% elif fp >= 40 %}color-amber{% else %}color-red{% endif %}">
             {{ fp }}%
           </div>
           <div class="ai-metric-sub">Claude NLP + TNPCR</div>
