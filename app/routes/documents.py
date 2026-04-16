@@ -3,6 +3,7 @@ from flask import Blueprint, request, redirect, render_template, abort, jsonify,
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
 from app import db
+from app.compliance_catalog import normalize_doc_type
 from app.models import Project, Document, DocumentVersion, User, AuditLog, Meeting, MeetingLog, Requirement
 from app.auth import require_architect, roles_required
 from app.notifications_service import notify_user
@@ -11,7 +12,21 @@ import mimetypes
 
 bp = Blueprint('documents', __name__)
 
-ALLOWED_DOC_EXT = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'dwg', 'dxf'}
+ALLOWED_DOC_EXT = {'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'webp', 'dwg', 'dxf'}
+
+ALLOWED_DOC_MIMES = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/msword',                                                              # .doc
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',        # .docx
+    'application/vnd.ms-excel',                                                        # .xls
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',              # .xlsx
+    'application/vnd.ms-powerpoint',                                                   # .ppt
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',      # .pptx
+    # DWG/DXF — AutoCAD files have no reliable MIME; extension fallback used in storage.py
+]
 
 DOC_CATEGORIES = ['Site Plan', 'Structural', 'Legal', 'Client Docs', 'Permit', 'Others']
 
@@ -29,13 +44,21 @@ def _transaction():
 
 def _docs_redirect(project_id):
     """Redirect back to the project workspace on the documents tab."""
-    return redirect(url_for('projects.workspace', project_id=project_id) + '?tab=documents')
+    return redirect(url_for('projects.project_documents', project_id=project_id))
 
 
 def _post_upload_redirect(project_id, meeting_id=None):
     if meeting_id and request.form.get('next') == 'mom':
-        return redirect(url_for('meetings.mom_workspace', meeting_id=meeting_id))
+        return redirect(url_for('meetings.project_mom', project_id=project_id, meeting_id=meeting_id))
     return _docs_redirect(project_id)
+
+
+def _wants_json() -> bool:
+    return (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        or request.accept_mimetypes.best == 'application/json'
+        or request.is_json
+    )
 
 
 def _get_file_size_str(file_obj):
@@ -77,6 +100,8 @@ def upload(project_id):
 
         file = request.files.get('doc') or request.files.get('file')
         if not (file and file.filename):
+            if _wants_json():
+                return jsonify({'error': 'No file provided.'}), 400
             flash('No file provided.', 'error')
             return _post_upload_redirect(project_id, request.form.get('meeting_id', type=int))
 
@@ -95,83 +120,71 @@ def upload(project_id):
         else:
             requirement = None
 
-        from app.storage import delete_file_securely, validate_secure_mime, save_file_securely
-        if not validate_secure_mime(file, ['application/pdf', 'image/jpeg', 'image/png']):
-            flash('Malicious file signature detected or unsupported file type.', 'error')
+        from app.services.document_service import create_or_replace_document
+        from app.storage import delete_file_securely, validate_secure_mime
+        if not validate_secure_mime(file, ALLOWED_DOC_MIMES):
+            if _wants_json():
+                return jsonify({'error': 'Unsupported file type. Allowed: PDF, images, Word, Excel, PowerPoint, DWG, DXF.'}), 400
+            flash('Unsupported file type. Allowed: PDF, images, Word, Excel, PowerPoint, DWG, DXF.', 'error')
             return _post_upload_redirect(project_id, meeting_id)
 
-        # Capture metadata before save_file_securely consumes the stream
-        file_size_str = _get_file_size_str(file)
-        file_type = mimetypes.guess_type(file.filename)[0] or 'application/octet-stream'
         title = request.form.get('title') or file.filename
         version_label = request.form.get('version_label', '').strip() or None
-
-        filename = save_file_securely(file)
-        saved_filename = filename
+        doc_type = normalize_doc_type(request.form.get('doc_type') or title)
+        source_module = 'vault'
+        visible_to_client = False
 
         # ── Versioning: find existing document by title + project ──────────
-        doc_query = Document.query.filter_by(project_id=p.id, original_name=title)
+        doc_query = Document.query.filter_by(project_id=p.id)
+        if doc_type:
+            doc_query = doc_query.filter_by(doc_type=doc_type)
+        else:
+            doc_query = doc_query.filter_by(original_name=title)
         if meeting:
             doc_query = doc_query.filter_by(meeting_id=meeting.id)
         elif requirement:
             doc_query = doc_query.filter_by(requirement_id=requirement.id)
-        doc = doc_query.first()
+        existing_doc = doc_query.first()
+        doc, _ = create_or_replace_document(
+            file=file,
+            project_id=p.id,
+            uploaded_by=current_user.id,
+            uploaded_by_role=current_user.role,
+            source_module=source_module,
+            display_name=title,
+            doc_type=doc_type,
+            category=request.form.get('category', 'Site Plan'),
+            meeting_id=meeting.id if meeting else None,
+            requirement_id=requirement.id if requirement else None,
+            version_label=version_label,
+            allowed_mimes=ALLOWED_DOC_MIMES,
+            visible_to_client=visible_to_client,
+            existing_document_id=existing_doc.id if existing_doc else None,
+        )
 
-        with _transaction():
-            if doc is None:
-                doc = Document(
-                    project_id=p.id,
-                    meeting_id=meeting.id if meeting else None,
-                    requirement_id=requirement.id if requirement else None,
-                    filename=filename,
-                    original_name=title,
-                    category=request.form.get('category', 'Site Plan'),
-                    uploader_id=current_user.id,
-                    uploader_role=current_user.role,
-                    visible_to_client=False,
-                )
-                db.session.add(doc)
-                db.session.flush()  # get doc.id before counting versions
-
-            # Always update the main filename pointer to the latest file
-            doc.filename = filename
-            if meeting and not doc.meeting_id:
-                doc.meeting_id = meeting.id
-            if requirement and not doc.requirement_id:
-                doc.requirement_id = requirement.id
-
-            next_version = doc.versions.count() + 1
-            new_v = DocumentVersion(
-                document_id=doc.id,
-                filename=filename,
-                version_num=next_version,
-                version_label=version_label,
-                file_type=file_type,
-                file_size=file_size_str,
-                uploader_id=current_user.id,
-            )
-            db.session.add(new_v)
-
-            log = AuditLog(
-                project_id=p.id,
+        if meeting:
+            db.session.add(MeetingLog(
+                meeting_id=meeting.id,
                 actor_id=current_user.id,
-                action='UPLOAD',
-                description=f'Uploaded document "{title}" ({version_label or f"v{next_version}"})',
-            )
-            db.session.add(log)
-            if meeting:
-                db.session.add(MeetingLog(
-                    meeting_id=meeting.id,
-                    actor_id=current_user.id,
-                    action='FILE_UPLOADED',
-                    note=title[:255],
-                ))
+                action='FILE_UPLOADED',
+                note=title[:255],
+            ))
+            db.session.commit()
 
         flash('Saved.', 'success')
+        if _wants_json():
+            return jsonify({
+                'document_id': doc.id,
+                'file_path': doc.file_path or doc.filename,
+                'doc_type': doc.doc_type,
+                'title': doc.original_name,
+            })
         return _post_upload_redirect(project_id, meeting_id)
 
     except ValueError as e:
         db.session.rollback()
+        if _wants_json():
+            return jsonify({'error': f'Invalid input: {e}'}), 400
         flash(f'Invalid input: {e}', 'error')
         return _post_upload_redirect(project_id, request.form.get('meeting_id', type=int))
     except Exception as e:
@@ -180,8 +193,44 @@ def upload(project_id):
             delete_file_securely(saved_filename)
         from flask import current_app
         current_app.logger.error(f'Error in {request.endpoint}: {e}')
+        if _wants_json():
+            return jsonify({'error': 'Something went wrong. Please try again.'}), 500
         flash('Something went wrong. Please try again.', 'error')
         return _post_upload_redirect(project_id, request.form.get('meeting_id', type=int))
+
+
+@bp.route('/documents/<int:doc_id>/verify', methods=['POST'])
+@login_required
+def verify_document_route(doc_id):
+    """Architect verifies a client-uploaded document."""
+    require_architect()
+    d = Document.query.get_or_404(doc_id)
+    if d.project.architect_id != current_user.id:
+        abort(403)
+
+    from app.services.document_service import verify_document as _verify
+    _verify(doc_id, current_user.id)
+
+    # If linked to a ComplianceItem, mark it verified too
+    from app.models import ComplianceItem
+    comp = ComplianceItem.query.filter_by(document_id=doc_id).first()
+    if comp and comp.status in ('uploaded', 'client_uploaded'):
+        comp.status = 'verified'
+        comp.arch_checked = True
+        from app.time_utils import utc_now
+        comp.checked_at = utc_now()
+        comp.updated_at = utc_now()
+        db.session.commit()
+
+    try:
+        from app.notifications_service import notify_user
+        if d.project.client_id:
+            notify_user(d.project.client_id, 'Document Verified',
+                        f'"{d.original_name}" has been verified by your architect.')
+    except Exception:
+        pass
+
+    return jsonify({'success': True, 'doc_id': doc_id, 'pending_verification': False})
 
 
 @bp.route('/documents/<int:doc_id>/toggle-visibility', methods=['POST'])
@@ -241,6 +290,9 @@ def list_project_documents(project_id):
         result.append({
             'id': d.id,
             'title': d.original_name,
+            'doc_type': d.doc_type,
+            'file_path': d.file_path or d.filename,
+            'source_module': d.source_module,
             'category': d.category,
             'meeting_id': d.meeting_id,
             'requirement_id': d.requirement_id,
@@ -308,7 +360,7 @@ def download_version(version_id):
     if current_user.role == 'client':
         if p.client_id != current_user.id:
             abort(403)
-        if not d.visible_to_client:
+        if not d.visible_to_client and d.uploaded_by != current_user.id:
             abort(403)
     from app.storage import send_file_securely
     return send_file_securely(v.filename)
@@ -324,11 +376,12 @@ def download(doc_id):
     if current_user.role == 'client':
         if p.client_id != current_user.id:
             abort(403)
-        if not d.visible_to_client:
+        # Allow download if visible OR if client uploaded it themselves (pending verification)
+        if not d.visible_to_client and d.uploaded_by != current_user.id:
             abort(403)
 
     from app.storage import send_file_securely
-    return send_file_securely(d.filename)
+    return send_file_securely(d.file_path or d.filename)
 
 
 @bp.route('/documents/<int:doc_id>/delete', methods=['POST'])
@@ -355,14 +408,20 @@ def delete(doc_id):
 
 @bp.route('/documents/<int:doc_id>/upload-version', methods=['POST'])
 @login_required
+@roles_required(['architect', 'client'])
 def upload_version(doc_id):
-    require_architect()
     saved_filename = None
     try:
         d = Document.query.get_or_404(doc_id)
         project_id = d.project.id
-        if d.project.architect_id != current_user.id:
+        if current_user.role == 'architect' and d.project.architect_id != current_user.id:
             abort(403)
+        # Clients may only replace documents they themselves uploaded
+        if current_user.role == 'client':
+            if d.project.client_id != current_user.id:
+                abort(403)
+            if d.uploaded_by != current_user.id:
+                abort(403)
 
         file = request.files.get('file') or request.files.get('doc')
         if not (file and file.filename):
@@ -370,8 +429,8 @@ def upload_version(doc_id):
             return _docs_redirect(project_id)
 
         from app.storage import delete_file_securely, validate_secure_mime, save_file_securely
-        if not validate_secure_mime(file, ['application/pdf', 'image/jpeg', 'image/png']):
-            flash('Malicious file signature detected.', 'error')
+        if not validate_secure_mime(file, ALLOWED_DOC_MIMES):
+            flash('Unsupported file type. Allowed: PDF, images, Word, Excel, PowerPoint, DWG, DXF.', 'error')
             return _docs_redirect(project_id)
 
         file_size_str = _get_file_size_str(file)
@@ -392,12 +451,21 @@ def upload_version(doc_id):
             )
             db.session.add(new_v)
             d.filename = filename
+            d.file_path = filename
+            d.uploaded_by = current_user.id
+            if current_user.role == 'client':
+                d.pending_verification = True
     except Exception:
         if saved_filename:
             delete_file_securely(saved_filename)
         flash('Unable to upload the new document version right now.', 'error')
-        return _docs_redirect(d.project.id if 'd' in locals() else request.form.get('project_id', type=int) or 0)
+        _d = locals().get('d')
+        if current_user.role == 'client':
+            return redirect(url_for('client.documents'))
+        return _docs_redirect(_d.project.id if _d else 0)
     flash('New version uploaded.', 'success')
+    if current_user.role == 'client':
+        return redirect(url_for('client.documents'))
     return _docs_redirect(project_id)
 
 

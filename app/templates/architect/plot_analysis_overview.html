@@ -1,0 +1,194 @@
+{% extends "base_architect.html" %}
+{% block title %}Plot Analysis — BuildSmart{% endblock %}
+
+{% block extra_css %}
+<style>
+  .pa-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:20px; margin-top:24px; }
+  .pa-card { background:var(--ink-1); border:1px solid var(--line); border-radius:var(--r-md); padding:24px; display:flex; flex-direction:column; gap:16px; transition:border-color 0.2s; }
+  .pa-card:hover { border-color:var(--line-hi); }
+  .pa-card-head { display:flex; justify-content:space-between; align-items:flex-start; }
+  .pa-card-title { font-size:15px; font-weight:600; color:var(--chalk); }
+  .pa-card-sub { font-size:12px; color:var(--chalk-3); margin-top:3px; }
+  .score-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; }
+  .score-pill.pass    { background:rgba(74,222,128,0.12); color:#4ade80; }
+  .score-pill.warning { background:rgba(245,200,66,0.12);  color:#f5c842; }
+  .score-pill.fail    { background:rgba(251,113,133,0.12); color:#fb7185; }
+  .score-pill.pending { background:rgba(98,95,91,0.12);   color:var(--chalk-3); }
+  .pa-score-bar { height:6px; border-radius:3px; background:var(--ink-4); overflow:hidden; }
+  .pa-score-fill { height:100%; border-radius:3px; transition:width 0.5s var(--ease-out); }
+  .pa-meta { display:flex; gap:16px; font-size:12px; color:var(--chalk-3); }
+  .empty-state { text-align:center; padding:80px 40px; color:var(--chalk-3); border:1px dashed var(--line); border-radius:var(--r-md); }
+  .empty-state svg { width:48px; height:48px; stroke:currentColor; stroke-width:1; fill:none; margin-bottom:16px; }
+  .upload-zone { border:2px dashed var(--line); border-radius:var(--r-md); padding:40px; text-align:center; transition:border-color 0.2s, background 0.2s; cursor:pointer; }
+  .upload-zone:hover { border-color:var(--gold-glow); background:var(--gold-dim); }
+  .upload-zone input[type=file] { display:none; }
+  .upload-zone-label { font-size:14px; color:var(--chalk-2); margin-top:12px; }
+  .upload-zone-hint { font-size:12px; color:var(--chalk-3); margin-top:6px; }
+  .version-row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .version-row:last-child { border-bottom:none; }
+  .glass-panel { background:rgba(255,255,255,0.02); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:var(--r-md); padding:24px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-row">
+    <div>
+      <div class="page-eyebrow">Analysis</div>
+      <h1 class="page-title">Plot Analysis</h1>
+      <p class="page-subtitle">
+        {% if project %}
+          {{ project.name }} — upload architectural drawings, run OCR extraction and TNPCR/DCR compliance checks.
+        {% else %}
+          Select a project below to upload drawings and run compliance analysis.
+        {% endif %}
+      </p>
+    </div>
+    {% if project %}
+    <div style="display:flex; gap:10px; align-items:center;">
+      <button class="btn btn-primary" onclick="document.getElementById('upload-modal').classList.add('open')">
+        <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0;">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        New Analysis
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if not project %}
+<!-- Global: project selector -->
+<div class="card" style="margin-bottom:24px;">
+  <div class="section-title">Select Project</div>
+  <div class="field">
+    <select onchange="if(this.value) window.location.href='/projects/'+this.value+'/plot-analysis'">
+      <option value="">Choose a project…</option>
+      {% for p in projects %}
+      <option value="{{ p.id }}">{{ p.name }} ({{ p.client.name if p.client else 'No client' }})</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+<div class="empty-state">
+  <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M9 3v18"/></svg>
+  <p>Please select a project above to begin plot analysis.</p>
+</div>
+
+{% else %}
+<!-- Project-level view -->
+{% if analyses %}
+<div class="pa-grid">
+  {% for a in analyses %}
+  <div class="pa-card">
+    <div class="pa-card-head">
+      <div>
+        <div class="pa-card-title">{{ a.original_filename or 'Untitled Drawing' }}</div>
+        <div class="pa-card-sub">{{ a.created_at|strftime('%d %b %Y, %H:%M') }}</div>
+      </div>
+      {% if a.overall_score is not none %}
+      <span class="score-pill {{ a.score_status }}">
+        {{ '%.0f'|format(a.overall_score) }}%
+      </span>
+      {% else %}
+      <span class="score-pill pending">Pending</span>
+      {% endif %}
+    </div>
+
+    {% if a.overall_score is not none %}
+    <div class="pa-score-bar">
+      <div class="pa-score-fill" style="width:{{ a.overall_score }}%; background:{{ a.score_color }};"></div>
+    </div>
+    {% endif %}
+
+    <div class="pa-meta">
+      <span>{{ a.fields.count() }} fields extracted</span>
+      <span>{{ a.results.count() }} rules checked</span>
+      <span style="text-transform:capitalize;">{{ a.status }}</span>
+    </div>
+
+    <div style="display:flex; gap:8px;">
+      <a href="{{ url_for('plot_analysis.result', project_id=project.id, analysis_id=a.id) }}"
+         class="btn btn-ghost" style="flex:1; text-align:center; font-size:12px;">Open Result</a>
+      {% if a.status in ('analyzed', 'confirmed', 'insufficient_data') %}
+      <a href="{{ url_for('plot_analysis.result', project_id=project.id, analysis_id=a.id) }}"
+         class="btn btn-primary" style="flex:1; text-align:center; font-size:12px;">View Results</a>
+      {% else %}
+      <form method="POST"
+            action="{{ url_for('plot_analysis.run_analysis', project_id=project.id, analysis_id=a.id) }}"
+            style="flex:1;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary" style="width:100%; font-size:12px;">Run Analysis</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state" style="margin-top:24px;">
+  <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M9 3v18"/></svg>
+  <p style="margin-bottom:16px;">No analyses yet for this project.</p>
+  <button class="btn btn-primary" onclick="document.getElementById('upload-modal').classList.add('open')">
+    Upload First Drawing
+  </button>
+</div>
+{% endif %}
+
+<!-- Version history panel -->
+{% if versions %}
+<div class="glass-panel" style="margin-top:32px;">
+  <div class="section-title" style="margin-bottom:16px;">Saved Versions</div>
+  {% for v in versions %}
+  <div class="version-row">
+    <div>
+      <span style="font-weight:600; color:var(--chalk);">{{ v.version_name }}</span>
+      <span style="color:var(--chalk-3); margin-left:12px;">{{ v.created_at|strftime('%d %b %Y') }}</span>
+    </div>
+    {% set snap = v.snapshot_json|fromjson %}
+    {% if snap.overall_score is defined %}
+    <span class="score-pill {% if snap.overall_score >= 85 %}pass{% elif snap.overall_score >= 60 %}warning{% else %}fail{% endif %}">
+      {{ '%.0f'|format(snap.overall_score) }}%
+    </span>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Upload Modal -->
+<div class="modal-backdrop" id="upload-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-eyebrow">New Analysis</div>
+      <div class="modal-title">Upload Architectural Drawing</div>
+    </div>
+    <form method="POST"
+          action="{{ url_for('plot_analysis.upload', project_id=project.id) }}"
+          enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="upload-zone" onclick="document.getElementById('drawing-input').click()">
+        <svg viewBox="0 0 24 24" style="width:40px; height:40px; stroke:var(--gold); fill:none; stroke-width:1.5; margin:0 auto;">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <div class="upload-zone-label">Click to select file</div>
+        <div class="upload-zone-hint">JPG, PNG, or PDF — max 20 MB</div>
+        <input type="file" id="drawing-input" name="drawing" accept=".jpg,.jpeg,.png,.pdf" required
+               onchange="document.getElementById('file-name-display').textContent = this.files[0]?.name || ''">
+      </div>
+      <div id="file-name-display" style="font-size:12px; color:var(--gold); margin-top:8px; min-height:18px;"></div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost"
+                onclick="document.getElementById('upload-modal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Upload &amp; Extract</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base_client.html" %}
+{% block title %}Plot Analysis — BuildSmart{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1 class="page-title">Plot Analysis</h1>
+  <p class="page-subtitle">Your architect’s latest manual plot analysis.</p>
+</div>
+
+{% if not analysis %}
+<div class="card">
+  <p style="color:var(--chalk-3);">No plot analysis has been published yet.</p>
+</div>
+{% else %}
+<div class="two-col">
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Summary</div>
+    {% if result_payload and result_payload.valid %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div style="display:flex; justify-content:space-between;"><span>Compliance</span><strong>{{ 'Yes' if result_payload.compliant else 'No' }}</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Trust Level</span><strong>{{ result_payload.trust_level }}</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Data Completeness</span><strong>{{ result_payload.data_completeness }}%</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Violations</span><strong>{{ result_summary.violations }}</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Warnings</span><strong>{{ result_summary.warnings }}</strong></div>
+    </div>
+    {% else %}
+    <p style="color:var(--chalk-3);">This analysis is waiting for valid inputs.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Applied Rules</div>
+    {% if applied_rule_rows %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Rule</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        {% for row in applied_rule_rows %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td>{{ row.value }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--chalk-3);">No applied rules snapshot is available.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="two-col" style="margin-top:24px;">
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Violations</div>
+    {% if result_payload and result_payload.valid and result_payload.violations %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for violation in result_payload.violations %}
+      <div style="padding:12px 14px; border:1px solid rgba(251,113,133,0.25); border-radius:8px;">
+        <strong>{{ violation.field or violation.code or 'Rule' }}</strong><br>
+        <span style="color:var(--chalk-3);">{{ violation.msg or violation.message or violation }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--chalk-3);">No violations reported.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Warnings</div>
+    {% if result_payload and result_payload.valid and result_payload.warnings %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for warning in result_payload.warnings %}
+      <div style="padding:12px 14px; border:1px solid rgba(245,200,66,0.25); border-radius:8px;">{{ warning }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--chalk-3);">No warnings reported.</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

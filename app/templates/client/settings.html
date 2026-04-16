@@ -1,13 +1,22 @@
 {% extends "base_client.html" %}
 {% block title %}Settings — BuildSmart{% endblock %}
-
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 {% block content %}
-<div class="page-head">
-    <h1 class="page-title">Settings</h1>
-    <p class="page-subtitle">Manage your account and notifications.</p>
-</div>
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Settings</div>
+          <h1 class="meetings-title">Client Preferences</h1>
+          <p class="meetings-subtitle">Manage your account and update preferences in the same shared visual system as the financial workspace.</p>
+        </div>
+      </div>
+    </section>
 
-<div class="card" style="max-width:600px;">
+<div class="surface-card" style="max-width:600px;">
     <form action="{{ url_for('settings.index') }}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="section-title">Account Details</div>
@@ -28,5 +37,7 @@
 
         <button type="submit" class="btn btn-primary" style="margin-top:32px; width:100%;">Save Settings</button>
     </form>
+</div>
+</div>
 </div>
 {% endblock %}

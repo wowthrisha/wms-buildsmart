@@ -31,7 +31,7 @@
                 <td>
                     <strong>{{ d.original_name }}</strong>
                     <div style="margin-top:6px;">
-                        {% for v in d.versions.order_by('version_num') %}
+                        {% for v in d.versions | sort(attribute='version_num') %}
                         <div style="font-size:11px; color:var(--chalk-3); margin-top:2px;">
                             <span class="badge badge-muted" style="font-size:10px;">{{ v.label }}</span>
                             {{ v.filename }}

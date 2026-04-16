@@ -2,54 +2,144 @@
 {% block title %}Documents — BuildSmart{% endblock %}
 
 {% block content %}
+<style>
+.cd-source { display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase;
+             letter-spacing:.06em; padding:2px 8px; border-radius:5px; }
+.cd-source.compliance    { background:rgba(96,165,250,.1);  color:#60a5fa; }
+.cd-source.plot_analysis { background:rgba(139,92,246,.1);  color:#a78bfa; }
+.cd-source.meetings      { background:rgba(74,222,128,.1);  color:#4ade80; }
+.cd-source.payments      { background:rgba(245,200,66,.1);  color:#f5c842; }
+.cd-source.vault,.cd-source.documents,.cd-source.general
+                         { background:rgba(255,255,255,.06); color:var(--chalk-3); }
+.cd-pending { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700;
+              text-transform:uppercase; letter-spacing:.05em; padding:2px 9px; border-radius:999px;
+              background:rgba(245,200,66,.12); color:#f5c842; }
+.cd-upload-zone { border:2px dashed rgba(255,255,255,.1); border-radius:10px; padding:20px 24px;
+                  margin-bottom:24px; background:rgba(255,255,255,.015); }
+.cd-upload-zone:hover { border-color:var(--gold); }
+.cd-field-label { display:block; font-size:10px; font-weight:700; text-transform:uppercase;
+                  letter-spacing:.07em; color:var(--chalk-3); margin-bottom:5px; }
+.cd-field { width:100%; padding:8px 12px; background:#0a0a0a; border:1px solid #252525;
+            border-radius:6px; color:var(--chalk); font-size:13px; box-sizing:border-box; }
+.cd-field:focus { outline:none; border-color:var(--gold); }
+</style>
+
 <div class="page-head">
+  <div>
     <h1 class="page-title">Documents</h1>
-    <p class="page-subtitle">Files shared by your architect.</p>
+    <p class="page-subtitle">Files from your architect and your own uploads.</p>
+  </div>
 </div>
 
+{# ── Upload panel ─── #}
+<div class="cd-upload-zone">
+  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+              color:var(--chalk-3);margin-bottom:14px;">Upload a Document</div>
+  <form action="{{ url_for('documents.upload', project_id=project.id) }}" method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="source_module" value="vault">
+    <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:12px;align-items:end;">
+      <div>
+        <label class="cd-field-label">Document Title</label>
+        <input class="cd-field" type="text" name="title" placeholder="e.g. Site visit photos, NOC copy">
+      </div>
+      <div>
+        <label class="cd-field-label">File (PDF / JPG / PNG)</label>
+        <input class="cd-field" type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png"
+               style="padding:6px;color:var(--chalk-2);">
+      </div>
+      <button type="submit" class="btn btn-primary" style="padding:9px 20px;white-space:nowrap;">Upload</button>
+    </div>
+    <p style="font-size:11px;color:var(--chalk-3);margin-top:8px;margin-bottom:0;">
+      Your upload will be visible to you immediately with a <strong style="color:#f5c842;">Pending Verification</strong> tag
+      until your architect reviews it.
+    </p>
+  </form>
+</div>
+
+{# ── Document list ─── #}
+{% set SOURCE_LABELS = {
+  'compliance':    'Compliance',
+  'plot_analysis': 'Plot Analysis',
+  'meetings':      'MOM / Minutes',
+  'payments':      'Payment',
+  'vault':         'General',
+  'documents':     'General'
+} %}
+
 <div class="card" style="padding:0;">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Document</th>
-                <th>Category</th>
-                <th>Versions</th>
-                <th>Date</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for d in documents %}
-            <tr>
-                <td>
-                    <strong>{{ d.original_name }}</strong>
-                    <div style="margin-top:6px;">
-                        {% for v in d.versions.order_by('version_num') %}
-                        <div style="font-size:11px; color:var(--chalk-3); margin-top:2px;">
-                            <span class="badge badge-muted" style="font-size:10px;">{{ v.label }}</span>
-                            {{ v.filename }}
-                            {% if v.file_type %}<span style="color:var(--chalk-4);">&middot; {{ v.file_type.split('/')[-1]|upper }}</span>{% endif %}
-                            {% if v.file_size %}<span style="color:var(--chalk-4);">&middot; {{ v.file_size }}</span>{% endif %}
-                            &middot; {{ v.created_at|strftime('%d %b %Y') }}
-                        </div>
-                        {% endfor %}
-                    </div>
-                </td>
-                <td><span class="badge badge-muted">{{ d.category }}</span></td>
-                <td style="text-align:center;">
-                    <span class="badge badge-muted">{{ d.versions.count() }}</span>
-                </td>
-                <td>{{ d.created_at|strftime('%d %b %Y') }}</td>
-                <td>
-                    <a href="{{ url_for('documents.download', doc_id=d.id) }}" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;" target="_blank" rel="noopener">Download</a>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" style="text-align:center; padding:40px; color:var(--chalk-3);">No documents have been shared yet.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="padding-left:20px;">Document</th>
+        <th>Source</th>
+        <th>Version</th>
+        <th>Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in documents %}
+      {% set cv = d.current_version %}
+      {% set vc = d.versions.count() %}
+      <tr>
+        <td style="padding-left:20px;">
+          <div style="font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            {{ d.original_name }}
+            {% if d.pending_verification %}
+            <span class="cd-pending">&#9679; Pending Verification</span>
+            {% endif %}
+          </div>
+          {% if cv %}
+          <div style="font-size:11px;color:var(--chalk-3);margin-top:4px;">
+            {{ cv.file_type.split('/')[-1].upper() if cv.file_type else '' }}
+            {% if cv.file_size %}&nbsp;· {{ cv.file_size }}{% endif %}
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          {% set sm = d.source_module or 'vault' %}
+          <span class="cd-source {{ sm }}">{{ SOURCE_LABELS.get(sm, 'General') }}</span>
+        </td>
+        <td>
+          <span class="badge badge-gold" style="font-size:11px;">{{ cv.label if cv else 'v1' }}</span>
+          {% if vc > 1 %}
+          <span class="badge badge-muted" style="font-size:10px;margin-left:4px;">+{{ vc - 1 }} more</span>
+          {% endif %}
+        </td>
+        <td style="white-space:nowrap;font-size:12px;color:var(--chalk-3);">
+          {{ d.created_at|strftime('%d %b %Y') }}
+        </td>
+        <td>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <a href="{{ url_for('documents.download', doc_id=d.id) }}"
+               class="btn btn-ghost" style="font-size:12px;padding:5px 12px;"
+               target="_blank" rel="noopener">Download</a>
+
+            {# Client can replace their own uploads #}
+            {% if d.uploaded_by == current_user.id %}
+            <form action="{{ url_for('documents.upload_version', doc_id=d.id) }}"
+                  method="POST" enctype="multipart/form-data"
+                  style="display:inline-flex;align-items:center;gap:6px;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png"
+                     style="font-size:11px;color:var(--chalk-3);max-width:130px;">
+              <button type="submit" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">
+                Replace
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align:center;padding:48px 20px;color:var(--chalk-3);">
+          No documents yet. Upload one above or wait for your architect to share files.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

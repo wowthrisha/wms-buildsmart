@@ -8,9 +8,9 @@ from sqlalchemy.orm import joinedload
 
 from app import db
 from app.auth import require_architect
-from app.models import AuditLog, Payment, PaymentLog, Project
+from app.models import AuditLog, PaymentLog, Project
 from app.notifications_service import notify_user_comms
-from app.time_utils import utc_now
+from app.time_utils import ensure_utc, utc_now
 
 bp = Blueprint('payments', __name__)
 
@@ -78,6 +78,11 @@ def _notify_counterparty(project, title, body):
 
 
 def _auto_confirm_stale(project):
+    last_run = ensure_utc(project.auto_confirm_checked_at) if project.auto_confirm_checked_at else None
+    now = utc_now()
+    if last_run and now - last_run < timedelta(hours=1):
+        return 0
+
     cutoff = utc_now() - timedelta(days=7)
     stale_logs = (
         PaymentLog.query
@@ -85,10 +90,8 @@ def _auto_confirm_stale(project):
         .filter(PaymentLog.created_at <= cutoff)
         .all()
     )
-    if not stale_logs:
-        return 0
 
-    approved_at = utc_now()
+    approved_at = now
     with _transaction():
         for log in stale_logs:
             log.status = 'auto_confirmed'
@@ -101,6 +104,7 @@ def _auto_confirm_stale(project):
                 description=f'Client payment #{log.id} auto-confirmed after 7 days.',
                 is_client_visible=True,
             ))
+        project.auto_confirm_checked_at = approved_at
     return len(stale_logs)
 
 
@@ -258,6 +262,8 @@ def project_overview(project_id):
     return render_template(
         'payments_project.html',
         project=project,
+        active_project=project,
+        active_tab='payments',
         logs=filtered_logs,
         all_logs=logs,
         filters=filters,
@@ -532,15 +538,3 @@ def download_proof(payment_log_id):
     from app.storage import send_file_securely
     return send_file_securely(payment_log.proof_path)
 
-
-@bp.route('/payments/<int:payment_id>/download')
-@login_required
-def download_bill(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
-    project = _get_project_or_403(payment.project_id)
-
-    if not payment.bill_filename:
-        abort(404)
-
-    from app.storage import send_file_securely
-    return send_file_securely(payment.bill_filename)

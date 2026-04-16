@@ -1,7 +1,7 @@
 {% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
 {% block title %}Kanban — {{ project.name }} — BuildSmart{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
 <div class="meetings-page">
@@ -10,7 +10,7 @@
       <div class="meetings-head">
         <div>
           <div class="meetings-kicker">Requirement Board</div>
-          <h1 class="meetings-title">Kanban</h1>
+      <h1 class="meetings-title">Requirements</h1>
           <p class="meetings-subtitle">Small linked cards only. Drag between columns to update the database and keep the meeting workflow in sync.</p>
         </div>
         <div class="inline-actions">
@@ -61,7 +61,7 @@
 
   function moveCard(card, state) {
     if (!card || card.dataset.state === state) return;
-    fetch('/requirements/' + card.dataset.id + '/update-status', {
+    fetch('/projects/{{ project.id }}/requirements/' + card.dataset.id + '/update-status', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

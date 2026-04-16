@@ -5,7 +5,15 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.auth import roles_required
-from app.models import AuditLog, Comment, Meeting, MeetingLog, Project, Requirement
+from app.models import (
+    AuditLog,
+    Comment,
+    Meeting,
+    MeetingLog,
+    Project,
+    Requirement,
+    RequirementComment,
+)
 from app.notifications_service import notify_user
 
 bp = Blueprint('requirements', __name__)
@@ -19,8 +27,6 @@ KANBAN_LABELS = {
 }
 
 
-# ── helpers ───────────────────────────────────────────────────────────────
-
 def _project_access_check(project):
     if current_user.role == 'architect' and project.architect_id != current_user.id:
         abort(403)
@@ -28,10 +34,22 @@ def _project_access_check(project):
         abort(403)
 
 
-def _get_meeting_or_403(meeting_id):
-    meeting = Meeting.query.get_or_404(meeting_id)
+def _project_or_403(project_id):
+    project = Project.query.get_or_404(project_id)
+    _project_access_check(project)
+    return project
+
+
+def _get_meeting_or_403(project_id, meeting_id):
+    meeting = Meeting.query.filter_by(id=meeting_id, project_id=project_id).first_or_404()
     _project_access_check(meeting.project)
     return meeting, meeting.project
+
+
+def _get_requirement_or_403(project_id, req_id):
+    project = _project_or_403(project_id)
+    requirement = Requirement.query.filter_by(id=req_id, project_id=project_id).first_or_404()
+    return requirement, project
 
 
 def _notify_other_party(project, title, body):
@@ -43,12 +61,24 @@ def _notify_other_party(project, title, body):
         pass
 
 
-def _meeting_redirect(meeting_id, fallback_project_id=None):
+def _meeting_redirect(meeting_id=None, fallback_project_id=None):
     target = request.form.get('next') or request.args.get('next')
-    if target == 'mom':
-        return redirect(url_for('meetings.mom_workspace', meeting_id=meeting_id))
+    meeting = None
     if meeting_id:
-        return redirect(url_for('meetings.detail', meeting_id=meeting_id))
+        if fallback_project_id:
+            meeting = Meeting.query.filter_by(id=meeting_id, project_id=fallback_project_id).first()
+        else:
+            meeting = Meeting.query.get(meeting_id)
+
+    if target == 'mom':
+        if meeting:
+            return redirect(url_for('meetings.project_mom', project_id=meeting.project_id, meeting_id=meeting.id))
+        if fallback_project_id:
+            return redirect(url_for('meetings.project_meetings', project_id=fallback_project_id))
+        return redirect(url_for('meetings.index'))
+
+    if meeting:
+        return redirect(url_for('meetings.project_detail', project_id=meeting.project_id, meeting_id=meeting.id))
     if fallback_project_id:
         return redirect(url_for('requirements.kanban', project_id=fallback_project_id))
     return redirect(url_for('meetings.index'))
@@ -68,18 +98,41 @@ def _log_meeting_event(meeting_id, action, note=''):
         pass
 
 
-# ── Comment routes ─────────────────────────────────────────────────────────
+def _build_columns(project_id):
+    requirements = Requirement.query.filter_by(project_id=project_id).order_by(Requirement.created_at.desc()).all()
+    columns = {state: [] for state in KANBAN_STATES}
+    for requirement in requirements:
+        columns.setdefault(requirement.status, []).append(requirement)
+    return columns
 
-@bp.route('/meetings/<int:meeting_id>/comment', methods=['POST'])
+
+def _build_columns_json(project_id):
+    columns = _build_columns(project_id)
+    result = {}
+    for state, requirements in columns.items():
+        result[state] = [{
+            'id': requirement.id,
+            'title': requirement.title,
+            'category': requirement.category,
+            'description': requirement.description,
+            'created_at': requirement.created_at.strftime('%d %b %Y') if requirement.created_at else '',
+            'created_by': requirement.creator.name if requirement.creator else '—',
+            'created_by_role': requirement.creator.role.title() if requirement.creator else 'Unknown',
+            'meeting_id': requirement.meeting_id,
+        } for requirement in requirements]
+    return result
+
+
+@bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>/comment', methods=['POST'])
 @login_required
 @roles_required(['architect', 'client'])
-def add_comment(meeting_id):
-    meeting, project = _get_meeting_or_403(meeting_id)
+def add_comment(project_id, meeting_id):
+    meeting, project = _get_meeting_or_403(project_id, meeting_id)
 
     content = (request.form.get('content') or '').strip()
     if not content:
         flash('Comment cannot be empty.', 'error')
-        return _meeting_redirect(meeting_id)
+        return _meeting_redirect(meeting.id, project.id)
 
     parent_id = request.form.get('parent_id')
     parent = None
@@ -108,20 +161,21 @@ def add_comment(meeting_id):
     _notify_other_party(project, 'New meeting comment', f'{current_user.name} added a comment on meeting #{meeting.id}.')
 
     flash('Comment added.', 'success')
-    return _meeting_redirect(meeting.id)
+    return _meeting_redirect(meeting.id, project.id)
 
 
-@bp.route('/comments/<int:comment_id>/convert', methods=['POST'])
+@bp.route('/projects/<int:project_id>/comments/<int:comment_id>/convert', methods=['POST'])
 @login_required
-def convert_comment(comment_id):
+def convert_comment(project_id, comment_id):
+    project = _project_or_403(project_id)
     comment = Comment.query.get_or_404(comment_id)
     meeting = comment.meeting
-    project = meeting.project
-    _project_access_check(project)
+    if not meeting or meeting.project_id != project_id:
+        abort(403)
 
     if comment.requirement_id:
         flash('That comment is already linked to a requirement.', 'info')
-        return _meeting_redirect(meeting.id)
+        return _meeting_redirect(meeting.id, project.id)
 
     title = (request.form.get('req_title') or comment.content[:80] or 'Client Requirement').strip()[:255]
     category = (request.form.get('req_category') or 'General').strip()[:100]
@@ -133,6 +187,8 @@ def convert_comment(comment_id):
         description=comment.content,
         category=category,
         status='new',
+        source=current_user.role,
+        raised_by=current_user.id,
         created_by=current_user.id,
     )
     db.session.add(requirement)
@@ -152,17 +208,14 @@ def convert_comment(comment_id):
     _notify_other_party(project, 'Requirement created', f'{current_user.name} created requirement "{title}" from meeting #{meeting.id}.')
 
     flash(f'Requirement "{title}" created.', 'success')
-    return _meeting_redirect(meeting.id)
+    return _meeting_redirect(meeting.id, project.id)
 
-
-# ── Requirement direct-add ─────────────────────────────────────────────────
 
 @bp.route('/projects/<int:project_id>/requirements/add', methods=['POST'])
 @login_required
 @roles_required(['architect', 'client'])
 def add_requirement(project_id):
-    project = Project.query.get_or_404(project_id)
-    _project_access_check(project)
+    project = _project_or_403(project_id)
 
     meeting_id = request.form.get('meeting_id', type=int)
     description = (request.form.get('description') or '').strip()
@@ -178,12 +231,9 @@ def add_requirement(project_id):
             return _meeting_redirect(meeting_id, project.id)
         return redirect(url_for('requirements.kanban', project_id=project.id))
 
+    meeting = None
     if meeting_id:
-        meeting = Meeting.query.get_or_404(meeting_id)
-        if meeting.project_id != project.id:
-            abort(403)
-    else:
-        meeting = None
+        meeting = Meeting.query.filter_by(id=meeting_id, project_id=project.id).first_or_404()
 
     initial_status = (request.form.get('status') or '').strip() if current_user.role == 'architect' else 'new'
     if initial_status not in KANBAN_STATES:
@@ -196,6 +246,8 @@ def add_requirement(project_id):
         description=description[:4000],
         category=(request.form.get('category') or 'General').strip()[:100],
         status=initial_status,
+        source=current_user.role,
+        raised_by=current_user.id,
         created_by=current_user.id,
     )
     db.session.add(requirement)
@@ -219,42 +271,107 @@ def add_requirement(project_id):
     return redirect(url_for('requirements.kanban', project_id=project.id))
 
 
-# ── Kanban ─────────────────────────────────────────────────────────────────
-
-@bp.route('/projects/<int:project_id>/kanban')
+@bp.route('/projects/<int:project_id>/requirements')
 @login_required
 def kanban(project_id):
-    project = Project.query.get_or_404(project_id)
-    _project_access_check(project)
+    project = _project_or_403(project_id)
     columns = _build_columns(project.id)
     return render_template(
         'architect/kanban.html',
         project=project,
+        active_project=project,
+        active_tab='requirements',
         columns=columns,
         kanban_states=KANBAN_STATES,
         kanban_labels=KANBAN_LABELS,
     )
 
 
-@bp.route('/projects/<int:project_id>/kanban/data')
+@bp.route('/projects/<int:project_id>/requirements/<int:req_id>')
 @login_required
-def kanban_data(project_id):
-    project = Project.query.get_or_404(project_id)
-    _project_access_check(project)
-    return jsonify(_build_columns_json(project.id))
+def requirement_detail(project_id, req_id):
+    requirement, project = _get_requirement_or_403(project_id, req_id)
+    comments = RequirementComment.query.filter_by(requirement_id=req_id).order_by(RequirementComment.created_at.asc()).all()
+    return jsonify({
+        'id': requirement.id,
+        'title': requirement.title,
+        'description': requirement.description,
+        'status': requirement.status,
+        'category': requirement.category,
+        'source': requirement.source,
+        'raised_by_role': requirement.raised_by_role if hasattr(requirement, 'raised_by_role') else None,
+        'created_at': requirement.created_at.isoformat() if requirement.created_at else None,
+        'comments': [
+            {
+                'id': comment.id,
+                'content': comment.content,
+                'role': comment.role,
+                'created_at': comment.created_at.isoformat() if comment.created_at else None,
+            }
+            for comment in comments
+        ],
+    })
 
 
-@bp.route('/requirements/<int:req_id>/update-status', methods=['POST'])
+@bp.route('/projects/<int:project_id>/requirements/<int:req_id>/delete', methods=['POST', 'DELETE'])
 @login_required
-def update_status(req_id):
-    requirement = Requirement.query.get_or_404(req_id)
-    project = requirement.project
-    _project_access_check(project)
+def delete_requirement(project_id, req_id):
+    project = _project_or_403(project_id)
+    if current_user.role != 'architect':
+        return jsonify({'error': 'Forbidden'}), 403
+
+    requirement = Requirement.query.filter_by(id=req_id, project_id=project_id).first_or_404()
+    db.session.delete(requirement)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/projects/<int:project_id>/requirements/<int:req_id>/comments', methods=['POST'])
+@login_required
+def add_requirement_comment(project_id, req_id):
+    requirement, project = _get_requirement_or_403(project_id, req_id)
+
+    payload = request.get_json(silent=True) or {}
+    content = (payload.get('content') or request.form.get('content') or '').strip()
+    if not content:
+        return jsonify({'error': 'Content required'}), 400
+
+    comment = RequirementComment(
+        requirement_id=requirement.id,
+        content=content[:4000],
+        author_id=current_user.id,
+        role=current_user.role,
+        created_at=datetime.utcnow(),
+        parent_id=payload.get('parent_id') or request.form.get('parent_id'),
+    )
+    db.session.add(comment)
+    db.session.commit()
+
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': True, 'comment_id': comment.id})
+
+    flash('Requirement comment added.', 'success')
+    if requirement.meeting_id:
+        return redirect(url_for('meetings.project_mom', project_id=project.id, meeting_id=requirement.meeting_id))
+    return redirect(url_for('requirements.kanban', project_id=project.id))
+
+
+@bp.route('/projects/<int:project_id>/requirements/<int:req_id>/update-status', methods=['POST'])
+@login_required
+def update_status(project_id, req_id):
+    requirement, project = _get_requirement_or_403(project_id, req_id)
 
     payload = request.get_json(silent=True) or {}
     new_status = request.form.get('status') or payload.get('status')
     if new_status not in KANBAN_STATES:
         return jsonify({'error': 'invalid status'}), 400
+
+    allowed_by_role = {
+        'client': ['new'],
+        'architect': ['new', 'confirmed', 'in_progress', 'done'],
+    }
+    if new_status not in allowed_by_role.get(current_user.role, []):
+        return jsonify({'error': 'Forbidden'}), 403
 
     requirement.status = new_status
     _log_meeting_event(requirement.meeting_id, 'REQUIREMENT_STATUS', f'{requirement.title} → {KANBAN_LABELS[new_status]}')
@@ -265,34 +382,7 @@ def update_status(req_id):
 
     flash(f'Moved to {KANBAN_LABELS[new_status]}.', 'success')
     if request.form.get('next') == 'mom' and requirement.meeting_id:
-        return redirect(url_for('meetings.mom_workspace', meeting_id=requirement.meeting_id))
+        return redirect(url_for('meetings.project_mom', project_id=project.id, meeting_id=requirement.meeting_id))
     if request.form.get('next') == 'detail' and requirement.meeting_id:
-        return redirect(url_for('meetings.detail', meeting_id=requirement.meeting_id))
+        return redirect(url_for('meetings.project_detail', project_id=project.id, meeting_id=requirement.meeting_id))
     return redirect(url_for('requirements.kanban', project_id=project.id))
-
-
-# ── internals ──────────────────────────────────────────────────────────────
-
-def _build_columns(project_id):
-    requirements = Requirement.query.filter_by(project_id=project_id).order_by(Requirement.created_at.desc()).all()
-    columns = {state: [] for state in KANBAN_STATES}
-    for requirement in requirements:
-        columns.setdefault(requirement.status, []).append(requirement)
-    return columns
-
-
-def _build_columns_json(project_id):
-    columns = _build_columns(project_id)
-    result = {}
-    for state, requirements in columns.items():
-        result[state] = [{
-            'id': requirement.id,
-            'title': requirement.title,
-            'category': requirement.category,
-            'description': requirement.description,
-            'created_at': requirement.created_at.strftime('%d %b %Y') if requirement.created_at else '',
-            'created_by': requirement.creator.name if requirement.creator else '—',
-            'created_by_role': requirement.creator.role.title() if requirement.creator else 'Unknown',
-            'meeting_id': requirement.meeting_id,
-        } for requirement in requirements]
-    return result

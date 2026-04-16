@@ -237,6 +237,7 @@ def _apply_migrations():
         "ALTER TABLE plot_analysis ADD COLUMN processed_json TEXT",
         "ALTER TABLE plot_analysis ADD COLUMN input_payload TEXT",
         "ALTER TABLE plot_analysis ADD COLUMN result_payload TEXT",
+        "ALTER TABLE plot_analysis ADD COLUMN data_completeness FLOAT",
         "ALTER TABLE plot_analysis ADD COLUMN data_completeness_score FLOAT",
         "ALTER TABLE plot_analysis ADD COLUMN trust_level VARCHAR(20)",
         "ALTER TABLE plot_extracted_data ADD COLUMN unit VARCHAR(50)",
@@ -273,12 +274,23 @@ def _apply_migrations():
         "ALTER TABLE user ADD COLUMN reset_token_created_at DATETIME",
         "ALTER TABLE user ADD COLUMN failed_attempts INTEGER DEFAULT 0",
         "ALTER TABLE user ADD COLUMN lock_until DATETIME",
+        "ALTER TABLE audit_log ADD COLUMN is_client_visible BOOLEAN DEFAULT 0",
+        "ALTER TABLE audit_log ADD COLUMN source_module VARCHAR(50)",
         "ALTER TABLE meeting ADD COLUMN description TEXT",
+        "ALTER TABLE meeting ADD COLUMN title VARCHAR(200)",
+        "ALTER TABLE meeting ADD COLUMN slot_1 TIMESTAMP",
+        "ALTER TABLE meeting ADD COLUMN slot_2 TIMESTAMP",
+        "ALTER TABLE meeting ADD COLUMN slot_3 TIMESTAMP",
+        "ALTER TABLE meeting ADD COLUMN confirmed_time TIMESTAMP",
         "ALTER TABLE meeting ADD COLUMN outcome VARCHAR(255)",
         "ALTER TABLE meeting ADD COLUMN completed_at DATETIME",
+        "ALTER TABLE project ADD COLUMN auto_confirm_checked_at DATETIME",
         "ALTER TABLE project_image ADD COLUMN meeting_id INTEGER",
         "ALTER TABLE project_image ADD COLUMN requirement_id INTEGER",
         "ALTER TABLE comment ADD COLUMN parent_id INTEGER",
+        "ALTER TABLE requirement ADD COLUMN source VARCHAR(20) DEFAULT 'architect'",
+        "ALTER TABLE requirement ADD COLUMN raised_by INTEGER REFERENCES user(id)",
+        "ALTER TABLE requirement ADD COLUMN updated_at TIMESTAMP",
         # MeetingLog table is created by db.create_all() on first run.
         # These ALTER statements handle columns added to existing tables only.
         # ── Document-as-source-of-truth additions ──────────────────────────
@@ -318,3 +330,16 @@ def _apply_migrations():
                 conn.commit()
             except Exception:
                 pass  # column already exists — safe to ignore
+        try:
+            cursor.execute("""CREATE TABLE IF NOT EXISTS requirement_comment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                requirement_id INTEGER NOT NULL REFERENCES requirement(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                author_id INTEGER REFERENCES user(id),
+                role VARCHAR(20),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                parent_id INTEGER REFERENCES requirement_comment(id)
+            )""")
+            conn.commit()
+        except Exception:
+            pass

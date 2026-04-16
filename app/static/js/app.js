@@ -90,3 +90,22 @@ if (!!window.EventSource) {
         console.log("SSE error, state:", source.readyState);
     };
 }
+
+// Image Board — lightbox modal
+window.openImageModal = function(imageSrc) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.95); display:flex; align-items:center; justify-content:center; z-index:9999; cursor:pointer;';
+    modal.innerHTML = '<img src="' + imageSrc + '" style="max-width:90vw; max-height:90vh; object-fit:contain;" onclick="event.stopPropagation();"><span style="position:absolute; top:20px; right:20px; color:#fff; font-size:28px; cursor:pointer; user-select:none;">×</span>';
+    modal.onclick = () => modal.remove();
+    document.body.appendChild(modal);
+};
+
+// Image Board — delete image
+window.deleteImage = function(imgId, projectId, csrf) {
+    if (confirm('Delete this image?')) {
+        fetch('/projects/' + projectId + '/images/' + imgId + '/delete', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf }
+        }).then(() => window.location.reload());
+    }
+};
