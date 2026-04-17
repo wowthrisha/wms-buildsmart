@@ -143,7 +143,7 @@ class Document(db.Model):
     # 'vault'|'compliance'|'plot_analysis'|'meetings'|'payments'
     extracted_data  = db.Column(db.Text)
     confidence_score= db.Column(db.Float)
-    shared_with_client = db.Column(db.Boolean, default=False)
+    # shared_with_client COLUMN REMOVED — use visible_to_client
     visible_to_client  = db.Column(db.Boolean, default=False)  # controls client portal visibility
     approval_status = db.Column(db.String(20), default='none')  # none|pending|approved|commented
     approved_at     = db.Column(db.DateTime)

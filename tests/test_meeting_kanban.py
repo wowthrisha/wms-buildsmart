@@ -835,25 +835,25 @@ class TestMeetingDetail:
     def test_architect_can_view_detail(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'arch@t.com')
-        resp = client.get(f'/meetings/{mid}')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/{mid}')
         assert resp.status_code == 200
 
     def test_client_can_view_detail(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'client@t.com')
-        resp = client.get(f'/meetings/{mid}')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/{mid}')
         assert resp.status_code == 200
 
     def test_other_architect_cannot_view_detail(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'other@t.com')
-        resp = client.get(f'/meetings/{mid}')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/{mid}')
         assert resp.status_code == 403
 
     def test_detail_shows_meeting_id(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         login(client, 'arch@t.com')
-        resp = client.get(f'/meetings/{mid}')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/{mid}')
         assert str(mid).encode() in resp.data
 
     def test_detail_shows_requirements_from_meeting(self, client, app, seed):
@@ -869,24 +869,24 @@ class TestMeetingDetail:
             db.session.commit()
 
         login(client, 'arch@t.com')
-        resp = client.get(f'/meetings/{mid}')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/{mid}')
         assert b'Skylight requirement' in resp.data
 
     def test_detail_shows_comments(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
         cid = seed_comment(app, mid, seed['arch_id'], 'Review the balcony rails')
         login(client, 'arch@t.com')
-        resp = client.get(f'/meetings/{mid}')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/{mid}')
         assert b'Review the balcony rails' in resp.data
 
     def test_detail_404_for_nonexistent_meeting(self, client, app, seed):
         login(client, 'arch@t.com')
-        resp = client.get('/meetings/99999')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/99999')
         assert resp.status_code == 404
 
     def test_unauthenticated_redirected(self, client, app, seed):
         mid = seed_meeting(app, seed['project_id'], seed['arch_id'])
-        resp = client.get(f'/meetings/{mid}')
+        resp = client.get(f'/projects/{seed["project_id"]}/meetings/{mid}')
         assert resp.status_code in (302, 401)
 
 

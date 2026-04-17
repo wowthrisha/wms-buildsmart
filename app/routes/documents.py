@@ -315,7 +315,6 @@ def share(doc_id):
             abort(403)
 
         with _transaction():
-            d.shared_with_client = True
             d.visible_to_client = True
 
             log = AuditLog(

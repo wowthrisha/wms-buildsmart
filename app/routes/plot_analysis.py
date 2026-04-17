@@ -658,8 +658,7 @@ def run_analysis(project_id, analysis_id):
     field_map = _load_input_payload(analysis)
     field_map.update(_extracted_field_map(analysis.id))
 
-    engine = get_engine()
-    result = engine.check_compliance(field_map)
+    result = check_compliance(field_map)
     _save_analysis(project.id, field_map, result, analysis=analysis)
     db.session.commit()
     result_payload = _load_result_payload(analysis) or {}
@@ -1190,8 +1189,7 @@ def compute_analysis(project_id, analysis_id):
     if not field_map:
         return jsonify({'ok': False, 'error': 'No extracted data available. Upload a drawing first.'}), 400
 
-    engine = get_engine()
-    result = engine.check_compliance(field_map)
+    result = check_compliance(field_map)
     _save_analysis(project.id, field_map, result, analysis=analysis)
     db.session.commit()
 
