@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from flask import Blueprint, request, redirect, render_template, abort, jsonify, flash, url_for
+from flask import Blueprint, current_app, request, redirect, render_template, abort, jsonify, flash, url_for
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload
 from app import db
@@ -509,7 +509,67 @@ def approve(doc_id):
         notify_user(d.project.architect_id, 'Document Approved',
                     f'{current_user.name} approved {d.original_name or d.filename}')
     except Exception as e:
-        from flask import current_app
         current_app.logger.error(f'notify_user error: {e}')
 
     return redirect(url_for('client.documents'))
+
+
+@bp.route('/files/<path:filename>')
+@login_required
+def serve_file(filename):
+    """Authenticated file serving. Replaces direct /uploads/<filename> access."""
+    from app.storage import send_file_securely
+    if current_user.role == 'architect':
+        project_ids = [p.id for p in Project.query.filter_by(architect_id=current_user.id).all()]
+    else:
+        project_ids = [p.id for p in Project.query.filter_by(client_id=current_user.id).all()]
+
+    if not project_ids:
+        abort(403)
+
+    # Check Document table
+    doc = (
+        Document.query
+        .filter(Document.project_id.in_(project_ids))
+        .filter(db.or_(Document.filename == filename, Document.file_path == filename))
+        .first()
+    )
+    if doc:
+        if current_user.role == 'client' and not doc.visible_to_client and doc.uploaded_by != current_user.id:
+            abort(403)
+        return send_file_securely(filename)
+
+    # Check DocumentVersion table
+    ver = (
+        DocumentVersion.query
+        .join(Document, DocumentVersion.document_id == Document.id)
+        .filter(Document.project_id.in_(project_ids))
+        .filter(DocumentVersion.filename == filename)
+        .first()
+    )
+    if ver:
+        return send_file_securely(filename)
+
+    # Check ProjectImage table
+    from app.models import ProjectImage
+    img = (
+        ProjectImage.query
+        .filter(ProjectImage.project_id.in_(project_ids))
+        .filter(ProjectImage.filename == filename)
+        .first()
+    )
+    if img:
+        return send_file_securely(filename)
+
+    # Check PaymentLog proof
+    from app.models import PaymentLog
+    proof = (
+        PaymentLog.query
+        .filter(PaymentLog.project_id.in_(project_ids))
+        .filter(PaymentLog.proof_path == filename)
+        .first()
+    )
+    if proof:
+        return send_file_securely(filename)
+
+    abort(404)

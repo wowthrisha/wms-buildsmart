@@ -61,11 +61,10 @@
         <div class="section-title">Drawing Preview</div>
       </div>
       <div class="drawing-frame" style="margin:20px; border-radius:var(--r-sm);">
-        {% set upload_folder_url = '/uploads/' %}
         {% if analysis.file_path %}
           {% set ext = analysis.file_path.split('.')[-1].lower() %}
           {% if ext in ['jpg', 'jpeg', 'png'] %}
-            <img src="{{ url_for('static', filename='../uploads/' + analysis.file_path) }}"
+            <img src="{{ url_for('documents.serve_file', filename=analysis.file_path) }}"
                  alt="Uploaded drawing"
                  onerror="this.parentElement.innerHTML='<div class=\'no-preview\'><svg viewBox=\'0 0 24 24\' style=\'width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1;margin-bottom:12px;\'><path d=\'M3 3h18v18H3zM3 9h18M9 3v18\'/></svg><p>Preview not available</p></div>'">
           {% else %}

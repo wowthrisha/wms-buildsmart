@@ -302,6 +302,8 @@ def _apply_migrations():
         "ALTER TABLE compliance_item ADD COLUMN added_at DATETIME",
         # ── PlotDocument bridge FK ──────────────────────────────────────────
         "ALTER TABLE plot_document ADD COLUMN document_id INTEGER",
+        # ── PaymentLog bridge FK to Document vault ──────────────────────────
+        "ALTER TABLE payment_log ADD COLUMN document_id INTEGER",
         # ── VisualReference pipeline columns ───────────────────────────────
         "ALTER TABLE visual_reference ADD COLUMN uploader_role VARCHAR(20)",
         "ALTER TABLE visual_reference ADD COLUMN source_url TEXT",
