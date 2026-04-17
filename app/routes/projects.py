@@ -277,7 +277,8 @@ def upload_image(project_id):
             from flask import flash
             flash('Invalid image type. Only JPG and PNG are allowed.', 'error')
             if request.form.get('next') == 'mom' and request.form.get('meeting_id'):
-                return redirect(url_for('meetings.mom_workspace', meeting_id=request.form.get('meeting_id', type=int)))
+                mid = request.form.get('meeting_id', type=int)
+                return redirect(url_for('meetings.project_mom', project_id=project_id, meeting_id=mid))
             return redirect(request.referrer or '/dashboard')
             
         filename = save_file_securely(file)
@@ -325,7 +326,7 @@ def upload_image(project_id):
         from flask import flash
         flash('Image uploaded.', 'success')
         if request.form.get('next') == 'mom' and meeting:
-            return redirect(url_for('meetings.mom_workspace', meeting_id=meeting.id))
+            return redirect(url_for('meetings.project_mom', project_id=project_id, meeting_id=meeting.id))
 
     return redirect(request.referrer or '/dashboard')
 

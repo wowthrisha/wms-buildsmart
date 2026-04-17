@@ -267,46 +267,6 @@ def project_mom(project_id, meeting_id):
     )
 
 
-@bp.route('/meetings/<int:meeting_id>')
-@login_required
-def detail(meeting_id):
-    meeting = _meeting_or_404(meeting_id)
-    payload = _meeting_detail_payload(meeting)
-    return render_template(
-        'meeting_detail.html',
-        meeting=meeting,
-        project=meeting.project,
-        active_project=meeting.project,
-        active_tab='meetings',
-        requirements=payload['requirements'],
-        comments=payload['comments'],
-        logs=payload['logs'],
-        documents=payload['documents'],
-        images=payload['images'],
-        slot_summary=_format_slot_summary(meeting),
-    )
-
-
-@bp.route('/meetings/<int:meeting_id>/mom')
-@login_required
-def mom_workspace(meeting_id):
-    meeting = _meeting_or_404(meeting_id)
-    payload = _meeting_detail_payload(meeting)
-    new_requirements = [req for req in payload['requirements'] if req.status == 'new']
-    return render_template(
-        'mom_workspace.html',
-        meeting=meeting,
-        project=meeting.project,
-        active_project=meeting.project,
-        active_tab='meetings',
-        requirements=payload['requirements'],
-        new_requirements=new_requirements,
-        comments=payload['comments'],
-        logs=payload['logs'],
-        documents=payload['documents'],
-        images=payload['images'],
-    )
-
 
 # ── Mutations ───────────────────────────────────────────────────────────────
 

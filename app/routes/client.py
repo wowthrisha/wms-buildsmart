@@ -2,7 +2,7 @@ from flask import Blueprint, abort, jsonify, render_template, redirect, request,
 from flask_login import login_required, current_user
 from app import db
 from app.compliance_service import ensure_project_compliance_items
-from app.models import AuditLog, Document, Project
+from app.models import AuditLog, Document, Meeting, Notification, Project
 
 bp = Blueprint('client', __name__)
 
@@ -35,7 +35,14 @@ def portal():
     ensure_project_compliance_items(p.id)
     db.session.commit()
     projects = Project.query.filter_by(client_id=current_user.id).order_by(Project.updated_at.desc()).all()
-    return render_template('client/portal.html', project=p, projects=projects, notifications=[])
+    notifications = (
+        Notification.query
+        .filter_by(user_id=current_user.id, read=False)
+        .order_by(Notification.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    return render_template('client/portal.html', project=p, projects=projects, notifications=notifications)
 
 @bp.route('/my_project/documents')
 @login_required
@@ -68,8 +75,24 @@ def plot_info():
 @bp.route('/my_project/meetings')
 @login_required
 def meetings():
-    if current_user.role != 'client': abort(403)
-    return redirect(url_for('meetings.index'))
+    if current_user.role != 'client':
+        abort(403)
+    p = get_client_project()
+    if not p:
+        return render_template('client/no_project.html')
+    meetings_list = (
+        Meeting.query
+        .filter_by(project_id=p.id)
+        .order_by(Meeting.created_at.desc())
+        .all()
+    )
+    projects = Project.query.filter_by(client_id=current_user.id).order_by(Project.updated_at.desc()).all()
+    return render_template(
+        'client/meetings.html',
+        project=p,
+        projects=projects,
+        meetings=meetings_list,
+    )
 
 @bp.route('/my_project/updates')
 @login_required

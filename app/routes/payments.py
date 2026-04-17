@@ -299,30 +299,6 @@ def update_budget(project_id):
     return redirect(url_for('payments.project_overview', project_id=project.id))
 
 
-@bp.route('/payments/project/<int:project_id>', methods=['GET'])
-@login_required
-def history(project_id):
-    project = _get_project_or_403(project_id)
-    _auto_confirm_stale(project)
-    logs = _payment_logs_for(project)
-    summary = _build_summary(project, logs)
-    return jsonify({
-        'summary': summary,
-        'rows': [{
-            'id': log.id,
-            'amount': log.amount,
-            'paid_by': log.paid_by,
-            'paid_to': log.paid_to,
-            'description': log.description,
-            'category': log.category,
-            'stage': log.stage,
-            'payment_method': log.payment_method,
-            'status': log.status,
-            'comment': log.comment,
-            'created_at': log.created_at.isoformat(),
-            'approved_at': log.approved_at.isoformat() if log.approved_at else None,
-        } for log in logs],
-    })
 
 
 @bp.route('/projects/<int:project_id>/payments/add', methods=['POST'])
