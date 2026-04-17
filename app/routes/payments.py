@@ -393,6 +393,28 @@ def add(project_id):
         flash('Unable to save the payment right now. Please try again.', 'error')
         return redirect(url_for('payments.project_overview', project_id=project.id))
 
+    # Bridge proof file to Document Vault (stream already consumed; use path-based helper)
+    try:
+        from app.services.document_service import create_vault_record_from_path
+        from app.models import Document, DocumentVersion
+        payment_name = (
+            f"Payment Proof — {payment_log.category} — ₹{payment_log.amount:,.0f}"
+        )
+        vault_doc, _ = create_vault_record_from_path(
+            file_path=proof_path,
+            original_filename=proof.filename,
+            project_id=project.id,
+            uploaded_by=current_user.id,
+            uploaded_by_role=current_user.role,
+            source_module='payments',
+            display_name=payment_name,
+            visible_to_client=True,
+        )
+        payment_log.document_id = vault_doc.id
+        db.session.commit()
+    except Exception:
+        pass  # vault bridging is best-effort; do not fail the payment
+
     if current_user.role == 'client':
         _notify_counterparty(project, 'Payment update', f'{current_user.name} logged a client payment of ₹{amount:,.0f} for {project.name}.')
         flash('Payment logged and sent for architect confirmation.', 'success')

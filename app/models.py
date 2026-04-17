@@ -400,8 +400,11 @@ class PaymentLog(db.Model):
     created_at     = db.Column(db.DateTime, default=utc_now, nullable=False)
     approved_at    = db.Column(db.DateTime, nullable=True)
 
+    document_id    = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=True)
+
     creator        = db.relationship('User', foreign_keys=[created_by])
     approver       = db.relationship('User', foreign_keys=[approved_by])
+    vault_document = db.relationship('Document', foreign_keys=[document_id])
 
     CATEGORY_CHOICES = [
         'Structural',

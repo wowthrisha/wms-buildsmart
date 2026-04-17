@@ -186,6 +186,113 @@ def create_or_replace_document(
     return doc, is_new
 
 
+def create_vault_record_from_path(
+    file_path: str,
+    original_filename: str,
+    project_id: int,
+    uploaded_by: int,
+    uploaded_by_role: str,
+    source_module: str,
+    display_name: str | None = None,
+    compliance_doc_type: str | None = None,
+    meeting_id: int | None = None,
+    requirement_id: int | None = None,
+    visible_to_client: bool = False,
+    existing_document_id: int | None = None,
+) -> tuple[Document, bool]:
+    """
+    Create (or update) a Document + DocumentVersion record for a file that has
+    already been saved to storage.  Use this when the file stream is exhausted.
+    Returns (document, is_new).
+    """
+    import mimetypes as _mt
+    source_module = 'vault' if source_module in ('documents', 'vault') else source_module
+    pending = (uploaded_by_role == 'client')
+    file_type = _mt.guess_type(original_filename or '')[0] or 'application/octet-stream'
+    original_name = display_name or original_filename or 'document'
+
+    doc: Document | None = None
+    is_new = True
+
+    if existing_document_id:
+        doc = Document.query.get(existing_document_id)
+
+    if doc is None and compliance_doc_type:
+        doc = Document.query.filter_by(
+            project_id=project_id,
+            compliance_doc_type=compliance_doc_type,
+            source_module=source_module,
+        ).first()
+
+    if doc is not None:
+        is_new = False
+        doc.filename = file_path
+        doc.file_path = file_path
+        doc.uploaded_by = uploaded_by
+        doc.uploader_role = uploaded_by_role
+        doc.source_module = source_module
+        if compliance_doc_type:
+            doc.compliance_doc_type = compliance_doc_type
+        if display_name:
+            doc.original_name = display_name
+        if meeting_id is not None:
+            doc.meeting_id = meeting_id
+        if requirement_id is not None:
+            doc.requirement_id = requirement_id
+        if pending:
+            doc.pending_verification = True
+            doc.verified_by = None
+            doc.verified_at = None
+        if uploaded_by_role == 'architect':
+            doc.pending_verification = False
+    else:
+        doc = Document(
+            project_id=project_id,
+            meeting_id=meeting_id,
+            requirement_id=requirement_id,
+            filename=file_path,
+            file_path=file_path,
+            doc_type=compliance_doc_type or source_module,
+            original_name=original_name,
+            category=_default_category(source_module),
+            uploaded_by=uploaded_by,
+            uploader_role=uploaded_by_role,
+            source_module=source_module,
+            compliance_doc_type=compliance_doc_type,
+            visible_to_client=visible_to_client,
+            pending_verification=pending,
+            approval_status='none',
+            created_at=utc_now(),
+        )
+        db.session.add(doc)
+        db.session.flush()
+
+    next_ver = db.session.query(DocumentVersion).filter_by(document_id=doc.id).count() + 1
+    version = DocumentVersion(
+        document_id=doc.id,
+        filename=file_path,
+        version_num=next_ver,
+        file_type=file_type,
+        file_size='',
+        uploader_id=uploaded_by,
+        created_at=utc_now(),
+    )
+    db.session.add(version)
+
+    log = AuditLog(
+        project_id=project_id,
+        actor_id=uploaded_by,
+        action='DOCUMENT_UPLOADED' if is_new else 'DOCUMENT_REPLACED',
+        description=f'{"Uploaded" if is_new else "Replaced"} document "{original_name}".',
+        source_module=source_module,
+        is_client_visible=bool(visible_to_client or uploaded_by_role == 'client'),
+        created_at=utc_now(),
+    )
+    db.session.add(log)
+    db.session.commit()
+    return doc, is_new
+
+
 def verify_document(document_id: int, verified_by_user_id: int) -> Document:
     """
     Architect verifies a client-uploaded document.

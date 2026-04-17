@@ -496,6 +496,38 @@ def upload(project_id):
         action='UPLOAD',
         description=f'Uploaded {doc_type} drawing for plot analysis',
     ))
+    db.session.flush()  # flush before vault bridge so plot_doc.id is set
+
+    # Bridge to Document Vault — file stream is already consumed, use path-based helper
+    _PA_COMP_MAP = {'FMB': 'fmb', 'Patta': 'patta', 'EC': 'ec'}
+    _PA_LABELS   = {'FMB': 'FMB Sketch', 'Patta': 'Patta / Chitta', 'EC': 'Encumbrance Certificate'}
+    compliance_key = _PA_COMP_MAP.get(doc_type)
+    try:
+        from app.services.document_service import create_vault_record_from_path
+        vault_doc, _ = create_vault_record_from_path(
+            file_path=file_path,
+            original_filename=original_filename,
+            project_id=project.id,
+            uploaded_by=current_user.id,
+            uploaded_by_role='architect',
+            source_module='plot_analysis',
+            display_name=f'{_PA_LABELS.get(doc_type, doc_type)} — Plot Analysis',
+            compliance_doc_type=compliance_key,
+            visible_to_client=False,
+            existing_document_id=plot_doc.document_id if plot_doc.document_id else None,
+        )
+        plot_doc.document_id = vault_doc.id
+        # Sync ComplianceItem if applicable
+        if compliance_key:
+            comp_item = ComplianceItem.query.filter_by(
+                project_id=project.id, doc_type=compliance_key
+            ).first()
+            if comp_item and not comp_item.document_id:
+                comp_item.document_id = vault_doc.id
+                comp_item.status = 'uploaded'
+    except Exception:
+        pass  # vault bridging is best-effort; do not fail the upload
+
     db.session.commit()
 
     if _is_ajax():
