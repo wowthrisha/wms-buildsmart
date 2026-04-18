@@ -47,7 +47,7 @@ def _workspace_response(project_id, *, active_tab='overview'):
                     .filter_by(project_id=p.id)
                     .order_by(PaymentLog.created_at.desc(), PaymentLog.id.desc())
                     .all())
-    db.session.commit()
+    db.session.commit()  # Release SQLite read transaction promptly
     return render_template(
         'architect/project_workspace.html',
         project=p,
@@ -151,6 +151,9 @@ def new_project():
     ensure_project_compliance_items(p.id)
     db.session.commit()
 
+    from flask import session as _session
+    _session.pop(f'projects_{current_user.id}', None)
+
     return redirect(f'/projects/{p.id}')
 
 @bp.route('/projects/<int:project_id>')
@@ -199,6 +202,50 @@ def project_compliance(project_id):
 def project_activity(project_id):
     return _workspace_response(project_id, active_tab='activity')
 
+
+def _check_project_access(project):
+    if current_user.role == 'architect' and project.architect_id != current_user.id:
+        abort(403)
+    elif current_user.role == 'client' and project.client_id != current_user.id:
+        abort(403)
+
+
+@bp.route('/projects/<int:project_id>/tab/compliance')
+@login_required
+def tab_compliance(project_id):
+    project = Project.query.get_or_404(project_id)
+    _check_project_access(project)
+    from app.compliance_service import compliance_summary as _cs
+    stats = _cs(project)
+    return jsonify({'summary': stats, 'percent': stats.get('percent', 0)})
+
+
+@bp.route('/projects/<int:project_id>/tab/documents')
+@login_required
+def tab_documents(project_id):
+    project = Project.query.get_or_404(project_id)
+    _check_project_access(project)
+    count = Document.query.filter_by(project_id=project_id).count()
+    docs = (Document.query.filter_by(project_id=project_id)
+            .order_by(Document.created_at.desc()).limit(10).all())
+    return jsonify({
+        'count': count,
+        'recent': [{'id': d.id, 'name': d.name,
+                    'source_module': d.source_module,
+                    'created_at': d.created_at.isoformat()} for d in docs]
+    })
+
+
+@bp.route('/projects/<int:project_id>/tab/meetings')
+@login_required
+def tab_meetings(project_id):
+    project = Project.query.get_or_404(project_id)
+    _check_project_access(project)
+    total = Meeting.query.filter_by(project_id=project_id).count()
+    pending = Meeting.query.filter_by(project_id=project_id, status='pending_request').count()
+    return jsonify({'total': total, 'pending_count': pending})
+
+
 # REMOVED:
 # @bp.route('/api/debug-clients')
 # def debug_clients(): ... 
@@ -222,6 +269,8 @@ def update_status(project_id):
     if new_status in Project.STATUS_ORDER:
         p.status = new_status
         db.session.commit()
+        from flask import session as _session
+        _session.pop(f'projects_{current_user.id}', None)
         flash(f'Status updated to {new_status}.', 'success')
 
         # Audit
@@ -257,8 +306,9 @@ def delete(project_id):
     db.session.add(log)
     db.session.delete(p)
     db.session.commit()
-    
-    from flask import flash
+
+    from flask import flash, session as _session
+    _session.pop(f'projects_{current_user.id}', None)
     flash(f"Project '{p_name}' securely deleted.", "success")
     return redirect('/projects')
 

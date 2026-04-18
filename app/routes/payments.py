@@ -78,8 +78,8 @@ def _notify_counterparty(project, title, body):
 
 
 def _auto_confirm_stale(project):
-    last_run = ensure_utc(project.auto_confirm_checked_at) if project.auto_confirm_checked_at else None
-    now = utc_now()
+    last_run = project.auto_confirm_checked_at  # naive datetime from DB
+    now = utc_now()  # naive datetime — keep consistent, no tzinfo mixing
     if last_run and now - last_run < timedelta(hours=1):
         return 0
 
@@ -245,6 +245,15 @@ def index():
     require_architect()
     projects = _user_projects()
     return render_template('payments_index.html', project_cards=_build_project_cards(projects))
+
+
+@bp.route('/payments/project/<int:project_id>')
+@login_required
+def project_summary_json(project_id):
+    """Lightweight JSON summary endpoint used by tests and future API consumers."""
+    project = _get_project_or_403(project_id)
+    logs = _payment_logs_for(project)
+    return jsonify({'summary': _build_summary(project, logs)})
 
 
 @bp.route('/projects/<int:project_id>/payments')
