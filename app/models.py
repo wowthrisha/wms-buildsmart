@@ -82,8 +82,11 @@ class RequirementCard(db.Model):
     divergence_score    = db.Column(db.Float)         # 0–100 % mismatch
     feasibility_pct     = db.Column(db.Float)         # 0–100
     generated_at        = db.Column(db.DateTime)
+    accepted            = db.Column(db.Boolean, default=False)
 
     created_at          = db.Column(db.DateTime, default=utc_now)
+
+    visual_reference    = db.relationship('VisualReference', foreign_keys=[visual_reference_id])
 
 class Project(db.Model):
     id           = db.Column(db.Integer, primary_key=True)

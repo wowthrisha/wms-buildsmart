@@ -298,6 +298,28 @@ def _normalize_analysis_result(fields: dict, result: dict) -> dict:
     return payload
 
 
+def _sync_compliance_from_analysis(analysis: PlotAnalysis, project_id: int) -> None:
+    try:
+        from app.models import PlotDocument as _PlotDoc
+        SYNC_MAP = {'FMB': 'fmb', 'Patta': 'patta', 'EC': 'ec'}
+        plot_docs = _PlotDoc.query.filter_by(analysis_id=analysis.id, status='uploaded').all()
+        for plot_doc in plot_docs:
+            comp_type = SYNC_MAP.get(plot_doc.doc_type)
+            if not comp_type:
+                continue
+            comp_item = ComplianceItem.query.filter_by(
+                project_id=project_id, doc_type=comp_type
+            ).first()
+            if comp_item and comp_item.status in ('missing', 'optional'):
+                comp_item.status = 'uploaded'
+                if plot_doc.document_id:
+                    comp_item.document_id = plot_doc.document_id
+        db.session.commit()
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.warning(f'Compliance sync failed: {e}')
+
+
 def _save_analysis(project_id: int, fields: dict, result: dict, *, analysis: PlotAnalysis | None = None) -> PlotAnalysis:
     if analysis is None:
         analysis = _latest_analysis(project_id)
@@ -326,6 +348,7 @@ def _save_analysis(project_id: int, fields: dict, result: dict, *, analysis: Plo
         analysis.status = 'insufficient_data'
     else:
         analysis.status = 'analyzed'
+        _sync_compliance_from_analysis(analysis, project_id)
     analysis.updated_at = utc_now()
     _sync_rule_rows(analysis, normalized_result.get('rule_results') or [])
     return analysis

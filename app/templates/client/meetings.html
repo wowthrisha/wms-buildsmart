@@ -1,74 +1,87 @@
 {% extends "base_client.html" %}
 {% block title %}Meetings — {{ project.name }} — BuildSmart{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 
 {% block content %}
-<div class="page-head">
-    <h1 class="page-title">Meetings</h1>
-    <p class="page-subtitle">{{ project.name }} · Your meeting schedule and history.</p>
-</div>
+<div class="page-shell">
 
-{% if meetings %}
-<div class="card" style="padding:0; margin-bottom:24px;">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Topic</th>
-                <th>Date</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for m in meetings %}
-            <tr>
-                <td><strong>{{ m.title or 'Meeting #' ~ m.id }}</strong></td>
-                <td>
-                    {% if m.confirmed_time %}
-                        {{ m.confirmed_time|strftime('%d %b %Y · %H:%M') }}
-                    {% elif m.slot_1 %}
-                        {{ m.slot_1|strftime('%d %b %Y · %H:%M') }} (proposed)
-                    {% else %}
-                        —
-                    {% endif %}
-                </td>
-                <td>
-                    <span class="badge badge-{% if m.normalized_status == 'confirmed' %}green{% elif m.normalized_status == 'completed' %}sky{% elif m.normalized_status == 'cancelled' %}rose{% else %}muted{% endif %}">
-                        {{ m.status_label }}
-                    </span>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+  <div class="page-hero">
+    <p class="page-kicker">Meetings</p>
+    <h1 class="page-title">{{ project.name }}</h1>
+    <p class="page-subtitle">Your meeting schedule, history, and requests with your architect.</p>
+  </div>
+
+  {% if meetings %}
+  <section class="table-card" style="margin-bottom:24px;">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">History</div>
+        <h3 style="margin:6px 0 0;">Your Meetings</h3>
+      </div>
+    </div>
+    <table class="dark-table">
+      <thead>
+        <tr>
+          <th>Topic</th>
+          <th>Date</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in meetings %}
+        <tr>
+          <td><strong>{{ m.title or 'Meeting #' ~ m.id }}</strong></td>
+          <td>
+            {% if m.confirmed_time %}{{ m.confirmed_time|strftime('%d %b %Y · %H:%M') }}
+            {% elif m.slot_1 %}{{ m.slot_1|strftime('%d %b %Y · %H:%M') }} (proposed)
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="status-pill {{ 'confirmed' if m.normalized_status == 'confirmed' else ('confirmed' if m.normalized_status == 'completed' else ('rejected' if m.normalized_status == 'cancelled' else 'pending')) }}">
+              {{ m.status_label }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
-</div>
-{% else %}
-<div class="card" style="text-align:center; padding:48px; color:var(--chalk-3);">
+  </section>
+  {% else %}
+  <div class="section-card" style="text-align:center; padding:48px; color:var(--mt-muted);">
     No meetings scheduled yet.
-</div>
-{% endif %}
+  </div>
+  {% endif %}
 
-<div style="margin-top:16px;">
-    <form method="POST" action="{{ url_for('meetings.request_meeting', project_id=project.id) }}" class="card" style="display:flex; flex-direction:column; gap:14px; padding:24px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <h3 style="margin:0; font-size:15px;">+ Request a Meeting</h3>
-        <div class="field">
-            <label>Topic</label>
-            <input type="text" name="title" placeholder="What is this meeting about?" required>
+  <section class="section-card">
+    <div class="section-kicker" style="margin-bottom:16px;">Request</div>
+    <h3 style="margin:0 0 20px; font-size:18px;">+ Request a Meeting</h3>
+    <form method="POST" action="{{ url_for('meetings.request_meeting', project_id=project.id) }}" class="field-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="ds-label">Topic</label>
+        <input type="text" name="title" class="ds-input" placeholder="What is this meeting about?" required>
+      </div>
+      <div class="form-group">
+        <label class="ds-label">Notes (optional)</label>
+        <textarea name="notes" class="ds-input" rows="3" placeholder="Any context or agenda items"></textarea>
+      </div>
+      <div class="field-grid two">
+        <div class="form-group">
+          <label class="ds-label">Preferred Time 1</label>
+          <input type="datetime-local" name="preferred_1" class="ds-input">
         </div>
-        <div class="field">
-            <label>Notes (optional)</label>
-            <textarea name="notes" placeholder="Any context or agenda items"></textarea>
+        <div class="form-group">
+          <label class="ds-label">Preferred Time 2 (optional)</label>
+          <input type="datetime-local" name="preferred_2" class="ds-input">
         </div>
-        <div class="field">
-            <label>Preferred Time 1</label>
-            <input type="datetime-local" name="preferred_1">
-        </div>
-        <div class="field">
-            <label>Preferred Time 2 (optional)</label>
-            <input type="datetime-local" name="preferred_2">
-        </div>
-        <div>
-            <button type="submit" class="btn btn-primary">Request Meeting</button>
-        </div>
+      </div>
+      <div>
+        <button type="submit" class="mt-btn mt-btn-primary">Request Meeting</button>
+      </div>
     </form>
+  </section>
+
 </div>
 {% endblock %}

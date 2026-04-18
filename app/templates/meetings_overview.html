@@ -4,99 +4,108 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
-<div class="meetings-page">
-  <div class="meetings-shell">
-    <section class="meetings-hero">
-      <div class="meetings-head">
-        <div>
-          <div class="meetings-kicker">Meetings Module</div>
-          <h1 class="meetings-title">Meetings Overview</h1>
-          <p class="meetings-subtitle">All meetings across your projects — requests, proposals, confirmed schedules, and completed MOM records.</p>
-        </div>
-        <div class="inline-actions">
-          {% if current_user.role == 'client' and projects %}
-          <button type="button" class="mt-btn primary" data-open-modal="request-modal">Request Meeting</button>
-          {% endif %}
-          {% if current_user.role == 'architect' and projects %}
-          <a href="/projects" class="mt-btn secondary">Go to a Project →</a>
-          {% endif %}
-        </div>
-      </div>
-    </section>
 
-    <section class="summary-grid">
-      {% set counts = namespace(requests=0, proposed=0, confirmed=0, completed=0) %}
-      {% for m in meetings %}
-        {% if m.normalized_status == 'pending_request' %}{% set counts.requests = counts.requests + 1 %}
-        {% elif m.normalized_status in ('proposed', 'counter_proposed') %}{% set counts.proposed = counts.proposed + 1 %}
-        {% elif m.normalized_status == 'confirmed' %}{% set counts.confirmed = counts.confirmed + 1 %}
-        {% elif m.normalized_status == 'completed' %}{% set counts.completed = counts.completed + 1 %}
-        {% endif %}
-      {% endfor %}
-      <article class="metric-card">
-        <div class="metric-label">Pending Requests</div>
-        <div class="metric-value">{{ counts.requests }}</div>
-        <div class="metric-foot">Client requests waiting for slot proposals</div>
-      </article>
-      <article class="metric-card">
-        <div class="metric-label">Proposed</div>
-        <div class="metric-value">{{ counts.proposed }}</div>
-        <div class="metric-foot">Meetings awaiting final selection</div>
-      </article>
-      <article class="metric-card">
-        <div class="metric-label">Confirmed</div>
-        <div class="metric-value">{{ counts.confirmed }}</div>
-        <div class="metric-foot">Scheduled meetings ready for MOM work</div>
-      </article>
-      <article class="metric-card">
-        <div class="metric-label">Completed</div>
-        <div class="metric-value">{{ counts.completed }}</div>
-        <div class="metric-foot">Closed meetings with archived outcome</div>
-      </article>
-    </section>
+{% set counts = namespace(requests=0, proposed=0, confirmed=0, completed=0) %}
+{% for m in meetings %}
+  {% if m.normalized_status == 'pending_request' %}{% set counts.requests = counts.requests + 1 %}
+  {% elif m.normalized_status in ('proposed', 'counter_proposed') %}{% set counts.proposed = counts.proposed + 1 %}
+  {% elif m.normalized_status == 'confirmed' %}{% set counts.confirmed = counts.confirmed + 1 %}
+  {% elif m.normalized_status == 'completed' %}{% set counts.completed = counts.completed + 1 %}
+  {% endif %}
+{% endfor %}
 
-    <section class="table-card">
-      <div class="table-toolbar">
-        <div>
-          <div class="section-kicker">Directory</div>
-          <h3 style="margin:6px 0 0;">All Meetings</h3>
-        </div>
-      </div>
-      {% if meetings %}
-      <table class="dark-table">
-        <thead>
-          <tr>
-            <th>Meeting ID</th>
-            <th>Project</th>
-            <th>Date</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for meeting in meetings %}
-          {% set state = meeting.normalized_status %}
-          <tr>
-            <td>#{{ meeting.id }}</td>
-            <td>{{ meeting.project.name }}</td>
-            <td>
-              {% if meeting.confirmed_time or meeting.confirmed_slot %}{{ (meeting.confirmed_time or meeting.confirmed_slot)|strftime('%d %b %Y · %H:%M') }}
-              {% elif meeting.slot_1 %}{{ meeting.slot_1|strftime('%d %b %Y · %H:%M') }}
-              {% else %}{{ meeting.created_at|strftime('%d %b %Y · %H:%M') }}{% endif %}
-            </td>
-            <td>
-              <span class="status-pill {{ state|replace('_', '-') }}">{{ meeting.status_label }}</span>
-            </td>
-            <td><a class="ghost-link" href="/projects/{{ meeting.project_id }}/meetings/{{ meeting.id }}">Open →</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="mt-empty">No meetings yet. Go to a project to propose or request one.</div>
-      {% endif %}
-    </section>
+<div class="page-shell">
+
+  <div class="page-hero">
+    <p class="page-kicker">Meetings Module</p>
+    <h1 class="page-title">Meetings Overview</h1>
+    <p class="page-subtitle">All meetings across your projects — requests, proposals, confirmed schedules, and completed MOM records.</p>
+    {% if current_user.role == 'client' and projects %}
+    <button type="button" class="hero-cta" data-open-modal="request-modal">+ Request Meeting</button>
+    {% elif current_user.role == 'architect' and projects %}
+    <a href="/projects" class="hero-cta">Go to a Project →</a>
+    {% endif %}
   </div>
+
+  {% if counts.requests > 0 %}
+  <div class="next-step-bar">
+    <p class="ns-kicker">Action needed</p>
+    <p class="ns-title">{{ counts.requests }} pending meeting request{{ 's' if counts.requests != 1 }}</p>
+    <p class="ns-body">Open the relevant project to propose time slots.</p>
+  </div>
+  {% else %}
+  <div class="next-step-bar">
+    <p class="ns-kicker">Status</p>
+    <p class="ns-title">{{ meetings|length }} meeting{{ 's' if meetings|length != 1 }} on record</p>
+    <p class="ns-body">{{ counts.confirmed }} confirmed · {{ counts.completed }} completed · {{ counts.proposed }} awaiting selection.</p>
+  </div>
+  {% endif %}
+
+  <div class="stat-grid" style="margin-bottom:24px;">
+    <div class="stat-tile">
+      <div class="st-label">Pending Requests</div>
+      <div class="st-value">{{ counts.requests }}</div>
+      <div class="st-sub">Waiting for slot proposals</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Proposed</div>
+      <div class="st-value">{{ counts.proposed }}</div>
+      <div class="st-sub">Awaiting final selection</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Confirmed</div>
+      <div class="st-value">{{ counts.confirmed }}</div>
+      <div class="st-sub">Ready for MOM work</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Completed</div>
+      <div class="st-value">{{ counts.completed }}</div>
+      <div class="st-sub">Archived outcomes</div>
+    </div>
+  </div>
+
+  <section class="table-card">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Directory</div>
+        <h3 style="margin:6px 0 0;">All Meetings</h3>
+      </div>
+    </div>
+    {% if meetings %}
+    <table class="dark-table">
+      <thead>
+        <tr>
+          <th>Meeting ID</th>
+          <th>Project</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for meeting in meetings %}
+        {% set state = meeting.normalized_status %}
+        <tr>
+          <td>#{{ meeting.id }}</td>
+          <td>{{ meeting.project.name }}</td>
+          <td>
+            {% if meeting.confirmed_time or meeting.confirmed_slot %}{{ (meeting.confirmed_time or meeting.confirmed_slot)|strftime('%d %b %Y · %H:%M') }}
+            {% elif meeting.slot_1 %}{{ meeting.slot_1|strftime('%d %b %Y · %H:%M') }}
+            {% else %}{{ meeting.created_at|strftime('%d %b %Y · %H:%M') }}{% endif %}
+          </td>
+          <td>
+            <span class="status-pill {{ state|replace('_', '-') }}">{{ meeting.status_label }}</span>
+          </td>
+          <td><a class="ghost-link" href="/projects/{{ meeting.project_id }}/meetings/{{ meeting.id }}">Open →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="mt-empty">No meetings yet. Go to a project to propose or request one.</div>
+    {% endif %}
+  </section>
+
 </div>
 
 {% if current_user.role == 'client' and projects %}
@@ -111,8 +120,8 @@
       <div class="modal-body modal-fields">
         {% if projects|length > 1 %}
         <div>
-          <label>Project</label>
-          <select name="project_id" id="request-project-select">
+          <label class="ds-label">Project</label>
+          <select name="project_id" id="request-project-select" class="ds-input ds-select">
             {% for project in projects %}
             <option value="{{ project.id }}">{{ project.name }}</option>
             {% endfor %}
@@ -120,23 +129,24 @@
         </div>
         {% endif %}
         <div>
-          <label>Topic</label>
-          <input type="text" name="title" placeholder="What should this meeting cover?" required>
+          <label class="ds-label">Topic</label>
+          <input type="text" name="title" class="ds-input" placeholder="What should this meeting cover?" required>
         </div>
         <div>
-          <label>Notes</label>
-          <textarea name="notes" placeholder="Add any context for your architect"></textarea>
+          <label class="ds-label">Notes</label>
+          <textarea name="notes" class="ds-input" rows="3" placeholder="Add any context for your architect"></textarea>
         </div>
       </div>
       <div class="modal-foot">
         <button type="button" class="mt-btn ghost" data-close-modal="request-modal">Cancel</button>
-        <button type="submit" class="mt-btn primary">Send Request</button>
+        <button type="submit" class="mt-btn mt-btn-primary">Send Request</button>
       </div>
     </form>
   </div>
 </div>
 {% endif %}
 {% endblock %}
+
 {% block extra_js %}
 <script>
 (function () {

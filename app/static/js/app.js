@@ -100,8 +100,255 @@ window.openImageModal = function(imageSrc) {
     document.body.appendChild(modal);
 };
 
-// Image Board — delete image
-window.deleteImage = function(imgId, projectId, csrf) {
+// ── RAG Chat Widget ──────────────────────────────────────────────
+window.sendRagQuery = function() {
+  const input    = document.getElementById('rag-input');
+  const messages = document.getElementById('rag-messages');
+  const btn      = document.getElementById('rag-send-btn');
+  if (!input || !messages) return;
+  const query = input.value.trim();
+  if (!query) return;
+
+  // User message bubble (right-aligned, gold tint)
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText = [
+    'align-self:flex-end',
+    'background:rgba(232,201,122,0.15)',
+    'border:1px solid rgba(232,201,122,0.4)',
+    'border-radius:12px',
+    'padding:10px 14px',
+    'font-size:13px',
+    'color:var(--chalk)',
+    'max-width:80%',
+    'word-break:break-word'
+  ].join(';');
+  userMsg.textContent = query;
+  messages.appendChild(userMsg);
+
+  // Loading bubble
+  const loadingMsg = document.createElement('div');
+  loadingMsg.id = 'rag-loading';
+  loadingMsg.style.cssText = [
+    'align-self:flex-start',
+    'background:var(--ink-2)',
+    'border:1px solid var(--line)',
+    'border-radius:12px',
+    'padding:10px 14px',
+    'font-size:13px',
+    'color:var(--chalk-3)',
+    'max-width:80%'
+  ].join(';');
+  loadingMsg.textContent = 'Thinking…';
+  messages.appendChild(loadingMsg);
+  messages.scrollTop = messages.scrollHeight;
+
+  input.value = '';
+  if (btn) btn.disabled = true;
+
+  const csrf = window._RAG_CSRF
+    || document.querySelector('meta[name=csrf-token]')?.content
+    || document.querySelector('input[name=csrf_token]')?.value
+    || '';
+  const endpoint = window._RAG_ENDPOINT || '/api/rag/query';
+
+  fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrf
+    },
+    body: JSON.stringify({ question: query })
+  })
+  .then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  })
+  .then(data => {
+    const loading = document.getElementById('rag-loading');
+    if (loading) loading.remove();
+    const replyMsg = document.createElement('div');
+    replyMsg.style.cssText = [
+      'align-self:flex-start',
+      'background:var(--ink-2)',
+      'border:1px solid var(--line)',
+      'border-radius:12px',
+      'padding:10px 14px',
+      'font-size:13px',
+      'color:var(--chalk)',
+      'max-width:80%',
+      'line-height:1.6',
+      'white-space:pre-wrap',
+      'word-break:break-word'
+    ].join(';');
+    replyMsg.textContent = data.answer || data.response || data.result || JSON.stringify(data);
+    messages.appendChild(replyMsg);
+    messages.scrollTop = messages.scrollHeight;
+  })
+  .catch(err => {
+    const loading = document.getElementById('rag-loading');
+    if (loading) loading.remove();
+    const errMsg = document.createElement('div');
+    errMsg.style.cssText = [
+      'align-self:flex-start',
+      'background:rgba(226,75,74,0.1)',
+      'border:1px solid rgba(226,75,74,0.4)',
+      'border-radius:12px',
+      'padding:10px 14px',
+      'font-size:13px',
+      'color:#fb7185',
+      'max-width:80%'
+    ].join(';');
+    errMsg.textContent = 'Could not get a response. Please try again.';
+    messages.appendChild(errMsg);
+    messages.scrollTop = messages.scrollHeight;
+  })
+  .finally(() => { if (btn) btn.disabled = false; });
+};
+
+// ── AI Suggestion Cards (Kanban) ─────────────────────────────────
+window.loadSuggestedRequirements = function(projectId) {
+  fetch('/projects/' + projectId + '/requirements/suggested')
+  .then(r => r.json())
+  .then(cards => {
+    const section   = document.getElementById('suggested-section');
+    const container = document.getElementById('suggested-cards');
+    if (!section || !container) return;
+    if (!cards || cards.length === 0) return;
+
+    section.style.display = 'block';
+    container.innerHTML = '';
+
+    cards.forEach(card => {
+      const div = document.createElement('div');
+      div.className = 'kanban-card';
+      div.style.cssText = 'width:220px; border:1px dashed rgba(255,255,255,0.1); opacity:0.9;';
+
+      let tags = [];
+      try {
+        tags = typeof card.vision_tags === 'string'
+          ? JSON.parse(card.vision_tags)
+          : (card.vision_tags || []);
+      } catch(e) { tags = []; }
+
+      div.innerHTML =
+        '<p class="kanban-card-title">' +
+          (card.fused_label || 'Untitled') +
+        '</p>' +
+        (card.extracted_intent
+          ? '<p class="kanban-card-meta" style="font-size:11px;">' +
+              card.extracted_intent.substring(0, 80) + '...' +
+            '</p>'
+          : '') +
+        '<div style="margin:8px 0; display:flex; flex-wrap:wrap; gap:4px;">' +
+          tags.slice(0, 3).map(t =>
+            '<span class="badge badge-muted" style="font-size:10px;">' + t + '</span>'
+          ).join('') +
+        '</div>' +
+        '<div style="display:flex; gap:8px; margin-top:10px;">' +
+          '<button class="btn btn-primary" style="flex:1; padding:6px 12px; font-size:11px;"' +
+            ' onclick="acceptSuggestion(' + card.id + ', this)">Accept</button>' +
+          '<button class="btn btn-ghost" style="padding:6px 12px; font-size:11px;"' +
+            ' onclick="this.closest(\'.kanban-card\').remove(); checkSuggestionsEmpty()">Dismiss</button>' +
+        '</div>';
+
+      container.appendChild(div);
+    });
+  })
+  .catch(e => console.log('No suggestions:', e));
+};
+
+window.acceptSuggestion = function(cardId, btn) {
+  const projectId = window.BUILDSMART_PROJECT_ID;
+  if (!projectId) return;
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  const csrf = document.querySelector('meta[name=csrf-token]')?.content
+    || document.querySelector('input[name=csrf_token]')?.value || '';
+  fetch('/projects/' + projectId + '/requirements/accept-suggestion/' + cardId, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': csrf }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      const card = btn.closest('.kanban-card');
+      card.style.opacity = '0.4';
+      card.style.pointerEvents = 'none';
+      btn.textContent = '✓ Added';
+      setTimeout(() => location.reload(), 800);
+    }
+  });
+};
+
+window.checkSuggestionsEmpty = function() {
+  const container = document.getElementById('suggested-cards');
+  const section   = document.getElementById('suggested-section');
+  if (container && section && container.children.length === 0) {
+    section.style.display = 'none';
+  }
+};
+
+// ── Requirement Edit / Delete ─────────────────────────────────────
+window.editRequirement = function(id, title, description) {
+  document.getElementById('edit-req-id').value    = id;
+  document.getElementById('edit-req-title').value = title;
+  document.getElementById('edit-req-desc').value  = description;
+  const modal = document.getElementById('edit-req-modal');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.closeEditModal = function() {
+  const modal = document.getElementById('edit-req-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.saveRequirement = function() {
+  const id    = document.getElementById('edit-req-id').value;
+  const title = document.getElementById('edit-req-title').value.trim();
+  const desc  = document.getElementById('edit-req-desc').value;
+  if (!title) { alert('Title is required'); return; }
+
+  const csrf = document.querySelector('meta[name=csrf-token]')?.content
+    || document.querySelector('input[name=csrf_token]')?.value || '';
+
+  fetch('/requirements/' + id, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+    body: JSON.stringify({ title: title, description: desc })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      const titleEl = document.getElementById('req-title-' + id);
+      if (titleEl) titleEl.textContent = data.title;
+      window.closeEditModal();
+    }
+  });
+};
+
+window.deleteRequirement = function(id, title) {
+  if (!confirm('Delete requirement "' + title + '"?\n\nThis cannot be undone.')) return;
+  const csrf = document.querySelector('meta[name=csrf-token]')?.content
+    || document.querySelector('input[name=csrf_token]')?.value || '';
+  fetch('/requirements/' + id, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': csrf }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      const card = document.querySelector('[data-req-id="' + id + '"]');
+      if (card) {
+        card.style.transition = 'all 0.2s';
+        card.style.opacity    = '0';
+        card.style.transform  = 'scale(0.95)';
+        setTimeout(() => card.remove(), 200);
+      }
+    }
+  });
+};
+
+// ── Image Board — delete image
     if (confirm('Delete this image?')) {
         fetch('/projects/' + projectId + '/images/' + imgId + '/delete', {
             method: 'POST',

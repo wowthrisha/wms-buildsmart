@@ -271,6 +271,106 @@ def add_requirement(project_id):
     return redirect(url_for('requirements.kanban', project_id=project.id))
 
 
+@bp.route('/projects/<int:project_id>/requirements/suggested', methods=['GET'])
+@login_required
+def suggested_requirements(project_id):
+    """Returns AI-suggested requirements from RequirementCard pipeline output."""
+    project = _project_or_403(project_id)
+    from app.models import RequirementCard, VisualReference
+    cards = (RequirementCard.query
+             .join(VisualReference, RequirementCard.visual_reference_id == VisualReference.id)
+             .filter(VisualReference.project_id == project_id)
+             .filter(RequirementCard.fused_label != None)
+             .filter(RequirementCard.accepted != True)
+             .all())
+    return jsonify([{
+        'id': c.id,
+        'fused_label': c.fused_label,
+        'vision_tags': c.vision_tags_json,
+        'extracted_intent': c.extracted_intent,
+        'divergence_score': c.divergence_score,
+        'image_url': url_for('documents.serve_file', filename=c.visual_reference.filename)
+                    if c.visual_reference else None,
+    } for c in cards])
+
+
+@bp.route('/projects/<int:project_id>/requirements/accept-suggestion/<int:card_id>', methods=['POST'])
+@login_required
+def accept_suggestion(project_id, card_id):
+    """Architect accepts an AI suggestion, creating a Requirement from it."""
+    if current_user.role != 'architect':
+        return jsonify({'error': 'Forbidden'}), 403
+    project = _project_or_403(project_id)
+    from app.models import RequirementCard, VisualReference
+    card = RequirementCard.query.get_or_404(card_id)
+    if card.visual_reference and card.visual_reference.project_id != project_id:
+        abort(403)
+    req = Requirement(
+        project_id=project_id,
+        title=card.fused_label,
+        description=card.extracted_intent or '',
+        category='interior',
+        status='confirmed',
+        source='ai_suggestion',
+        raised_by=current_user.id,
+        created_by=current_user.id,
+    )
+    db.session.add(req)
+    card.accepted = True
+    db.session.commit()
+    return jsonify({'success': True, 'requirement_id': req.id, 'title': req.title})
+
+
+@bp.route('/requirements/<int:req_id>', methods=['PATCH'])
+@login_required
+def update_requirement(req_id):
+    """Edit requirement title/description/category."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'No data'}), 400
+    req = Requirement.query.get_or_404(req_id)
+    project = Project.query.get_or_404(req.project_id)
+    if current_user.role == 'architect':
+        if project.architect_id != current_user.id:
+            abort(403)
+    elif current_user.role == 'client':
+        if project.client_id != current_user.id:
+            abort(403)
+        if req.raised_by != current_user.id:
+            abort(403)
+    if 'title' in data and data['title'].strip():
+        req.title = data['title'].strip()
+    if 'description' in data:
+        req.description = data['description']
+    if 'category' in data:
+        req.category = data['category']
+    req.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'success': True, 'id': req.id, 'title': req.title})
+
+
+@bp.route('/requirements/<int:req_id>', methods=['DELETE'])
+@login_required
+def delete_requirement_global(req_id):
+    """Delete a requirement — architect only. Called from kanban JS."""
+    if current_user.role != 'architect':
+        return jsonify({'error': 'Forbidden'}), 403
+    req = Requirement.query.get_or_404(req_id)
+    project = Project.query.get_or_404(req.project_id)
+    if project.architect_id != current_user.id:
+        abort(403)
+    db.session.add(AuditLog(
+        project_id=req.project_id,
+        actor_id=current_user.id,
+        action='REQ_DELETE',
+        description=f'Deleted requirement: {req.title}',
+        is_client_visible=False,
+    ))
+    db.session.delete(req)
+    db.session.commit()
+    return jsonify({'success': True, 'id': req_id})
+
+
 @bp.route('/projects/<int:project_id>/requirements')
 @login_required
 def kanban(project_id):
