@@ -321,6 +321,7 @@ def _apply_migrations():
         "ALTER TABLE requirement_card ADD COLUMN conflicts_json TEXT",
         "ALTER TABLE requirement_card ADD COLUMN feasibility_pct FLOAT",
         "ALTER TABLE requirement_card ADD COLUMN generated_at DATETIME",
+        "ALTER TABLE requirement_card ADD COLUMN accepted BOOLEAN DEFAULT 0",
     ]
     with db.engine.raw_connection() as conn:
         cursor = conn.cursor()

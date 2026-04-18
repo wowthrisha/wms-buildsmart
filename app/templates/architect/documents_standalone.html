@@ -2,14 +2,12 @@
 {% block title %}Document Vault — BuildSmart{% endblock %}
 
 {% block content %}
-<div class="page-head">
-    <div class="page-head-row">
-        <div>
-            <div class="page-eyebrow">Vault</div>
-            <h1 class="page-title">All Documents</h1>
-            <p class="page-subtitle">Access files across all active projects.</p>
-        </div>
-    </div>
+<div class="page-shell">
+
+<div class="page-hero" style="margin-bottom:24px;">
+  <p class="page-kicker">Vault</p>
+  <h1 class="page-title">All Documents</h1>
+  <p class="page-subtitle">Access files across all active projects.</p>
 </div>
 
 <div class="card" style="padding:0;">
@@ -68,6 +66,8 @@
         </tbody>
     </table>
 </div>
+
+</div><!-- /.page-shell -->
 
 <script>
 document.querySelectorAll('.toggle-visibility-btn').forEach(function(btn) {

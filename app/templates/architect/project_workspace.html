@@ -4,19 +4,42 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
-<div class="page-head">
-  <div class="page-head-row">
+<div class="page-hero" style="margin-bottom:20px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
     <div>
-      <div class="page-eyebrow">Project Workspace</div>
+      <p class="page-kicker">Project Workspace</p>
       <h1 class="page-title">{{ project.name }}</h1>
-      <p class="page-subtitle">{{ project.plot_zone }} Project · Stage: <strong>{{ project.status }}</strong></p>
+      <p class="page-subtitle">{{ project.plot_zone }} Project · Stage: <strong style="color:var(--text-primary);">{{ project.status }}</strong></p>
     </div>
-        <form action="{{ url_for('projects.delete', project_id=project.id) }}" method="POST" onsubmit="return confirm('Delete this project forever?')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-ghost" style="color:var(--rose); border-color:rgba(251,113,113,0.2);">Delete</button>
-        </form>
-    </div>
+    <form action="{{ url_for('projects.delete', project_id=project.id) }}" method="POST" onsubmit="return confirm('Delete this project forever?')" style="align-self:flex-end;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-ghost" style="color:var(--rose); border-color:rgba(251,113,113,0.2);">Delete</button>
+    </form>
   </div>
+</div>
+
+<div class="stat-grid" style="margin-bottom:24px;">
+  <div class="stat-tile">
+    <div class="st-label">Documents</div>
+    <div class="st-value">{{ docs_list|length if docs_list else 0 }}</div>
+    <div class="st-sub">In vault</div>
+  </div>
+  <div class="stat-tile">
+    <div class="st-label">Compliance</div>
+    <div class="st-value">{{ project.checklist.count() }}</div>
+    <div class="st-sub">Checklist items</div>
+  </div>
+  <div class="stat-tile">
+    <div class="st-label">Analyses</div>
+    <div class="st-value">{{ pa_count }}</div>
+    <div class="st-sub">Plot analysis sessions</div>
+  </div>
+  <div class="stat-tile">
+    <div class="st-label">Images</div>
+    <div class="st-value">{{ project.images.count() }}</div>
+    <div class="st-sub">On board</div>
+  </div>
+</div>
 
 <!-- Tab: Overview -->
 <div class="tab-panel active" data-panel="overview">

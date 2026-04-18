@@ -4,13 +4,27 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
+<style>
+  /* icon-btn — small action icons on kanban cards */
+  .icon-btn {
+    background: transparent; border: none;
+    color: rgba(255,255,255,0.35); cursor: pointer;
+    padding: 4px; border-radius: 6px;
+    display: inline-flex; align-items: center;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { color: var(--chalk); background: rgba(255,255,255,0.07); }
+  .icon-btn-danger:hover { color: #fb7185; background: rgba(251,113,133,0.1); }
+</style>
+
 <div class="meetings-page">
   <div class="meetings-shell">
     <section class="meetings-hero">
       <div class="meetings-head">
         <div>
           <div class="meetings-kicker">Requirement Board</div>
-      <h1 class="meetings-title">Requirements</h1>
+          <h1 class="meetings-title">Requirements</h1>
           <p class="meetings-subtitle">Small linked cards only. Drag between columns to update the database and keep the meeting workflow in sync.</p>
         </div>
         <div class="inline-actions">
@@ -18,6 +32,16 @@
         </div>
       </div>
     </section>
+
+    <!-- AI Suggestions section — hidden until JS finds cards -->
+    <div id="suggested-section" class="section-card" style="display:none; margin-bottom:20px;">
+      <p class="section-kicker">AI Suggestions</p>
+      <p style="font-size:15px; font-weight:700; color:var(--chalk); margin-bottom:6px;">From Reference Images</p>
+      <p style="color:var(--mt-muted); font-size:13px; margin-bottom:16px;">
+        These requirements were detected from uploaded reference images. Accept to add them to your project.
+      </p>
+      <div id="suggested-cards" style="display:flex; flex-wrap:wrap; gap:14px;"></div>
+    </div>
 
     <div class="kanban-grid">
       {% for state in kanban_states %}
@@ -30,13 +54,49 @@
         </div>
         <div class="kanban-dropzone" id="drop-{{ state }}">
           {% for requirement in columns[state] %}
-          <article class="kanban-card" draggable="true" data-id="{{ requirement.id }}" data-state="{{ requirement.status }}">
-            <div class="kanban-card-title">{{ requirement.title }}</div>
+          <article class="kanban-card" draggable="true"
+                   data-id="{{ requirement.id }}"
+                   data-state="{{ requirement.status }}"
+                   data-req-id="{{ requirement.id }}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+              <p class="kanban-card-title"
+                 id="req-title-{{ requirement.id }}"
+                 style="margin:0; flex:1;">{{ requirement.title }}</p>
+              {% if current_user.role == 'architect' %}
+              <div style="display:flex; gap:2px; margin-left:8px;">
+                <button class="icon-btn"
+                        onclick="editRequirement(
+                          {{ requirement.id }},
+                          '{{ requirement.title | replace("'", "\\'") }}',
+                          '{{ (requirement.description or '') | replace("'", "\\'") | replace('\n', ' ') }}'
+                        )"
+                        title="Edit">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                <button class="icon-btn icon-btn-danger"
+                        onclick="deleteRequirement(
+                          {{ requirement.id }},
+                          '{{ requirement.title | replace("'", "\\'") }}'
+                        )"
+                        title="Delete">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                    <path d="M10 11v6M14 11v6"/>
+                  </svg>
+                </button>
+              </div>
+              {% endif %}
+            </div>
             <div class="kanban-card-meta">
-              <span>{{ requirement.category }}</span><br>
-              <span>{{ requirement.created_at|strftime('%d %b %Y') }}</span><br>
-              <span>{{ requirement.creator.name if requirement.creator else 'Unknown' }}</span><br>
-              <span>Meeting {{ requirement.meeting_id or '—' }}</span>
+              <span>{{ requirement.category }}</span>
+              <span>{{ requirement.created_at|strftime('%d %b %Y') }}</span>
+              <span>{{ requirement.creator.name if requirement.creator else 'Unknown' }}</span>
             </div>
           </article>
           {% endfor %}
@@ -44,11 +104,40 @@
       </section>
       {% endfor %}
     </div>
+
   </div>
 </div>
+
+<!-- Edit Requirement Modal -->
+<div id="edit-req-modal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);
+            z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:var(--ink-1); border:1px solid var(--line-hi);
+              border-radius:20px; padding:32px; width:480px; max-width:90vw;">
+    <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em;
+              color:var(--chalk-3); margin-bottom:16px;">Edit Requirement</p>
+    <input type="hidden" id="edit-req-id">
+    <div style="margin-bottom:16px;">
+      <label class="ds-label">Title</label>
+      <input type="text" id="edit-req-title" class="ds-input">
+    </div>
+    <div style="margin-bottom:24px;">
+      <label class="ds-label">Description</label>
+      <textarea id="edit-req-desc" class="ds-input" rows="3"></textarea>
+    </div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRequirement()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
+
 {% block extra_js %}
 <script>
+window.BUILDSMART_PROJECT_ID = {{ project.id }};
+
 (function () {
   var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
   var dragged = null;
@@ -111,5 +200,12 @@
     });
   });
 }());
+
+// Load AI suggestions when page is ready
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof loadSuggestedRequirements === 'function') {
+    loadSuggestedRequirements(window.BUILDSMART_PROJECT_ID);
+  }
+});
 </script>
 {% endblock %}

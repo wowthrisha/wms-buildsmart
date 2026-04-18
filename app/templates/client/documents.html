@@ -1,7 +1,11 @@
 {% extends "base_client.html" %}
 {% block title %}Documents — BuildSmart{% endblock %}
 
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 {% block content %}
+<div class="page-shell">
 <style>
 .cd-source { display:inline-block; font-size:10px; font-weight:700; text-transform:uppercase;
              letter-spacing:.06em; padding:2px 8px; border-radius:5px; }
@@ -24,11 +28,10 @@
 .cd-field:focus { outline:none; border-color:var(--gold); }
 </style>
 
-<div class="page-head">
-  <div>
-    <h1 class="page-title">Documents</h1>
-    <p class="page-subtitle">Files from your architect and your own uploads.</p>
-  </div>
+<div class="page-hero" style="margin-bottom:24px;">
+  <p class="page-kicker">Document Vault</p>
+  <h1 class="page-title">Documents</h1>
+  <p class="page-subtitle">Files from your architect and your own uploads.</p>
 </div>
 
 {# ── Upload panel ─── #}
@@ -142,4 +145,6 @@
     </tbody>
   </table>
 </div>
+
+</div><!-- /.page-shell -->
 {% endblock %}

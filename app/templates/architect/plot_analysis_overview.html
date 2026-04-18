@@ -31,10 +31,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-head">
-  <div class="page-head-row">
+<div class="page-hero" style="margin-bottom:24px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
     <div>
-      <div class="page-eyebrow">Analysis</div>
+      <p class="page-kicker">Analysis</p>
       <h1 class="page-title">Plot Analysis</h1>
       <p class="page-subtitle">
         {% if project %}
@@ -45,14 +45,9 @@
       </p>
     </div>
     {% if project %}
-    <div style="display:flex; gap:10px; align-items:center;">
-      <button class="btn btn-primary" onclick="document.getElementById('upload-modal').classList.add('open')">
-        <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0;">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        New Analysis
-      </button>
-    </div>
+    <button class="hero-cta" onclick="document.getElementById('upload-modal').classList.add('open')">
+      + New Analysis
+    </button>
     {% endif %}
   </div>
 </div>
