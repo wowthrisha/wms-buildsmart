@@ -14,15 +14,22 @@ def stream():
         pubsub = r.pubsub()
         channel = f'user:{current_user.id}:notifs'
         pubsub.subscribe(channel)
-        
+
         # Initial keep-alive
         yield f"data: {json.dumps({'type': 'ping'})}\n\n"
-        # Real-time trigger via Redis PubSub
-        
+
+        last_heartbeat = time.time()
         try:
-            for message in pubsub.listen():
-                if message['type'] == 'message':
+            while True:
+                now = time.time()
+                if now - last_heartbeat >= 30:
+                    yield ': heartbeat\n\n'
+                    last_heartbeat = now
+
+                message = pubsub.get_message(timeout=1)
+                if message and message['type'] == 'message':
                     yield f"data: {message['data'].decode('utf-8')}\n\n"
+                    last_heartbeat = time.time()
         except Exception as e:
             current_app.logger.error(f"SSE Stream Error: {e}")
         finally:

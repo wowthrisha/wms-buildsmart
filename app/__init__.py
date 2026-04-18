@@ -151,6 +151,7 @@ def create_app(test_config=None):
 
     @app.context_processor
     def inject_globals():
+        from flask import session as _session
         from flask_login import current_user
         from app.models import Project, Notification, User, AuditLog
         data = {'all_projects': [], 'pending_count': 0, 'notifications': [],
@@ -163,14 +164,25 @@ def create_app(test_config=None):
             data['unread_notifs'] = sum(1 for n in notifs if not n.read)
 
             if current_user.role == 'architect':
-                data['all_projects'] = Project.query.filter_by(
-                    architect_id=current_user.id).options(joinedload(Project.client)).order_by(Project.updated_at.desc()).all()
-                data['all_clients'] = User.query.filter_by(role='client').all() # All clients for project creation
+                cache_key = f'projects_{current_user.id}'
+                cached = _session.get(cache_key)
+                if cached is None:
+                    projects = (Project.query
+                                .filter_by(architect_id=current_user.id)
+                                .options(joinedload(Project.client))
+                                .order_by(Project.updated_at.desc())
+                                .all())
+                    cached = [{'id': p.id, 'name': p.name, 'status': p.status,
+                               'client': {'name': p.client.name} if p.client else None}
+                              for p in projects]
+                    _session[cache_key] = cached
+                data['all_projects'] = cached
+                data['all_clients'] = User.query.filter_by(role='client').all()
             elif current_user.role == 'client':
                 from app.routes.client import get_client_project
                 data['projects'] = Project.query.filter_by(client_id=current_user.id).options(joinedload(Project.architect)).all()
                 data['project'] = get_client_project()
-                
+
         data['AuditLog'] = AuditLog
         data['Notification'] = Notification
         return data
