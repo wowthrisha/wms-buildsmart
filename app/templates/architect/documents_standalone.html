@@ -11,7 +11,14 @@
 </div>
 
 <div class="table-card">
-    <table class="data-table">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Vault</div>
+        <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">All Documents</h3>
+      </div>
+      <span class="muted-copy">{{ documents|length }} document{{ 's' if documents|length != 1 }}</span>
+    </div>
+    <table class="dark-table">
         <thead>
             <tr>
                 <th>Project</th>
@@ -30,37 +37,35 @@
                     <strong>{{ d.original_name }}</strong>
                     <div style="margin-top:6px;">
                         {% for v in d.versions | sort(attribute='version_num') %}
-                        <div style="font-size:11px; color:var(--chalk-3); margin-top:2px;">
-                            <span class="badge badge-muted" style="font-size:10px;">{{ v.label }}</span>
+                        <div style="font-size:11px; color:var(--mt-faint); margin-top:2px; font-family:'Space Mono',monospace;">
+                            <span class="status-pill info-pill" style="font-size:9px; padding:2px 7px;">{{ v.label }}</span>
                             {{ v.filename }}
-                            {% if v.file_type %}<span style="color:var(--chalk-4);">&middot; {{ v.file_type.split('/')[-1]|upper }}</span>{% endif %}
-                            {% if v.file_size %}<span style="color:var(--chalk-4);">&middot; {{ v.file_size }}</span>{% endif %}
+                            {% if v.file_type %}&middot; {{ v.file_type.split('/')[-1]|upper }}{% endif %}
+                            {% if v.file_size %}&middot; {{ v.file_size }}{% endif %}
                             &middot; {{ v.created_at|strftime('%d %b %Y') }}
                             &middot; {{ v.uploader.name if v.uploader else 'Unknown' }}
                         </div>
                         {% endfor %}
                     </div>
                 </td>
-                <td><span class="badge badge-muted">{{ d.category }}</span></td>
-                <td style="text-align:center;">
-                    <span class="badge badge-muted">{{ d.versions.count() }} ver.</span>
-                </td>
+                <td><span class="status-pill info-pill" style="font-size:11px;">{{ d.category }}</span></td>
+                <td style="text-align:center; font-size:12px; color:var(--mt-muted);">{{ d.versions.count() }} ver.</td>
                 <td style="text-align:center;">
                     <button
-                        class="btn btn-ghost toggle-visibility-btn"
-                        style="padding:4px 10px; font-size:12px;"
+                        class="mt-btn ghost toggle-visibility-btn"
+                        style="padding:4px 12px; font-size:12px;"
                         data-doc-id="{{ d.id }}"
                         data-visible="{{ d.visible_to_client|lower }}">
                         {% if d.visible_to_client %}Visible{% else %}Hidden{% endif %}
                     </button>
                 </td>
                 <td>
-                    <a href="{{ url_for('documents.download', doc_id=d.id) }}" style="color:var(--gold); text-decoration:none;" target="_blank" rel="noopener">Download</a>
+                    <a href="{{ url_for('documents.download', doc_id=d.id) }}" class="mt-btn ghost" style="font-size:12px;" target="_blank" rel="noopener">Download</a>
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="6" style="text-align:center; padding:40px; color:var(--chalk-3);">No documents found.</td>
+                <td colspan="6" style="text-align:center; padding:48px; color:var(--mt-faint);">No documents found.</td>
             </tr>
             {% endfor %}
         </tbody>

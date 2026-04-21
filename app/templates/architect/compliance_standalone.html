@@ -14,7 +14,14 @@
   </div>
 
   <div class="table-card">
-    <table class="data-table">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Governance</div>
+        <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">Compliance Registry</h3>
+      </div>
+      <span class="muted-copy">{{ projects|length }} project{{ 's' if projects|length != 1 }}</span>
+    </div>
+    <table class="dark-table">
       <thead>
         <tr>
           <th>Project</th>
@@ -29,18 +36,18 @@
         {% for row in projects %}
         <tr>
           <td><strong>{{ row.project.name }}</strong></td>
-          <td>{{ row.project.client.name if row.project.client else 'No Client' }}</td>
+          <td style="color:var(--mt-muted);">{{ row.project.client.name if row.project.client else 'No Client' }}</td>
           <td>{{ row.summary.uploaded }} / {{ row.summary.total }}</td>
-          <td>{{ row.summary.verified }}</td>
-          <td>{{ row.summary.missing }}</td>
+          <td style="color:#5eead4;">{{ row.summary.verified }}</td>
+          <td style="color:{% if row.summary.missing > 0 %}#fb7185{% else %}var(--mt-faint){% endif %};">{{ row.summary.missing }}</td>
           <td>
             <a href="{{ url_for('projects.workspace', project_id=row.project.id) }}#compliance"
-               style="color:var(--gold); text-decoration:none;">Open Compliance</a>
+               class="mt-btn ghost" style="font-size:12px;">Open Compliance</a>
           </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="6" style="text-align:center; padding:40px; color:var(--chalk-3);">
+          <td colspan="6" style="text-align:center; padding:48px; color:var(--mt-faint);">
             No projects found.
           </td>
         </tr>

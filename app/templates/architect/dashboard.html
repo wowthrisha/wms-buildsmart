@@ -135,13 +135,15 @@
       {% if recent_requirements %}
       <table class="dark-table">
         <thead>
-          <tr><th>Title</th><th>Project</th><th>Status</th><th>Created</th></tr>
+          <tr><th>Title</th><th>Project</th><th>Source</th><th>Raised By</th><th>Status</th><th>Created</th></tr>
         </thead>
         <tbody>
           {% for requirement in recent_requirements %}
           <tr>
             <td>{{ requirement.title }}</td>
             <td>{{ requirement.project.name if requirement.project else '—' }}</td>
+            <td>{{ requirement.source|replace('_', ' ')|title }}</td>
+            <td>{{ requirement.raiser.name if requirement.raiser else requirement.creator.name if requirement.creator else 'System' }}</td>
             <td>{{ requirement.status|replace('_', ' ')|title }}</td>
             <td>{{ requirement.created_at|timeago }}</td>
           </tr>

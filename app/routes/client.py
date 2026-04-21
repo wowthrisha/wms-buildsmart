@@ -1,6 +1,8 @@
 from flask import Blueprint, abort, jsonify, render_template, redirect, request, session, url_for
 from flask_login import login_required, current_user
+from app import csrf
 from app import db
+import app.assistant_service as assistant_service
 from app.compliance_service import ensure_project_compliance_items
 from app.models import AuditLog, Document, Meeting, Notification, Project
 
@@ -113,22 +115,71 @@ def payments():
     return redirect(url_for('payments.project_overview', project_id=p.id))
 
 
+@bp.route('/my_project/assistant')
+@login_required
+def assistant():
+    if current_user.role != 'client':
+        abort(403)
+    project = get_client_project()
+    if not project:
+        return render_template('client/no_project.html')
+    workspace = assistant_service.build_assistant_workspace(project, current_user)
+    projects = Project.query.filter_by(client_id=current_user.id).order_by(Project.updated_at.desc()).all()
+    notifications = (
+        Notification.query
+        .filter_by(user_id=current_user.id, read=False)
+        .order_by(Notification.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    return render_template(
+        'assistant_workspace.html',
+        project=project,
+        projects=projects,
+        notifications=notifications,
+        active_project=project,
+        active_tab='assistant',
+        **workspace,
+    )
+
+
+@bp.route('/my_project/assistant/query', methods=['POST'])
+@login_required
+@csrf.exempt
+def assistant_query():
+    if current_user.role != 'client':
+        abort(403)
+    project = get_client_project()
+    if not project:
+        return jsonify({'answer': 'No active project is selected right now.'}), 400
+
+    payload = request.get_json(silent=True) or {}
+    question = str(payload.get('question') or request.form.get('question') or '').strip()
+    if not question:
+        return jsonify({'answer': 'Please enter a question.'}), 400
+
+    try:
+        answer = assistant_service.answer_assistant_question(project, current_user, question)
+        return jsonify({
+            'answer': answer,
+            'project_id': project.id,
+            'project_name': project.name,
+            'audience': 'client',
+            'profession': (current_user.profession or '').strip() if hasattr(current_user, 'profession') else '',
+        })
+    except Exception as e:
+        db.session.rollback()
+        from flask import current_app
+        current_app.logger.error(f'Client assistant query failed for project {project.id}: {e}')
+        return jsonify({
+            'answer': 'Could not process your question right now. Please try again in a moment.',
+            'error': str(e),
+        }), 500
+
+
 @bp.route('/api/rag/query', methods=['POST'])
 @login_required
 def rag_query():
     if current_user.role != 'client':
         abort(403)
-    try:
-        data = request.get_json(silent=True) or {}
-        question_val = data.get('question') or request.form.get('question') or ''
-        question = str(question_val).strip()
-        if not question:
-            return jsonify({'answer': 'Please enter a question.'}), 400
-        from app.rag import query as rag_fn
-        ans = rag_fn(question)
-        return jsonify({'answer': ans})
-    except Exception as e:
-        db.session.rollback()
-        from flask import current_app
-        current_app.logger.error(f'RAG error: {e}')
-        return jsonify({'answer': 'Could not process your question. Please try again.', 'error': str(e)}), 500
+    return assistant_query()

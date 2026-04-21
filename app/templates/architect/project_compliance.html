@@ -1,0 +1,69 @@
+{% extends "base_architect.html" %}
+{% block title %}Compliance — {{ project.name }} — BuildSmart{% endblock %}
+{% block content %}
+<div class="meetings-page">
+  <div class="meetings-shell project-tab-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Project Compliance</div>
+          <h1 class="meetings-title">{{ project.name }}</h1>
+          <p class="meetings-subtitle">Track required documents, verify uploads, and keep the plot-analysis checklist aligned with the project vault.</p>
+        </div>
+        <div class="inline-actions">
+          <a class="mt-btn ghost" href="{{ url_for('projects.project_documents', project_id=project.id) }}">Open Documents</a>
+          <a class="mt-btn ghost" href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}">Open Plot Analysis</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="next-step-card status-bar {{ 'warning' if compliance_stats.missing else 'neutral' }}">
+      <div>
+        <div class="section-kicker">Next Step</div>
+        <div style="font-size:20px; font-weight:700; margin-top:6px;">
+          {% if compliance_stats.missing %}
+          {{ compliance_stats.missing }} compliance item{{ 's' if compliance_stats.missing != 1 else '' }} still missing
+          {% else %}
+          Compliance checklist is fully covered
+          {% endif %}
+        </div>
+        <div class="muted-copy" style="margin-top:6px;">
+          {% if compliance_stats.missing %}
+          Upload the missing documents or verify pending files to keep project approvals moving.
+          {% else %}
+          Use the checklist below to keep every requirement reviewed and audit-ready.
+          {% endif %}
+        </div>
+      </div>
+      <span class="status-pill {% if compliance_stats.missing %}pending{% else %}confirmed{% endif %}">
+        {% if compliance_stats.missing %}Action Needed{% else %}On Track{% endif %}
+      </span>
+    </section>
+
+    <div class="summary-grid">
+      <article class="metric-card">
+        <div class="metric-label">Coverage</div>
+        <div class="metric-value">{{ compliance_stats.percent }}%</div>
+        <div class="metric-foot">{{ compliance_stats.uploaded }} of {{ compliance_stats.total }} items uploaded</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Verified</div>
+        <div class="metric-value">{{ compliance_stats.verified }}</div>
+        <div class="metric-foot">Items confirmed and ready</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Missing</div>
+        <div class="metric-value">{{ compliance_stats.missing }}</div>
+        <div class="metric-foot">Required items still outstanding</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Custom Checks</div>
+        <div class="metric-value">{{ checklist_items | selectattr('is_custom') | list | length }}</div>
+        <div class="metric-foot">Project-specific compliance additions</div>
+      </article>
+    </div>
+
+    {% include "architect/_compliance_workspace.html" %}
+  </div>
+</div>
+{% endblock %}

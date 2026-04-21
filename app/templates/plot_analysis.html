@@ -3,6 +3,7 @@
 
 {% block extra_css %}
 <style>
+  .project-tab-shell { display: grid; gap: 18px; }
   .pa-shell { display:grid; grid-template-columns:minmax(0, 1.2fr) 360px; gap:24px; align-items:start; }
   .pa-card { background:var(--ink-2); border:1px solid var(--line); border-radius:var(--r-md); padding:24px; }
   .pa-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
@@ -11,16 +12,16 @@
   .pa-input, .pa-select { width:100%; background:var(--ink-1); border:1px solid var(--line); border-radius:var(--r-sm); color:var(--chalk); padding:11px 12px; font:inherit; }
   .pa-help { font-size:12px; color:var(--chalk-3); line-height:1.6; }
   .pa-pill { display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:700; }
-  .pa-pill.green { color:#4ade80; background:rgba(74,222,128,0.12); }
-  .pa-pill.amber { color:#f5c842; background:rgba(245,200,66,0.12); }
-  .pa-pill.red { color:#fb7185; background:rgba(251,113,133,0.12); }
+  .pa-pill.green { color:var(--gold); background:rgba(232,201,122,0.12); }
+  .pa-pill.amber { color:var(--gold); background:rgba(232,201,122,0.12); }
+  .pa-pill.red { color:var(--chalk); background:rgba(255,255,255,0.05); }
   .pa-pill.muted { color:var(--chalk-2); background:rgba(255,255,255,0.06); }
   .pa-stat { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:13px; }
   .pa-stat:last-child { border-bottom:none; }
   .pa-list { display:flex; flex-direction:column; gap:12px; }
   .pa-list-item { padding:14px 16px; border-radius:var(--r-sm); border:1px solid var(--line); background:rgba(255,255,255,0.02); }
-  .pa-list-item.fail { border-color:rgba(251,113,133,0.25); }
-  .pa-list-item.warn { border-color:rgba(245,200,66,0.25); }
+  .pa-list-item.fail { border-color:rgba(255,255,255,0.14); }
+  .pa-list-item.warn { border-color:rgba(232,201,122,0.25); }
   .pa-rule-table { width:100%; border-collapse:collapse; }
   .pa-rule-table th, .pa-rule-table td { padding:10px 0; text-align:left; border-bottom:1px solid var(--line); font-size:13px; vertical-align:top; }
   .pa-rule-table th { color:var(--chalk-3); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
@@ -33,14 +34,13 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-shell">
+<div class="page-shell project-tab-shell">
 
   <div class="page-hero">
     <p class="page-kicker">Plot Analysis</p>
     <h1 class="page-title">{{ project.name }}</h1>
     <p class="page-subtitle">
-      TNPCR compliance engine. Enter plot dimensions manually
-      and run a fuzzy compliance check.
+      Enter project dimensions, run the compliance engine, and keep the analysis history aligned with the rest of the workspace.
     </p>
     {% if analysis %}
       <a href="{{ url_for('plot_analysis.report', project_id=project.id, analysis_id=analysis.id) }}"

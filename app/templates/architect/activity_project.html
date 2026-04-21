@@ -2,19 +2,42 @@
 {% block title %}Activity — {{ project.name }} — BuildSmart{% endblock %}
 {% block content %}
 <div class="meetings-page">
-  <div class="meetings-shell">
+  <div class="meetings-shell project-tab-shell">
 
     <section class="meetings-hero">
       <div class="meetings-head">
         <div>
           <div class="meetings-kicker">Project Activity</div>
           <h1 class="meetings-title">{{ project.name }}</h1>
-          <p class="meetings-subtitle">Full audit trail for this project.</p>
+          <p class="meetings-subtitle">Every material action, upload, status change, and review event for this project in one audit-ready feed.</p>
         </div>
-        <a href="{{ url_for('projects.workspace', project_id=project.id) }}"
-           class="mt-btn ghost">← Back to Workspace</a>
+        <a href="{{ url_for('projects.project_overview_tab', project_id=project.id) }}"
+           class="mt-btn ghost">Back to Overview</a>
       </div>
     </section>
+
+    <div class="summary-grid">
+      <article class="metric-card">
+        <div class="metric-label">Audit Entries</div>
+        <div class="metric-value">{{ logs|length }}</div>
+        <div class="metric-foot">Total events recorded for this project</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Client Visible</div>
+        <div class="metric-value">{{ logs | selectattr('is_client_visible') | list | length }}</div>
+        <div class="metric-foot">Entries visible in the client experience</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Internal Only</div>
+        <div class="metric-value">{{ logs | rejectattr('is_client_visible') | list | length }}</div>
+        <div class="metric-foot">Architect-side operational entries</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Latest Event</div>
+        <div class="metric-value" style="font-size:26px;">{{ logs[0].created_at|strftime('%d %b') if logs else '—' }}</div>
+        <div class="metric-foot">{{ logs[0].action|replace('_', ' ')|title if logs else 'No activity yet' }}</div>
+      </article>
+    </div>
 
     <div class="table-card">
       <div class="table-toolbar">

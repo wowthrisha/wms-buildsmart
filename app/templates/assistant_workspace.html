@@ -1,0 +1,185 @@
+{% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
+{% block title %}RAG Assistant — {{ project.name }} — BuildSmart{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
+{% block content %}
+<div class="meetings-page assistant-page">
+  <div class="meetings-shell project-tab-shell">
+    <section class="meetings-hero assistant-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">{{ assistant_kicker or 'Project RAG Assistant' }}</div>
+          <h1 class="meetings-title">{{ assistant_title or 'Ask BuildSmart' }}</h1>
+          <p class="meetings-subtitle">{{ assistant_subtitle or 'Ask about setbacks, approval risks, plot rules, and compliance tradeoffs in clear project language.' }}</p>
+        </div>
+        <div class="assistant-orb" aria-hidden="true">
+          <div class="assistant-orb-core"></div>
+        </div>
+      </div>
+
+      <div class="summary-grid assistant-summary-grid">
+        <article class="metric-card">
+          <div class="metric-label">Project</div>
+          <div class="metric-value" style="font-size:28px;">{{ project.name }}</div>
+          <div class="metric-foot">{{ project.plot_zone or 'Mixed' }} zone</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">Pending Review</div>
+          <div class="metric-value">{{ assistant_summary.needs_review }}</div>
+          <div class="metric-foot">Requirement changes awaiting architect action</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">Client Requests</div>
+          <div class="metric-value">{{ assistant_summary.client_requests }}</div>
+          <div class="metric-foot">Raised from the client side so far</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">Project Status</div>
+          <div class="metric-value" style="font-size:28px;">{{ project.status }}</div>
+          <div class="metric-foot">Current delivery stage</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-card assistant-chat-card">
+      <div class="section-head">
+        <div>
+          <div class="section-kicker">Live Workspace</div>
+          <h3>Regulations + Project Guidance</h3>
+        </div>
+        <span class="status-pill confirmed">{{ assistant_badge or 'Handbook-grounded' }}</span>
+      </div>
+
+      <div class="assistant-prompt-row">
+        {% for prompt in assistant_prompts %}
+        <button type="button" class="prompt-chip" data-rag-prompt="{{ prompt }}">{{ prompt }}</button>
+        {% endfor %}
+      </div>
+
+      <div id="rag-messages" class="assistant-feed">
+        <div class="assistant-message assistant-message-system">
+          {{ assistant_intro_message or 'I can help explain rules in simpler language and highlight likely approval concerns. If the live model is unavailable, I still fall back to handbook-grounded answers inside BuildSmart.' }}
+        </div>
+      </div>
+
+      <div class="assistant-input-row">
+        <input
+          type="text"
+          id="rag-input"
+          class="ds-input assistant-input"
+          placeholder="{{ assistant_input_placeholder or 'Ask about setbacks, FAR, approvals, or a design concern' }}">
+        <button type="button" class="mt-btn primary" id="rag-send-btn">Ask Assistant</button>
+      </div>
+    </section>
+
+    <div class="panel-grid two assistant-support-grid">
+      <section class="section-card assistant-context-card">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Project Context</div>
+            <h3>What the assistant can frame around</h3>
+          </div>
+        </div>
+        <div class="table-card-body" style="padding-top:18px;">
+          <div class="file-chip-row">
+            <div class="file-chip">
+              <strong>Status</strong>
+              <span>{{ project.status }}</span>
+            </div>
+            <div class="file-chip">
+              <strong>Plot Zone</strong>
+              <span>{{ project.plot_zone or 'Not set' }}</span>
+            </div>
+            <div class="file-chip">
+              <strong>Total Requirements</strong>
+              <span>{{ assistant_summary.total }}</span>
+            </div>
+            <div class="file-chip">
+              <strong>Completed</strong>
+              <span>{{ assistant_summary.completed }}</span>
+            </div>
+            {% if assistant_lens_value %}
+            <div class="file-chip">
+              <strong>{{ assistant_lens_label or 'Response Style' }}</strong>
+              <span>{{ assistant_lens_value }}</span>
+            </div>
+            {% endif %}
+          </div>
+          <p class="muted-copy" style="margin-top:6px;">{{ assistant_context_copy or 'Ask in plain English. The assistant is designed to explain technical rules in client-friendly language while staying grounded in the regulations bundle available in the app.' }}</p>
+          {% if assistant_profession_hint %}
+          <p class="muted-copy" style="margin-top:8px;">{{ assistant_profession_hint }}</p>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="section-card assistant-context-card">
+        <div class="section-head">
+          <div>
+            <div class="section-kicker">Recent Requirement Activity</div>
+            <h3>Shared delivery context</h3>
+          </div>
+        </div>
+        {% if recent_requirements %}
+        <div class="requirement-grid" style="padding:20px;">
+          {% for requirement in recent_requirements %}
+          <article class="requirement-card assistant-req-card">
+            <div class="meetings-head">
+              <h3>{{ requirement.title }}</h3>
+              <span class="status-pill {{ requirement.status|replace('_', '-') }}">{{ requirement.status|replace('_', ' ')|title }}</span>
+            </div>
+            <div class="requirement-meta">
+              <span>{{ requirement.project.name if requirement.project else project.name }}</span>
+              <span>{{ requirement.source|replace('_', ' ')|title }}</span>
+              <span>{{ requirement.raiser.name if requirement.raiser else requirement.creator.name if requirement.creator else 'System' }}</span>
+            </div>
+            {% if requirement.description %}
+            <p>{{ requirement.description[:160] }}{% if requirement.description|length > 160 %}...{% endif %}</p>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="mt-empty">No requirements raised yet. Use the requirements tab to start capturing changes.</div>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window._RAG_CSRF = '{{ csrf_token() }}';
+window._RAG_ENDPOINT = {{ (assistant_endpoint or url_for("requirements.assistant_query", project_id=project.id)) | tojson }};
+
+(function () {
+  document.querySelectorAll('[data-rag-prompt]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var input = document.getElementById('rag-input');
+      if (!input) return;
+      input.value = button.getAttribute('data-rag-prompt') || '';
+      input.focus();
+    });
+  });
+
+  var ragInput = document.getElementById('rag-input');
+  if (ragInput) {
+    ragInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && typeof window.sendRagQuery === 'function') {
+        window.sendRagQuery(event);
+      }
+    });
+  }
+
+  var ragButton = document.getElementById('rag-send-btn');
+  if (ragButton) {
+    ragButton.addEventListener('click', function (event) {
+      if (typeof window.sendRagQuery === 'function') {
+        window.sendRagQuery(event);
+      }
+    });
+  }
+}());
+</script>
+{% endblock %}

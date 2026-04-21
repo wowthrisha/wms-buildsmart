@@ -422,6 +422,22 @@ class TestKanbanData:
         resp = client.get(f'/projects/{seed["project_id"]}/requirements/{rid}')
         assert resp.status_code == 403
 
+    def test_project_scoped_patch_updates_requirement(self, client, app, seed):
+        rid = self._seed_requirement(app, seed['project_id'], seed['arch_id'], title='Old Title')
+        login(client, 'arch@t.com')
+
+        resp = client.patch(
+            f'/projects/{seed["project_id"]}/requirements/{rid}',
+            json={'title': 'Updated Title', 'description': 'Revised'},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+
+        with app.app_context():
+            req = db.session.get(Requirement, rid)
+            assert req.title == 'Updated Title'
+            assert req.description == 'Revised'
+
 
 # ── Status Update ─────────────────────────────────────────────────────────────
 
@@ -533,6 +549,52 @@ class TestAddRequirement:
             req = Requirement.query.filter_by(title='Client Wish').first()
             assert req is not None
 
+    def test_client_meeting_change_uses_description_when_title_missing(self, client, app, seed):
+        mid = seed_meeting(app, seed['project_id'], seed['arch_id'], status='confirmed')
+        login(client, 'client@t.com')
+        description = 'Shift kitchen sink near the window for easier plumbing access'
+
+        resp = client.post(
+            f'/projects/{seed["project_id"]}/requirements/add',
+            data={
+                'meeting_id': mid,
+                'source': 'meeting_change',
+                'category': 'Client Request',
+                'description': description,
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        with app.app_context():
+            req = Requirement.query.filter_by(project_id=seed['project_id'], meeting_id=mid).order_by(Requirement.id.desc()).first()
+            assert req is not None
+            assert req.title == description[:80]
+            assert req.description == description
+            assert req.status == 'new'
+
+    def test_client_board_add_uses_description_when_title_missing(self, client, app, seed):
+        login(client, 'client@t.com')
+        description = 'Move pooja shelf slightly higher near the living room niche'
+
+        resp = client.post(
+            f'/projects/{seed["project_id"]}/requirements/add',
+            data={
+                'source': 'meeting_change',
+                'category': 'Client Request',
+                'description': description,
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        with app.app_context():
+            req = Requirement.query.filter_by(project_id=seed['project_id']).order_by(Requirement.id.desc()).first()
+            assert req is not None
+            assert req.title == description[:80]
+            assert req.description == description
+            assert req.status == 'new'
+
     def test_empty_title_rejected(self, client, app, seed):
         login(client, 'arch@t.com')
         pid = seed['project_id']
@@ -567,6 +629,9 @@ class TestKanbanPage:
         resp = client.get(requirements_url(seed["project_id"]))
         assert resp.status_code == 200
         assert b'kanban-grid' in resp.data
+        assert b'Add Requirement' in resp.data
+        assert b'Open Assistant' in resp.data
+        assert b'All Projects' not in resp.data
 
     def test_kanban_shows_requirements(self, client, app, seed):
         with app.app_context():
@@ -585,11 +650,116 @@ class TestKanbanPage:
         login(client, 'client@t.com')
         resp = client.get(requirements_url(seed["project_id"]))
         assert resp.status_code == 200
+        assert b'Raise Requirement Change' in resp.data
+
+    def test_client_kanban_cards_are_not_draggable(self, client, app, seed):
+        with app.app_context():
+            req = Requirement(
+                project_id=seed['project_id'], title='Client View Req',
+                status='new', category='General', created_by=seed['arch_id'],
+            )
+            db.session.add(req)
+            db.session.commit()
+
+        login(client, 'client@t.com')
+        resp = client.get(requirements_url(seed["project_id"]))
+        assert b'draggable="false"' in resp.data
 
     def test_other_architect_gets_403(self, client, app, seed):
         login(client, 'other@t.com')
         resp = client.get(requirements_url(seed["project_id"]))
         assert resp.status_code == 403
+
+
+class TestAssistantWorkspace:
+    def test_architect_can_open_assistant(self, client, seed):
+        login(client, 'arch@t.com')
+        resp = client.get(f'/projects/{seed["project_id"]}/assistant')
+        assert resp.status_code == 200
+        assert b'Ask BuildSmart' in resp.data
+
+    def test_client_project_assistant_redirects_to_client_route(self, client, seed):
+        login(client, 'client@t.com')
+        resp = client.get(f'/projects/{seed["project_id"]}/assistant')
+        assert resp.status_code == 302
+        assert '/my_project/assistant' in resp.headers['Location']
+
+    def test_client_can_open_client_assistant(self, client, seed):
+        login(client, 'client@t.com')
+        resp = client.get('/my_project/assistant')
+        assert resp.status_code == 200
+        assert b'Client Regulations Assistant' in resp.data
+
+    def test_architect_assistant_query_uses_role_aware_rag(self, client, seed, monkeypatch):
+        login(client, 'arch@t.com')
+        captured = {}
+
+        def fake_answer(question, **kwargs):
+            captured['question'] = question
+            captured.update(kwargs)
+            return 'Mock grounded answer'
+
+        monkeypatch.setattr('app.rag.answer_question', fake_answer)
+
+        resp = client.post(
+            f'/projects/{seed["project_id"]}/assistant/query',
+            json={'question': 'What is the setback?'},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['answer'] == 'Mock grounded answer'
+        assert data['project_id'] == seed['project_id']
+        assert data['audience'] == 'architect'
+        assert captured['question'] == 'What is the setback?'
+        assert captured['audience'] == 'architect'
+
+    def test_client_assistant_query_uses_client_route_and_audience(self, client, app, seed, monkeypatch):
+        with app.app_context():
+            user = User.query.filter_by(email='client@t.com').first()
+            user.profession = 'Doctor'
+            db.session.commit()
+
+        login(client, 'client@t.com')
+        captured = {}
+
+        def fake_answer(question, **kwargs):
+            captured['question'] = question
+            captured.update(kwargs)
+            return 'Client-safe answer'
+
+        monkeypatch.setattr('app.rag.answer_question', fake_answer)
+
+        resp = client.post(
+            '/my_project/assistant/query',
+            json={'question': 'Explain FAR simply'},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['answer'] == 'Client-safe answer'
+        assert data['audience'] == 'client'
+        assert data['profession'] == 'Doctor'
+        assert captured['question'] == 'Explain FAR simply'
+        assert captured['audience'] == 'client'
+        assert captured['profession'] == 'Doctor'
+        assert captured['project_context']['project_name'] == 'Proj'
+
+    def test_client_requirement_is_visible_on_architect_dashboard(self, client, seed):
+        login(client, 'client@t.com')
+        client.post(
+            f'/projects/{seed["project_id"]}/requirements/add',
+            data={
+                'source': 'meeting_change',
+                'category': 'Client Request',
+                'description': 'Shift wash basin closer to the utility door',
+            },
+            follow_redirects=True,
+        )
+
+        login(client, 'arch@t.com')
+        resp = client.get('/dashboard')
+        assert resp.status_code == 200
+        assert b'Shift wash basin closer to the utility door' in resp.data
+        assert b'Client' in resp.data
 
 
 # ── Client-initiated meeting request ─────────────────────────────────────────
