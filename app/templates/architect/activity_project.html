@@ -1,53 +1,81 @@
 {% extends 'base_architect.html' %}
 {% block title %}Activity — {{ project.name }} — BuildSmart{% endblock %}
-
 {% block content %}
-<div class="page-head">
-  <div class="page-head-row">
-    <div>
-      <div class="page-eyebrow">Project Activity</div>
-      <h1 class="page-title">{{ project.name }}</h1>
-      <p class="page-subtitle">Full audit trail for this project.</p>
-    </div>
-    <a href="{{ url_for('projects.workspace', project_id=project.id) }}#activity"
-       class="btn btn-ghost">← Back to Workspace</a>
-  </div>
-</div>
+<div class="meetings-page">
+  <div class="meetings-shell">
 
-<div class="card" style="padding:0; overflow:hidden;">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Date / Time</th>
-        <th>Action</th>
-        <th>Description</th>
-        <th>Actor</th>
-        <th>Client Visible</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for entry in logs %}
-      <tr>
-        <td style="white-space:nowrap;">{{ entry.created_at|strftime('%d %b %Y, %H:%M') }}</td>
-        <td><span class="badge badge-sky">{{ entry.action }}</span></td>
-        <td>{{ entry.description }}</td>
-        <td>{{ entry.actor.name if entry.actor else '—' }}</td>
-        <td>
-          {% if entry.is_client_visible %}
-            <span class="badge badge-teal">Yes</span>
-          {% else %}
-            <span class="badge badge-muted">No</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="5" style="text-align:center; padding:60px; color:var(--chalk-3);">
-          No activity recorded yet.
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Project Activity</div>
+          <h1 class="meetings-title">{{ project.name }}</h1>
+          <p class="meetings-subtitle">Full audit trail for this project.</p>
+        </div>
+        <a href="{{ url_for('projects.workspace', project_id=project.id) }}"
+           class="mt-btn ghost">← Back to Workspace</a>
+      </div>
+    </section>
+
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div>
+          <div class="section-kicker">Audit Trail</div>
+          <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">All actions</h3>
+        </div>
+        <span class="muted-copy">{{ logs|length }} entries</span>
+      </div>
+      <div class="table-card-body" style="padding-top:0;">
+        <table class="dark-table">
+          <thead>
+            <tr>
+              <th>Date / Time</th>
+              <th>Action</th>
+              <th>Description</th>
+              <th>Actor</th>
+              <th>Client Visible</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in logs %}
+            <tr>
+              <td style="color:var(--mt-faint); white-space:nowrap; font-size:11px; font-family:'Space Mono',monospace;">
+                {{ entry.created_at|strftime('%d %b %Y, %H:%M') }}
+              </td>
+              <td>
+                <span class="status-pill {{
+                  'confirmed'
+                  if entry.action in ('PAYMENT_CONFIRMED', 'DOCUMENT_VERIFIED', 'REQ_DONE', 'MEETING_CONFIRMED', 'APPROVE', 'VERIFIED', 'STATUS_CHANGE')
+                  else 'pending'
+                  if entry.action in ('PAYMENT_LOGGED', 'EXPENSE_LOGGED', 'PAYMENT_COMMENT', 'MOM_UPDATE', 'UPDATE', 'UPLOAD', 'PAYMENT_AUTO_CONFIRMED')
+                  else 'requested'
+                  if entry.action in ('DOCUMENT_UPLOADED', 'REQ_CREATE', 'MEETING_PROPOSE', 'CREATE')
+                  else 'rejected'
+                  if entry.action in ('PAYMENT_REJECTED', 'REQ_DECLINED', 'REJECT', 'DELETE')
+                  else 'info-pill'
+                }}">{{ entry.action | replace('_', ' ') | title }}</span>
+              </td>
+              <td style="font-size:13px; color:var(--mt-text);">{{ entry.description }}</td>
+              <td style="color:var(--mt-muted);">{{ entry.actor.name if entry.actor else '—' }}</td>
+              <td>
+                {% if entry.is_client_visible %}
+                  <span class="status-pill confirmed" style="font-size:10px;">Yes</span>
+                {% else %}
+                  <span class="status-pill info-pill" style="font-size:10px; color:var(--mt-faint); background:transparent; border-color:transparent;">No</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" style="text-align:center; padding:60px; color:var(--mt-faint);">
+                No activity recorded yet.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}
