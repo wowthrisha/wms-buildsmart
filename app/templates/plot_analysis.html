@@ -1,0 +1,265 @@
+{% extends 'base_architect.html' %}
+{% block title %}Plot Analysis — {{ project.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .project-tab-shell { display: grid; gap: 18px; }
+  .pa-shell { display:grid; grid-template-columns:minmax(0, 1.2fr) 360px; gap:24px; align-items:start; }
+  .pa-card { background:var(--ink-2); border:1px solid var(--line); border-radius:var(--r-md); padding:24px; }
+  .pa-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
+  .pa-grid-3 { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:16px; }
+  .pa-label { display:block; font-size:11px; color:var(--chalk-3); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+  .pa-input, .pa-select { width:100%; background:var(--ink-1); border:1px solid var(--line); border-radius:var(--r-sm); color:var(--chalk); padding:11px 12px; font:inherit; }
+  .pa-help { font-size:12px; color:var(--chalk-3); line-height:1.6; }
+  .pa-pill { display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:700; }
+  .pa-pill.green { color:var(--gold); background:rgba(232,201,122,0.12); }
+  .pa-pill.amber { color:var(--gold); background:rgba(232,201,122,0.12); }
+  .pa-pill.red { color:var(--chalk); background:rgba(255,255,255,0.05); }
+  .pa-pill.muted { color:var(--chalk-2); background:rgba(255,255,255,0.06); }
+  .pa-stat { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .pa-stat:last-child { border-bottom:none; }
+  .pa-list { display:flex; flex-direction:column; gap:12px; }
+  .pa-list-item { padding:14px 16px; border-radius:var(--r-sm); border:1px solid var(--line); background:rgba(255,255,255,0.02); }
+  .pa-list-item.fail { border-color:rgba(255,255,255,0.14); }
+  .pa-list-item.warn { border-color:rgba(232,201,122,0.25); }
+  .pa-rule-table { width:100%; border-collapse:collapse; }
+  .pa-rule-table th, .pa-rule-table td { padding:10px 0; text-align:left; border-bottom:1px solid var(--line); font-size:13px; vertical-align:top; }
+  .pa-rule-table th { color:var(--chalk-3); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+  .pa-rule-table tr:last-child td { border-bottom:none; }
+  @media (max-width: 1080px) {
+    .pa-shell { grid-template-columns:1fr; }
+    .pa-grid, .pa-grid-3 { grid-template-columns:1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-shell project-tab-shell">
+
+  <div class="page-hero">
+    <p class="page-kicker">Plot Analysis</p>
+    <h1 class="page-title">{{ project.name }}</h1>
+    <p class="page-subtitle">
+      Enter project dimensions, run the compliance engine, and keep the analysis history aligned with the rest of the workspace.
+    </p>
+    {% if analysis %}
+      <a href="{{ url_for('plot_analysis.report', project_id=project.id, analysis_id=analysis.id) }}"
+         class="hero-cta" target="_blank">View Report</a>
+    {% else %}
+      <button class="hero-cta"
+              onclick="document.querySelector('.pa-shell').scrollIntoView({behavior:'smooth'})">
+        Start Analysis
+      </button>
+    {% endif %}
+  </div>
+
+  <div class="next-step-bar">
+    <p class="ns-kicker">Analysis Status</p>
+    {% if not analysis %}
+      <p class="ns-title">Enter plot dimensions to begin</p>
+      <p class="ns-body">Fill in building type, location, and dimension fields then run the compliance check.</p>
+    {% elif analysis_badge.tone == 'green' %}
+      <p class="ns-title">
+        <span class="badge badge-green">Compliant</span>
+        Analysis complete
+      </p>
+      <p class="ns-body">All checks passed. Generate the report from the button above.</p>
+    {% elif analysis_badge.tone == 'red' %}
+      <p class="ns-title">
+        <span class="badge badge-red">{{ analysis_badge.label }}</span>
+        Violations detected — review required
+      </p>
+      <p class="ns-body">Check the violations panel below and adjust the input values.</p>
+    {% elif analysis_badge.tone == 'amber' %}
+      <p class="ns-title">
+        <span class="badge badge-amber">{{ analysis_badge.label }}</span>
+        Warnings present
+      </p>
+      <p class="ns-body">Analysis ran with warnings. Review the warnings panel below.</p>
+    {% else %}
+      <p class="ns-title">Save &amp; run the compliance engine</p>
+      <p class="ns-body">Use the form below to enter values and run the compliance check.</p>
+    {% endif %}
+  </div>
+
+  <div style="margin-bottom:var(--space-4); display:flex; gap:10px;">
+    <a href="{{ url_for('projects.project_compliance', project_id=project.id) }}" class="btn btn-ghost">Compliance</a>
+    <a href="{{ url_for('projects.project_documents', project_id=project.id) }}" class="btn btn-ghost">Document Vault</a>
+  </div>
+
+</div>
+
+<div class="pa-shell" style="padding: 0 32px 48px; max-width:1400px; margin:0 auto;">
+  <div class="pa-card">
+    <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:20px;">
+      <div>
+        <div class="section-title" style="margin-bottom:8px;">Engine Inputs</div>
+        <p class="pa-help">Compliance documents can help the team gather these values, but the rule engine only uses what you enter here. Manual input always remains the source of truth.</p>
+      </div>
+      <span class="pa-pill {{ analysis_badge.tone }}">{{ analysis_badge.label }}</span>
+    </div>
+
+    <form method="POST" action="{{ url_for('plot_analysis.compute', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="pa-grid">
+        <div>
+          <label class="ds-label">Building Type</label>
+          <select name="building_type" class="ds-input ds-select">
+            <option value="">Select building type</option>
+            {% for option in building_options %}
+            <option value="{{ option }}" {% if input_payload.get('building_type') == option %}selected{% endif %}>{{ option.replace('_', ' ').title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="ds-label">Location Type</label>
+          <select name="location_type" class="ds-input ds-select">
+            <option value="">Select location type</option>
+            {% for option in location_options %}
+            <option value="{{ option }}" {% if input_payload.get('location_type') == option %}selected{% endif %}>{{ option.replace('_', ' ').title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="pa-grid" style="margin-top:16px;">
+        <div>
+          <label class="ds-label">CMDA Zone</label>
+          <select name="cmda_zone" class="ds-input ds-select">
+            <option value="">Only for CMDA locations</option>
+            {% for option in cmda_zone_options %}
+            <option value="{{ option }}" {% if input_payload.get('cmda_zone') == option %}selected{% endif %}>{{ option.replace('_', ' ').title() }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="pa-grid-3" style="margin-top:16px;">
+        {% for field_name, label, unit in field_meta %}
+        <div>
+          <label class="ds-label">{{ label }}{% if unit %} ({{ unit }}){% endif %}</label>
+          <input
+            class="ds-input"
+            type="number"
+            step="0.01"
+            name="{{ field_name }}"
+            value="{{ input_payload.get(field_name, '') }}"
+            placeholder="Enter {{ label.lower() }}"
+          >
+        </div>
+        {% endfor %}
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:center; margin-top:24px;">
+        <button type="submit" class="btn btn-primary">Save &amp; Run Compliance Check</button>
+      </div>
+    </form>
+
+    {% if result_payload %}
+    <div style="margin-top:28px; padding-top:24px; border-top:1px solid var(--line);">
+      <div class="section-title" style="margin-bottom:12px;">Analysis Output</div>
+      {% if not result_payload.valid %}
+      <div class="pa-list">
+        {% for error in result_payload.input_errors %}
+        <div class="pa-list-item fail">{{ error }}</div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="pa-grid">
+        <div class="pa-card" style="padding:18px;">
+          <div class="pa-stat"><span>Compliance</span><strong>{{ 'Yes' if result_payload.compliant else 'No' }}</strong></div>
+          <div class="pa-stat"><span>Trust Level</span><strong>{{ result_payload.trust_level }}</strong></div>
+          <div class="pa-stat"><span>Data Completeness</span><strong>{{ result_payload.data_completeness }}%</strong></div>
+          <div class="pa-stat"><span>Rule Source</span><strong>{{ result_payload.rule_source or '—' }}</strong></div>
+        </div>
+        <div class="pa-card" style="padding:18px;">
+          <div class="pa-stat"><span>Violations</span><strong>{{ result_summary.violations }}</strong></div>
+          <div class="pa-stat"><span>Warnings</span><strong>{{ result_summary.warnings }}</strong></div>
+          <div class="pa-stat"><span>Reference</span><strong>{{ result_payload.rule_reference or '—' }}</strong></div>
+          {% if analysis %}
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <a href="{{ url_for('plot_analysis.result', project_id=project.id, analysis_id=analysis.id) }}" class="btn btn-ghost">Open Result</a>
+            {% if analysis.status != 'confirmed' %}
+            <form method="POST" action="{{ url_for('plot_analysis.confirm', project_id=project.id, analysis_id=analysis.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-ghost">Confirm</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    <div class="pa-card">
+      <div class="section-title" style="margin-bottom:12px;">Document Context</div>
+      <p class="pa-help" style="margin-bottom:12px;">Documents available: {{ documents_summary.uploaded }}/{{ documents_summary.total }}</p>
+      <div class="pa-stat"><span>Uploaded</span><strong>{{ documents_summary.uploaded }}</strong></div>
+      <div class="pa-stat"><span>Verified</span><strong>{{ documents_summary.verified }}</strong></div>
+      <div class="pa-stat"><span>Missing</span><strong>{{ documents_summary.missing }}</strong></div>
+      <p class="pa-help" style="margin-top:12px;">No auto-fill is performed here. Future OCR can write into the vault’s `extracted_data`, but manual input still overrides it.</p>
+    </div>
+
+    {% if result_payload and result_payload.valid %}
+    <div class="pa-card">
+      <div class="section-title" style="margin-bottom:12px;">Violations</div>
+      {% if result_payload.violations %}
+      <div class="pa-list">
+        {% for violation in result_payload.violations %}
+        <div class="pa-list-item fail">
+          <strong>{{ violation.field or violation.code or 'Rule' }}</strong><br>
+          <span class="pa-help">{{ violation.msg or violation.message or violation }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="pa-help">No violations were reported.</p>
+      {% endif %}
+    </div>
+
+    <div class="pa-card">
+      <div class="section-title" style="margin-bottom:12px;">Warnings</div>
+      {% if result_payload.warnings %}
+      <div class="pa-list">
+        {% for warning in result_payload.warnings %}
+        <div class="pa-list-item warn">{{ warning }}</div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="pa-help">No warnings were reported.</p>
+      {% endif %}
+    </div>
+
+    <div class="pa-card">
+      <div class="section-title" style="margin-bottom:12px;">Applied Rules</div>
+      {% if applied_rule_rows %}
+      <table class="pa-rule-table">
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in applied_rule_rows %}
+          <tr>
+            <td>{{ row.label }}</td>
+            <td>{{ row.value }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="pa-help">Run the engine to inspect the applied ruleset.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

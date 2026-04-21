@@ -1,5 +1,6 @@
 from app import create_app, db
-from app.models import User, Project, ComplianceItem
+from app.compliance_service import ensure_project_compliance_items
+from app.models import User, Project
 from werkzeug.security import generate_password_hash
 
 app = create_app()
@@ -25,8 +26,7 @@ with app.app_context():
     db.session.commit()
     
     # Add default items
-    for label in ['Building Plan Approval', 'Fire NOC']:
-        db.session.add(ComplianceItem(project_id=p.id, label=label))
-    db.session.commit()
+        ensure_project_compliance_items(p.id)
+        db.session.commit()
 
     print("Database initialized with arch@qa.com and client@qa.com")

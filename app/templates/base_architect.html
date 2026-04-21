@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}BuildSmart{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Syne:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ static_file_url('css/design-system.css') }}">
+  <link rel="stylesheet" href="{{ static_file_url('css/payments.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   {% block extra_css %}{% endblock %}
@@ -39,7 +40,13 @@
 
       <a href="{{ url_for('projects.list_projects') }}"
          class="nav-item {% if 'projects' in request.endpoint %}active{% endif %}">
-        <span class="nav-icon"><i class="fas fa-tasks"></i></span>
+        <span class="nav-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="3" width="13" height="13" rx="2"/>
+            <path d="M5 7H2v14a2 2 0 002 2h14v-3"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </span>
         Projects
         {% if pending_count > 0 %}<span class="nav-badge">{{ pending_count }}</span>{% endif %}
       </a>
@@ -50,40 +57,40 @@
          class="nav-item {% if 'plot_analysis' in request.endpoint %}active{% endif %}">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3h18v18H3zM3 9h18M9 3v18"/></svg></span>
         Plot Analysis
-        <div style="font-size:10px;color:var(--chalk-4);margin-top:1px;font-weight:400;">All Projects</div>
       </a>
 
       <a href="{{ url_for('documents.index') }}"
          class="nav-item {% if 'documents' in request.endpoint %}active{% endif %}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
         Documents
-        <div style="font-size:10px;color:var(--chalk-4);margin-top:1px;font-weight:400;">All Projects</div>
       </a>
 
       <a href="{{ url_for('compliance.index') }}"
          class="nav-item {% if 'compliance' in request.endpoint %}active{% endif %}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
         Compliance
-        <div style="font-size:10px;color:var(--chalk-4);margin-top:1px;font-weight:400;">All Projects</div>
       </a>
 
       <a href="{{ url_for('meetings.index') }}"
          class="nav-item {% if 'meetings' in request.endpoint %}active{% endif %}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Meetings
-        <div style="font-size:10px;color:var(--chalk-4);margin-top:1px;font-weight:400;">All Projects</div>
       </a>
 
       <a href="{{ url_for('activity.index') }}"
          class="nav-item {% if 'activity' in request.endpoint %}active{% endif %}">
         <span class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
         Activity
-        <div style="font-size:10px;color:var(--chalk-4);margin-top:1px;font-weight:400;">All Projects</div>
       </a>
 
       <a href="{{ url_for('settings.index') }}"
          class="nav-item {% if 'settings' in request.endpoint %}active{% endif %}">
-        <span class="nav-icon"><i class="fas fa-cog"></i></span>
+        <span class="nav-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+        </span>
         Settings
       </a>
     </nav>
@@ -127,14 +134,36 @@
 
     <!-- Project horizontal tab nav -->
     <nav class="proj-tab-nav" id="proj-tab-nav">
-      <a href="/projects/{{ active_project.id }}"        class="ptab" data-tab="overview">Overview</a>
-      <a href="/projects/{{ active_project.id }}#plot"   class="ptab" data-tab="plot">Plot Analysis</a>
-      <a href="/projects/{{ active_project.id }}#documents" class="ptab" data-tab="documents">Documents</a>
-      <a href="/projects/{{ active_project.id }}#compliance" class="ptab" data-tab="compliance">Compliance</a>
-      <a href="/projects/{{ active_project.id }}/meetings" class="ptab {% if (active_tab|default('')) == 'meetings' %}active{% endif %}" data-tab="meetings">Meetings</a>
-      <a href="/projects/{{ active_project.id }}/payments" class="ptab {% if (active_tab|default('')) == 'payments' %}active{% endif %}" data-tab="payments">Payments</a>
-      <a href="/projects/{{ active_project.id }}#activity" class="ptab" data-tab="activity">Activity</a>
-      <a href="/projects/{{ active_project.id }}/references" class="ptab {% if (active_tab|default('')) == 'references' %}active{% endif %}" data-tab="references">Visual References</a>
+      <a href="/projects/{{ active_project.id }}"
+         class="ptab {% if (active_tab|default('')) == 'overview' %}active{% endif %}"
+         data-tab="overview">Overview</a>
+      <a href="/projects/{{ active_project.id }}/plot-analysis"
+         class="ptab {% if (active_tab|default('')) == 'plot' %}active{% endif %}"
+         data-tab="plot">Plot Analysis</a>
+      <a href="{{ url_for('projects.project_documents', project_id=active_project.id) }}"
+         class="ptab {% if (active_tab|default('')) == 'documents' %}active{% endif %}"
+         data-tab="documents">Documents</a>
+      <a href="{{ url_for('projects.project_compliance', project_id=active_project.id) }}"
+         class="ptab {% if (active_tab|default('')) == 'compliance' %}active{% endif %}"
+         data-tab="compliance">Compliance</a>
+      <a href="{{ url_for('projects.ref_index', project_id=active_project.id) }}"
+         class="ptab {% if (active_tab|default('')) == 'references' %}active{% endif %}"
+         data-tab="references">References</a>
+      <a href="/projects/{{ active_project.id }}/meetings"
+         class="ptab {% if (active_tab|default('')) == 'meetings' %}active{% endif %}"
+         data-tab="meetings">Meetings</a>
+      <a href="/projects/{{ active_project.id }}/requirements"
+         class="ptab {% if (active_tab|default('')) == 'requirements' %}active{% endif %}"
+         data-tab="requirements">Requirements</a>
+      <a href="{{ url_for('requirements.assistant', project_id=active_project.id) }}"
+         class="ptab {% if (active_tab|default('')) == 'assistant' %}active{% endif %}"
+         data-tab="assistant">Assistant</a>
+      <a href="/projects/{{ active_project.id }}/payments"
+         class="ptab {% if (active_tab|default('')) == 'payments' %}active{% endif %}"
+         data-tab="payments">Payments</a>
+      <a href="{{ url_for('projects.project_activity', project_id=active_project.id) }}"
+         class="ptab {% if (active_tab|default('')) == 'activity' %}active{% endif %}"
+         data-tab="activity">Activity</a>
     </nav>
     {% endif %}
 
@@ -145,7 +174,7 @@
       <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Project
     </button>
-    <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost" style="margin-left:8px; color:var(--rose);">Logout</a>
+    <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost" style="margin-left:8px;">Logout</a>
   </header>
 
   <!-- MAIN -->
@@ -168,15 +197,15 @@
       <div class="modal-eyebrow">New Entry</div>
       <div class="modal-title">Create Project</div>
     </div>
-    <form method="POST" action="{{ url_for('projects.create') }}">
+    <form method="POST" action="{{ url_for('projects.new_project') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
-        <label>Project Name</label>
-        <input type="text" name="name" required placeholder="e.g. Sharma Residence">
+        <label class="ds-label">Project Name</label>
+        <input type="text" name="name" required placeholder="e.g. Sharma Residence" class="ds-input">
       </div>
       <div class="field">
-        <label>Client</label>
-        <select name="client_id" required>
+        <label class="ds-label">Client</label>
+        <select name="client_id" required class="ds-input ds-select">
           <option value="">Select client…</option>
           {% for c in all_clients %}
           <option value="{{ c.id }}">{{ c.name }} — {{ c.email }}</option>
@@ -184,8 +213,8 @@
         </select>
       </div>
       <div class="field">
-        <label>Plot Zone</label>
-        <select name="plot_zone">
+        <label class="ds-label">Plot Zone</label>
+        <select name="plot_zone" class="ds-input ds-select">
           <option value="Residential">Residential</option>
           <option value="Commercial">Commercial</option>
           <option value="Industrial">Industrial</option>
@@ -202,7 +231,7 @@
 </div>
 
 <div class="flash-stack" id="flash-stack"></div>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ static_file_url('js/app.js') }}"></script>
 {% block extra_js %}{% endblock %}
 
 </body>

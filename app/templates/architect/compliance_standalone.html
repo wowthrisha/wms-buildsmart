@@ -1,55 +1,60 @@
 {% extends "base_architect.html" %}
-{% block title %}Compliance Overview — BuildSmart{% endblock %}
+{% block title %}Compliance Registry — BuildSmart{% endblock %}
 
 {% block content %}
-<div class="page-head">
-    <div class="page-head-row">
-        <div>
-            <div class="page-eyebrow">Governance</div>
-            <h1 class="page-title">Compliance Registry</h1>
-            <p class="page-subtitle">Track TNPCR submission status across all projects.</p>
-        </div>
-    </div>
-</div>
+<div class="page-shell">
 
-<div class="card" style="padding:0;">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Project</th>
-                <th>Client</th>
-                <th>Compliance Status</th>
-                <th>Last Updated</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in projects %}
-            <tr>
-                <td><strong>{{ p.name }}</strong></td>
-                <td>{{ p.client.name if p.client else 'No Client' }}</td>
-                <td>
-                    {% set checked = p.checklist.filter_by(checked=True).count() %}
-                    {% set total = p.checklist.count() %}
-                    {% set pct = (checked / total * 100)|int if total > 0 else 0 %}
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="flex:1; height:6px; background:var(--line); border-radius:3px; overflow:hidden;">
-                            <div style="width:{{ pct }}%; height:100%; background:var(--gold);"></div>
-                        </div>
-                        <span style="font-size:11px; color:var(--chalk-2);">{{ pct }}%</span>
-                    </div>
-                </td>
-                <td>{{ p.updated_at|strftime('%d %b %Y') }}</td>
-                <td>
-                    <a href="{{ url_for('projects.workspace', project_id=p.id) }}#compliance" style="color:var(--gold); text-decoration:none;">Open Checklist</a>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="5" style="text-align:center; padding:40px; color:var(--chalk-3);">No projects found.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
+  <div class="page-hero">
+    <p class="page-kicker">Governance</p>
+    <h1 class="page-title">Compliance Registry</h1>
+    <p class="page-subtitle">
+      Track vault-backed compliance coverage and verification status
+      across all active projects.
+    </p>
+  </div>
+
+  <div class="table-card">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Governance</div>
+        <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">Compliance Registry</h3>
+      </div>
+      <span class="muted-copy">{{ projects|length }} project{{ 's' if projects|length != 1 }}</span>
+    </div>
+    <table class="dark-table">
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Client</th>
+          <th>Uploaded</th>
+          <th>Verified</th>
+          <th>Missing</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in projects %}
+        <tr>
+          <td><strong>{{ row.project.name }}</strong></td>
+          <td style="color:var(--mt-muted);">{{ row.project.client.name if row.project.client else 'No Client' }}</td>
+          <td>{{ row.summary.uploaded }} / {{ row.summary.total }}</td>
+          <td style="color:#5eead4;">{{ row.summary.verified }}</td>
+          <td style="color:{% if row.summary.missing > 0 %}#fb7185{% else %}var(--mt-faint){% endif %};">{{ row.summary.missing }}</td>
+          <td>
+            <a href="{{ url_for('projects.workspace', project_id=row.project.id) }}#compliance"
+               class="mt-btn ghost" style="font-size:12px;">Open Compliance</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center; padding:48px; color:var(--mt-faint);">
+            No projects found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
+  </div>
+
 </div>
 {% endblock %}

@@ -1,4 +1,5 @@
-from flask import Flask
+from flask import Flask, url_for
+import os
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -73,8 +74,6 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     db.init_app(app)
-    # Debug: Print DB path
-    print(f"DATABASE_URI: {app.config.get('SQLALCHEMY_DATABASE_URI')}")
     login.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
@@ -153,6 +152,7 @@ def create_app(test_config=None):
 
     @app.context_processor
     def inject_globals():
+        from flask import session as _session
         from flask_login import current_user
         from app.models import Project, Notification, User, AuditLog
         data = {'all_projects': [], 'pending_count': 0, 'notifications': [],
@@ -165,14 +165,25 @@ def create_app(test_config=None):
             data['unread_notifs'] = sum(1 for n in notifs if not n.read)
 
             if current_user.role == 'architect':
-                data['all_projects'] = Project.query.filter_by(
-                    architect_id=current_user.id).options(joinedload(Project.client)).order_by(Project.updated_at.desc()).all()
-                data['all_clients'] = User.query.filter_by(role='client').all() # All clients for project creation
+                cache_key = f'projects_{current_user.id}'
+                cached = _session.get(cache_key)
+                if cached is None:
+                    projects = (Project.query
+                                .filter_by(architect_id=current_user.id)
+                                .options(joinedload(Project.client))
+                                .order_by(Project.updated_at.desc())
+                                .all())
+                    cached = [{'id': p.id, 'name': p.name, 'status': p.status,
+                               'client': {'name': p.client.name} if p.client else None}
+                              for p in projects]
+                    _session[cache_key] = cached
+                data['all_projects'] = cached
+                data['all_clients'] = User.query.filter_by(role='client').all()
             elif current_user.role == 'client':
                 from app.routes.client import get_client_project
                 data['projects'] = Project.query.filter_by(client_id=current_user.id).options(joinedload(Project.architect)).all()
                 data['project'] = get_client_project()
-                
+
         data['AuditLog'] = AuditLog
         data['Notification'] = Notification
         return data
@@ -195,6 +206,17 @@ def create_app(test_config=None):
     for bp in [auth_bp, proj_bp, plot_analysis_bp, docs_bp, comp_bp, meet_bp,
                pay_bp, act_bp, client_bp, settings_api, notif_api, dev_bp, req_bp]:
         app.register_blueprint(bp)
+
+    # Helper to add a cache-busting query param based on file mtime for static assets
+    def static_file_url(filename):
+        try:
+            path = os.path.join(app.root_path, 'static', filename)
+            v = int(os.path.getmtime(path))
+        except Exception:
+            v = 0
+        return url_for('static', filename=filename) + f'?v={v}'
+
+    app.jinja_env.globals['static_file_url'] = static_file_url
 
     # P2-15: Custom error pages
     from flask import render_template as _rt
@@ -237,6 +259,7 @@ def _apply_migrations():
         "ALTER TABLE plot_analysis ADD COLUMN processed_json TEXT",
         "ALTER TABLE plot_analysis ADD COLUMN input_payload TEXT",
         "ALTER TABLE plot_analysis ADD COLUMN result_payload TEXT",
+        "ALTER TABLE plot_analysis ADD COLUMN data_completeness FLOAT",
         "ALTER TABLE plot_analysis ADD COLUMN data_completeness_score FLOAT",
         "ALTER TABLE plot_analysis ADD COLUMN trust_level VARCHAR(20)",
         "ALTER TABLE plot_extracted_data ADD COLUMN unit VARCHAR(50)",
@@ -273,12 +296,24 @@ def _apply_migrations():
         "ALTER TABLE user ADD COLUMN reset_token_created_at DATETIME",
         "ALTER TABLE user ADD COLUMN failed_attempts INTEGER DEFAULT 0",
         "ALTER TABLE user ADD COLUMN lock_until DATETIME",
+        "ALTER TABLE user ADD COLUMN profession VARCHAR(120)",
+        "ALTER TABLE audit_log ADD COLUMN is_client_visible BOOLEAN DEFAULT 0",
+        "ALTER TABLE audit_log ADD COLUMN source_module VARCHAR(50)",
         "ALTER TABLE meeting ADD COLUMN description TEXT",
+        "ALTER TABLE meeting ADD COLUMN title VARCHAR(200)",
+        "ALTER TABLE meeting ADD COLUMN slot_1 TIMESTAMP",
+        "ALTER TABLE meeting ADD COLUMN slot_2 TIMESTAMP",
+        "ALTER TABLE meeting ADD COLUMN slot_3 TIMESTAMP",
+        "ALTER TABLE meeting ADD COLUMN confirmed_time TIMESTAMP",
         "ALTER TABLE meeting ADD COLUMN outcome VARCHAR(255)",
         "ALTER TABLE meeting ADD COLUMN completed_at DATETIME",
+        "ALTER TABLE project ADD COLUMN auto_confirm_checked_at DATETIME",
         "ALTER TABLE project_image ADD COLUMN meeting_id INTEGER",
         "ALTER TABLE project_image ADD COLUMN requirement_id INTEGER",
         "ALTER TABLE comment ADD COLUMN parent_id INTEGER",
+        "ALTER TABLE requirement ADD COLUMN source VARCHAR(20) DEFAULT 'architect'",
+        "ALTER TABLE requirement ADD COLUMN raised_by INTEGER REFERENCES user(id)",
+        "ALTER TABLE requirement ADD COLUMN updated_at TIMESTAMP",
         # MeetingLog table is created by db.create_all() on first run.
         # These ALTER statements handle columns added to existing tables only.
         # ── Document-as-source-of-truth additions ──────────────────────────
@@ -292,6 +327,8 @@ def _apply_migrations():
         "ALTER TABLE compliance_item ADD COLUMN added_at DATETIME",
         # ── PlotDocument bridge FK ──────────────────────────────────────────
         "ALTER TABLE plot_document ADD COLUMN document_id INTEGER",
+        # ── PaymentLog bridge FK to Document vault ──────────────────────────
+        "ALTER TABLE payment_log ADD COLUMN document_id INTEGER",
         # ── VisualReference pipeline columns ───────────────────────────────
         "ALTER TABLE visual_reference ADD COLUMN uploader_role VARCHAR(20)",
         "ALTER TABLE visual_reference ADD COLUMN source_url TEXT",
@@ -309,6 +346,7 @@ def _apply_migrations():
         "ALTER TABLE requirement_card ADD COLUMN conflicts_json TEXT",
         "ALTER TABLE requirement_card ADD COLUMN feasibility_pct FLOAT",
         "ALTER TABLE requirement_card ADD COLUMN generated_at DATETIME",
+        "ALTER TABLE requirement_card ADD COLUMN accepted BOOLEAN DEFAULT 0",
     ]
     with db.engine.raw_connection() as conn:
         cursor = conn.cursor()
@@ -318,3 +356,16 @@ def _apply_migrations():
                 conn.commit()
             except Exception:
                 pass  # column already exists — safe to ignore
+        try:
+            cursor.execute("""CREATE TABLE IF NOT EXISTS requirement_comment (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                requirement_id INTEGER NOT NULL REFERENCES requirement(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                author_id INTEGER REFERENCES user(id),
+                role VARCHAR(20),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                parent_id INTEGER REFERENCES requirement_comment(id)
+            )""")
+            conn.commit()
+        except Exception:
+            pass

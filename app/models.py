@@ -20,9 +20,17 @@ class User(db.Model, UserMixin):
     lock_until      = db.Column(db.DateTime, nullable=True)
     reminders_email = db.Column(db.Boolean, default=True)
     reminders_sms   = db.Column(db.Boolean, default=False)
+    profession      = db.Column(db.String(120))
     created_at      = db.Column(db.DateTime, default=utc_now)
 
     notifications   = db.relationship('Notification', backref='user', lazy='dynamic')
+    client_projects = db.relationship(
+        'Project',
+        foreign_keys='Project.client_id',
+        primaryjoin='User.id==Project.client_id',
+        lazy=True,
+        overlaps='client',
+    )
 
     # Helper
     @property
@@ -75,8 +83,11 @@ class RequirementCard(db.Model):
     divergence_score    = db.Column(db.Float)         # 0–100 % mismatch
     feasibility_pct     = db.Column(db.Float)         # 0–100
     generated_at        = db.Column(db.DateTime)
+    accepted            = db.Column(db.Boolean, default=False)
 
     created_at          = db.Column(db.DateTime, default=utc_now)
+
+    visual_reference    = db.relationship('VisualReference', foreign_keys=[visual_reference_id])
 
 class Project(db.Model):
     id           = db.Column(db.Integer, primary_key=True)
@@ -88,15 +99,18 @@ class Project(db.Model):
     client_id    = db.Column(db.Integer, db.ForeignKey('user.id'))
     total_budget     = db.Column(db.Float, default=0.0)
     allow_client_compliance = db.Column(db.Boolean, default=False)
+    auto_confirm_checked_at = db.Column(db.DateTime, nullable=True)
     created_at   = db.Column(db.DateTime, default=utc_now)
     updated_at   = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
 
     architect    = db.relationship('User', foreign_keys=[architect_id])
-    client       = db.relationship('User', foreign_keys=[client_id])
-    plot         = db.relationship('PlotData', backref='project', uselist=False, cascade='all, delete-orphan')
+    client       = db.relationship('User', foreign_keys=[client_id], overlaps='client_projects')
+    # REMOVED — superseded by PlotAnalysis + PlotExtractedData
+    plot         = None
     documents    = db.relationship('Document', backref='project', lazy='dynamic', cascade='all, delete-orphan')
     meetings     = db.relationship('Meeting', backref='project', lazy='dynamic', cascade='all, delete-orphan')
-    payments     = db.relationship('Payment', backref='project', lazy='dynamic', cascade='all, delete-orphan')
+    # REMOVED — superseded by PaymentLog
+    payments     = None
     payment_logs = db.relationship('PaymentLog', backref='project', lazy='dynamic', cascade='all, delete-orphan')
     checklist    = db.relationship('ComplianceItem', backref='project', lazy='dynamic', cascade='all, delete-orphan')
     audit_logs   = db.relationship('AuditLog', backref='project', lazy='dynamic', cascade='all, delete-orphan')
@@ -111,36 +125,9 @@ class Project(db.Model):
         try: return self.STATUS_ORDER.index(self.status)
         except ValueError: return 0
 
-class PlotData(db.Model):
-    id             = db.Column(db.Integer, primary_key=True)
-    project_id     = db.Column(db.Integer, db.ForeignKey('project.id'), unique=True)
-    # Sketch
-    sketch_filename= db.Column(db.String(255))
-    sketch_uploader= db.Column(db.String(10))  # 'architect' | 'client'
-    # Dimensions (architect edits / confirms)
-    area           = db.Column(db.Float)
-    frontage       = db.Column(db.Float)
-    depth          = db.Column(db.Float)
-    road_width     = db.Column(db.Float)
-    front_setback  = db.Column(db.Float)
-    rear_setback   = db.Column(db.Float)
-    side_setback   = db.Column(db.Float)
-    height         = db.Column(db.Float)
-    built_up_area  = db.Column(db.Float)
-    # OCR confidence per field (0.0–1.0, -1 = manually entered)
-    conf_area      = db.Column(db.Float, default=-1)
-    conf_frontage  = db.Column(db.Float, default=-1)
-    conf_depth     = db.Column(db.Float, default=-1)
-    conf_setback   = db.Column(db.Float, default=-1)
-    # Confirmation gate
-    confirmed      = db.Column(db.Boolean, default=False)
-    confirmed_at   = db.Column(db.DateTime)
-    # Fuzzy compliance (computed, stored as JSON string)
-    compliance_json= db.Column(db.Text)   # {"area":"pass","frontage":"warn","setback":"fail",...}
-    fuzzy_score    = db.Column(db.Float, nullable=True)  # 0–100 computed confidence score
-    # Track detection
-    track          = db.Column(db.String(2))  # 'A' or 'B'
-    updated_at     = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
+# REMOVED — superseded by PlotAnalysis + PlotExtractedData
+# class PlotData(db.Model):
+#     ...
 
 class Document(db.Model):
     id              = db.Column(db.Integer, primary_key=True)
@@ -152,14 +139,15 @@ class Document(db.Model):
     doc_type        = db.Column(db.String(50))
     original_name   = db.Column(db.String(255))
     category        = db.Column(db.String(50))  # Site Plan|Structural|Legal|Client Docs
-    uploader_id     = db.Column(db.Integer, db.ForeignKey('user.id'))
+    # Legacy — use uploaded_by
+    uploader_id     = None
     uploaded_by     = db.Column(db.Integer, db.ForeignKey('user.id'))
     uploader_role   = db.Column(db.String(10))  # 'architect' | 'client'
     source_module   = db.Column(db.String(50), default='vault')
     # 'vault'|'compliance'|'plot_analysis'|'meetings'|'payments'
     extracted_data  = db.Column(db.Text)
     confidence_score= db.Column(db.Float)
-    shared_with_client = db.Column(db.Boolean, default=False)
+    # shared_with_client COLUMN REMOVED — use visible_to_client
     visible_to_client  = db.Column(db.Boolean, default=False)  # controls client portal visibility
     approval_status = db.Column(db.String(20), default='none')  # none|pending|approved|commented
     approved_at     = db.Column(db.DateTime)
@@ -173,7 +161,6 @@ class Document(db.Model):
     compliance_doc_type = db.Column(db.String(50), nullable=True)
     # mirrors ComplianceItem.doc_type when source_module='compliance'
 
-    uploader        = db.relationship('User', foreign_keys=[uploader_id])
     uploaded_user   = db.relationship('User', foreign_keys=[uploaded_by])
     verifier        = db.relationship('User', foreign_keys=[verified_by])
     meeting         = db.relationship('Meeting', foreign_keys=[meeting_id], backref='documents')
@@ -206,6 +193,10 @@ class Document(db.Model):
         if self.doc_type:
             return normalize_doc_type(self.doc_type)
         return normalize_doc_type(self.original_name or self.category or 'document')
+
+    @property
+    def uploader(self):
+        return self.uploaded_user
 
 class DocumentVersion(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
@@ -240,7 +231,8 @@ class ComplianceItem(db.Model):
     status     = db.Column(db.String(20), default='missing')
     document_id = db.Column(db.Integer, db.ForeignKey('document.id'))
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
-    checked    = db.Column(db.Boolean, default=False)
+    # Legacy — use arch_checked
+    checked    = None
     checked_at = db.Column(db.DateTime)
     checked_by = db.Column(db.Integer, db.ForeignKey('user.id'))
     # Dual-role checkbox support + custom item fields
@@ -261,6 +253,7 @@ class ComplianceItem(db.Model):
         return {
             'missing': 'red',
             'optional': 'yellow',
+            'client_uploaded': 'yellow',
             'uploaded': 'green',
             'verified': 'blue',
         }.get(self.status or 'missing', 'red')
@@ -270,6 +263,7 @@ class ComplianceItem(db.Model):
         return {
             'missing': 'Missing',
             'optional': 'Optional',
+            'client_uploaded': 'Pending Verification',
             'uploaded': 'Uploaded',
             'verified': 'Verified',
         }.get(self.status or 'missing', 'Missing')
@@ -286,45 +280,39 @@ COMPLIANCE_ITEMS = [
 ]
 
 
-class DocumentAuditLog(db.Model):
-    __tablename__ = 'document_audit_log'
-    id               = db.Column(db.Integer, primary_key=True)
-    document_id      = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=True)
-    project_id       = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=True)
-    action           = db.Column(db.String(30))
-    # 'uploaded'|'replaced'|'verified'|'deleted'|'visibility_toggled'
-    performed_by     = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    performed_by_role = db.Column(db.String(20))
-    source_module    = db.Column(db.String(30))
-    timestamp        = db.Column(db.DateTime, default=utc_now)
-    notes            = db.Column(db.Text, nullable=True)
-
-    performer = db.relationship('User', foreign_keys=[performed_by])
+# REMOVED — superseded by AuditLog with source_module
+# class DocumentAuditLog(db.Model):
+#     ...
 
 class Meeting(db.Model):
     id              = db.Column(db.Integer, primary_key=True)
     project_id      = db.Column(db.Integer, db.ForeignKey('project.id'))
-    status          = db.Column(db.String(20), default='awaiting_client')
-    # requested | awaiting_client | countered | confirmed | cancelled
+    title           = db.Column(db.String(200), nullable=True)
+    status          = db.Column(db.String(30), default='pending_request')
+    # pending_request | proposed | counter_proposed | confirmed | completed | cancelled
     description     = db.Column(db.Text, nullable=True)  # client request reason
     slot_1          = db.Column(db.DateTime)
     slot_2          = db.Column(db.DateTime)
     slot_3          = db.Column(db.DateTime)
+    confirmed_time  = db.Column(db.DateTime)
+    # Legacy column retained for existing rows. Use confirmed_time.
     confirmed_slot  = db.Column(db.DateTime)
     confirmed_at    = db.Column(db.DateTime)
     counter_count   = db.Column(db.Integer, default=0)  # max 2 counters allowed
     counter_slot    = db.Column(db.DateTime, nullable=True)  # client's proposed alternative
-    mom_discussion  = db.Column(db.Text)
-    mom_decision    = db.Column(db.Text)
-    mom_client_notes= db.Column(db.Text)
+    # Legacy columns — never written to. Use mom_content only.
+    mom_discussion  = None
+    mom_decision    = None
+    mom_client_notes= None
     mom_content     = db.Column(db.Text, nullable=True)      # combined MOM text
     mom_date        = db.Column(db.DateTime, nullable=True)   # when MOM was logged
     outcome         = db.Column(db.String(255), nullable=True)
     completed_at    = db.Column(db.DateTime, nullable=True)
     created_at      = db.Column(db.DateTime, default=utc_now)
 
-    action_items    = db.relationship('ActionItem', backref='meeting', lazy='dynamic')
-    reminders       = db.relationship('MeetingReminder', backref='meeting', lazy='dynamic')
+    # REMOVED — ActionItem and MeetingReminder are legacy models
+    action_items    = None
+    reminders       = None
     comments        = db.relationship('Comment', backref='meeting', lazy='dynamic',
                                       order_by='Comment.created_at', cascade='all, delete-orphan')
     logs            = db.relationship('MeetingLog', backref='meeting', lazy='dynamic',
@@ -333,10 +321,12 @@ class Meeting(db.Model):
                                       cascade='all, delete-orphan')
 
     STATUS_ALIASES = {
+        'requested': 'pending_request',
         'awaiting_client': 'proposed',
         'countered': 'counter_proposed',
     }
     STATUS_LABELS = {
+        'pending_request': 'Pending Request',
         'requested': 'Pending Request',
         'proposed': 'Proposed',
         'counter_proposed': 'Counter Proposed',
@@ -365,7 +355,7 @@ class Meeting(db.Model):
 
     @property
     def selected_time(self):
-        return self.confirmed_slot or self.counter_slot or self.slot_1
+        return self.confirmed_time or self.confirmed_slot or self.counter_slot or self.slot_1
 
     @property
     def client_name(self):
@@ -383,38 +373,17 @@ class MeetingRequest(db.Model):
     project      = db.relationship('Project', foreign_keys=[project_id])
     requester    = db.relationship('User', foreign_keys=[requester_id])
 
-class ActionItem(db.Model):
-    id           = db.Column(db.Integer, primary_key=True)
-    meeting_id   = db.Column(db.Integer, db.ForeignKey('meeting.id'))
-    project_id   = db.Column(db.Integer, db.ForeignKey('project.id'))
-    description  = db.Column(db.Text, nullable=False)
-    assigned_to  = db.Column(db.Integer, db.ForeignKey('user.id'))
-    due_date     = db.Column(db.Date)
-    status       = db.Column(db.String(20), default='pending')  # pending | complete
-    created_at   = db.Column(db.DateTime, default=utc_now)
+# REMOVED — superseded by AuditLog / meeting timeline records
+# class ActionItem(db.Model):
+#     ...
 
-    assignee     = db.relationship('User')
+# REMOVED — superseded by notification workflows
+# class MeetingReminder(db.Model):
+#     ...
 
-class MeetingReminder(db.Model):
-    id           = db.Column(db.Integer, primary_key=True)
-    meeting_id   = db.Column(db.Integer, db.ForeignKey('meeting.id'))
-    trigger_at   = db.Column(db.DateTime)
-    sent         = db.Column(db.Boolean, default=False)
-    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-
-    recipient    = db.relationship('User')
-
-class Payment(db.Model):
-    id         = db.Column(db.Integer, primary_key=True)
-    project_id = db.Column(db.Integer, db.ForeignKey('project.id'))
-    amount     = db.Column(db.Float, nullable=False)
-    date       = db.Column(db.Date, nullable=False)
-    purpose    = db.Column(db.String(50))  # advance | milestone | final
-    bill_filename = db.Column(db.String(255))
-    notes      = db.Column(db.Text)
-    logged_by  = db.Column(db.Integer, db.ForeignKey('user.id'))
-    logged_by_role = db.Column(db.String(10), nullable=True, default='architect')  # 'architect' | 'client'
-    created_at = db.Column(db.DateTime, default=utc_now)
+# REMOVED — superseded by PaymentLog
+# class Payment(db.Model):
+#     ...
 
 
 class PaymentLog(db.Model):
@@ -435,8 +404,11 @@ class PaymentLog(db.Model):
     created_at     = db.Column(db.DateTime, default=utc_now, nullable=False)
     approved_at    = db.Column(db.DateTime, nullable=True)
 
+    document_id    = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=True)
+
     creator        = db.relationship('User', foreign_keys=[created_by])
     approver       = db.relationship('User', foreign_keys=[approved_by])
+    vault_document = db.relationship('Document', foreign_keys=[document_id])
 
     CATEGORY_CHOICES = [
         'Structural',
@@ -467,6 +439,7 @@ class AuditLog(db.Model):
     actor_id   = db.Column(db.Integer, db.ForeignKey('user.id'))
     action     = db.Column(db.String(50))   # UPLOAD|UPDATE|DELETE|SHARE|APPROVE|LOGIN|CONFIRM
     description= db.Column(db.Text)
+    source_module = db.Column(db.String(50))
     is_client_visible = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=utc_now)
 
@@ -513,13 +486,42 @@ class Requirement(db.Model):
     category       = db.Column(db.String(100), default='General')
     # Kanban states: new | confirmed | in_progress | done
     status         = db.Column(db.String(30), default='new')
+    source         = db.Column(db.String(20), default='architect')
+    raised_by      = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_by     = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at     = db.Column(db.DateTime, default=utc_now)
+    updated_at     = db.Column(db.DateTime, default=utc_now, onupdate=utc_now)
 
     creator        = db.relationship('User', foreign_keys=[created_by])
+    raiser         = db.relationship('User', foreign_keys=[raised_by])
     source_comment = db.relationship('Comment', back_populates='requirement', uselist=False)
+    comments       = db.relationship('RequirementComment', backref='requirement',
+                                     cascade='all, delete-orphan', lazy=True)
 
     KANBAN_STATES  = ['new', 'confirmed', 'in_progress', 'done']
+
+    @property
+    def raised_by_role(self):
+        if self.raiser:
+            return self.raiser.role
+        return None
+
+
+class RequirementComment(db.Model):
+    __tablename__ = 'requirement_comment'
+
+    id             = db.Column(db.Integer, primary_key=True)
+    requirement_id = db.Column(db.Integer, db.ForeignKey('requirement.id'), nullable=False)
+    content        = db.Column(db.Text, nullable=False)
+    author_id      = db.Column(db.Integer, db.ForeignKey('user.id'))
+    role           = db.Column(db.String(20))
+    created_at     = db.Column(db.DateTime, default=utc_now)
+    parent_id      = db.Column(db.Integer, db.ForeignKey('requirement_comment.id'), nullable=True)
+
+    author         = db.relationship('User', foreign_keys=[author_id])
+    replies        = db.relationship('RequirementComment',
+                                     backref=db.backref('parent', remote_side=[id]),
+                                     lazy='dynamic', cascade='all, delete-orphan')
 
 
 class MeetingLog(db.Model):
@@ -560,6 +562,7 @@ class PlotAnalysis(db.Model):
     input_payload           = db.Column(db.Text)           # manual engine input JSON
     result_payload          = db.Column(db.Text)           # latest engine output JSON
     overall_score           = db.Column(db.Float)          # 0–100 composite compliance
+    data_completeness       = db.Column(db.Float)          # canonical completeness percentage
     data_completeness_score = db.Column(db.Float)          # % of fields that had a value
     trust_level             = db.Column(db.String(20))     # INSUFFICIENT | PARTIAL | PROVISIONAL | FULL
     # status: pending → extracted (OCR done) → insufficient_data/analyzed → confirmed
@@ -622,6 +625,12 @@ class PlotAnalysis(db.Model):
     @property
     def report_ready(self):
         return (self.trust_level or '').upper() != 'INSUFFICIENT' and self.overall_score is not None
+
+    @property
+    def effective_data_completeness(self):
+        if self.data_completeness is not None:
+            return self.data_completeness
+        return self.data_completeness_score
 
 
 class PlotExtractedData(db.Model):

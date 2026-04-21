@@ -1,36 +1,51 @@
 {% extends "base_architect.html" %}
 {% block title %}{{ project.name }} — BuildSmart{% endblock %}
-
 {% block content %}
-<div class="page-head">
-  <div class="page-head-row">
+<div class="meetings-page">
+<section class="meetings-hero" style="margin-bottom:20px;">
+  <div class="meetings-head">
     <div>
-      <div class="page-eyebrow">Project Workspace</div>
-      <h1 class="page-title">{{ project.name }}</h1>
-      <p class="page-subtitle">{{ project.plot_zone }} Project · Stage: <strong>{{ project.status }}</strong></p>
+      <div class="meetings-kicker">Project Workspace</div>
+      <h1 class="meetings-title">{{ project.name }}</h1>
+      <p class="meetings-subtitle">{{ project.plot_zone }} Project · Stage: <strong style="color:var(--gold);">{{ project.status }}</strong></p>
     </div>
-        <form action="{{ url_for('projects.delete', project_id=project.id) }}" method="POST" onsubmit="return confirm('Delete this project forever?')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-ghost" style="color:var(--rose); border-color:rgba(251,113,113,0.2);">Delete</button>
-        </form>
+    <div class="inline-actions">
+      <form action="{{ url_for('projects.delete', project_id=project.id) }}" method="POST" onsubmit="return confirm('Delete this project forever?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="mt-btn ghost" style="color:var(--rose); border-color:rgba(251,113,113,0.2);">Delete Project</button>
+      </form>
     </div>
   </div>
+</section>
 
-<div class="tab-nav">
-  <button class="tab-btn active" data-tab="overview">Overview</button>
-  <button class="tab-btn" data-tab="plot">Plot Analysis</button>
-  <button class="tab-btn" data-tab="documents">Documents</button>
-  <button class="tab-btn" data-tab="compliance">Compliance</button>
-  <button class="tab-btn" data-tab="meetings" type="button">Meetings</button>
-  <button class="tab-btn" data-tab="payments">Payments</button>
-  <button class="tab-btn" data-tab="activity">Activity</button>
+<div class="summary-grid" style="margin-bottom:24px;">
+  <article class="metric-card">
+    <div class="metric-label">Documents</div>
+    <div class="metric-value">{{ docs_list|length if docs_list else 0 }}</div>
+    <div class="metric-foot">In vault</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Compliance</div>
+    <div class="metric-value">{{ project.checklist.count() }}</div>
+    <div class="metric-foot">Checklist items</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Analyses</div>
+    <div class="metric-value">{{ pa_count }}</div>
+    <div class="metric-foot">Plot analysis sessions</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Images</div>
+    <div class="metric-value">{{ project.images.count() }}</div>
+    <div class="metric-foot">On board</div>
+  </article>
 </div>
 
 <!-- Tab: Overview -->
 <div class="tab-panel active" data-panel="overview">
   <div class="two-col">
-    <div class="card">
-        <div class="section-title">Project Details</div>
+    <div class="section-card">
+        <div class="section-kicker" style="margin-bottom:14px;">Project Details</div>
         <div class="field">
             <label>Client</label>
             <div style="font-weight:600;">{{ project.client.name if project.client else 'No client assigned' }}</div>
@@ -46,9 +61,9 @@
         </div>
     </div>
     
-    <div class="card">
-        <div class="page-head-row" style="margin-bottom:16px;">
-            <div class="section-title" style="margin:0;">Image Board</div>
+    <div class="section-card">
+        <div class="meetings-head" style="margin-bottom:16px;">
+            <div class="meetings-kicker">Image Board</div>
             <form action="{{ url_for('projects.upload_image', project_id=project.id) }}" method="POST" enctype="multipart/form-data" style="display:flex; gap:8px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="file" name="image" id="img-upload" style="display:none;" onchange="this.form.submit()" accept="image/*">
@@ -56,16 +71,20 @@
             </form>
         </div>
         <p style="color:var(--chalk-3); font-size:11px; margin-bottom:16px;">Visual references and renders.</p>
-        <div class="image-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px; @media(max-width:768px){grid-template-columns: repeat(2, 1fr);} @media(max-width:480px){grid-template-columns: 1fr;}">
+        <div class="image-board-grid">
             {% for img in project.images.all() %}
             <div class="image-card" style="position:relative; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--bg-2); transition:all 0.3s ease;">
-                <div style="position:relative; flex:1; aspect-ratio:4/3; background:linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%); overflow:hidden; cursor:pointer;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="openImageModal('/uploads/{{ img.filename }}')">
-                    <img src="/uploads/{{ img.filename }}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentElement.innerHTML += '<div style=\'position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);\\'><div style=\\'text-align:center; color:#606060; font-size:12px;\\'><div style=\\'margin-bottom:8px;\\'>Image not found</div><div style=\\'font-size:10px;\\'>{{ img.filename }}</div></div></div>'" alt="Project image">
+                <div style="position:relative; flex:1; aspect-ratio:4/3; background:linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%); overflow:hidden; cursor:pointer;" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'" onclick="openImageModal('{{ url_for('documents.serve_file', filename=img.filename) }}')">
+                    <img src="{{ url_for('documents.serve_file', filename=img.filename) }}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentElement.innerHTML += '<div style=\'position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);\\'><div style=\\'text-align:center; color:#606060; font-size:12px;\\'><div style=\\'margin-bottom:8px;\\'>Image not found</div><div style=\\'font-size:10px;\\'>{{ img.filename }}</div></div></div>'" alt="Project image">
                     <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:4px; font-size:10px; color:#fff; text-transform:uppercase; letter-spacing:0.05em;">{{ img.tag }}</div>
                 </div>
                 <div style="padding:12px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
                     <div style="font-size:11px; color:var(--chalk-3);">{{ img.created_at|strftime('%b %d, %Y') }}</div>
-                    <button class="del-img" onclick="deleteImage({{ img.id }}, '{{ project.id }}', '{{ csrf_token() }}')" style="background:transparent; border:1px solid #606060; color:#606060; padding:4px 8px; border-radius:4px; font-size:10px; cursor:pointer; transition:all 0.2s; hover:background:#ff4444; hover:color:#fff; hover:border-color:#ff4444;">✕ Delete</button>
+                    <button class="img-del-btn"
+                            data-img-id="{{ img.id }}"
+                            data-project-id="{{ project.id }}"
+                            data-csrf="{{ csrf_token() }}"
+                            onclick="deleteImage(this.dataset.imgId, this.dataset.projectId, this.dataset.csrf)">✕ Delete</button>
                 </div>
             </div>
             {% else %}
@@ -77,141 +96,92 @@
         </div>
     </div>
 
-    <script>
-    function openImageModal(imageSrc) {
-        const modal = document.createElement('div');
-        modal.style.cssText = 'position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.95); display:flex; align-items:center; justify-content:center; z-index:9999; cursor:pointer;';
-        modal.innerHTML = '<img src="' + imageSrc + '" style="max-width:90vw; max-height:90vh; object-fit:contain;" onclick="event.stopPropagation();"><span style="position:absolute; top:20px; right:20px; color:#fff; font-size:28px; cursor:pointer; user-select:none;">×</span>';
-        modal.onclick = () => modal.remove();
-        document.body.appendChild(modal);
-    }
-    function deleteImage(imgId, projectId, csrf) {
-        if (confirm('Delete this image?')) {
-            fetch('/projects/' + projectId + '/images/delete/' + imgId, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrf }
-            }).then(() => window.location.reload());
-        }
-    }
-    </script>
+    <!-- openImageModal and deleteImage are defined in app.js -->
 
   </div>
 </div>
 
-<!-- Tab: Plot Analysis -->
+<!-- Tab: Plot Analysis — pa-step/pa-score-badge styles live in design-system.css -->
 <div class="tab-panel" data-panel="plot">
-  <div class="two-col">
-    <!-- Row 1: Sketch upload -->
-    <div class="card">
-        <div class="section-title">Plot Sketch</div>
-        {% if project.plot and project.plot.sketch_filename %}
-        <div style="margin-bottom:16px; padding:12px; background:var(--ink-2); border-radius:8px; display:flex; align-items:center; gap:12px;">
-            <svg viewBox="0 0 24 24" style="width:24px; height:24px; stroke:var(--gold); stroke-width:2; fill:none;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <div style="flex:1; font-size:13px;">{{ project.plot.sketch_filename }}</div>
-            <span class="badge badge-muted">Uploaded by {{ project.plot.sketch_uploader }}</span>
+
+  <div style="display:grid; grid-template-columns:1fr 360px; gap:24px; align-items:start;">
+
+    <!-- LEFT: full-module CTA -->
+    <div>
+      <div class="section-card" style="padding:40px 36px; text-align:center; border:1px dashed var(--mt-border);">
+        <svg viewBox="0 0 24 24" style="width:48px; height:48px; stroke:var(--gold); fill:none; stroke-width:1.2; margin:0 auto 20px;">
+          <path d="M3 3h18v18H3zM3 9h18M9 3v18"/>
+        </svg>
+        <h2 style="font-size:20px; font-weight:700; color:var(--chalk); margin-bottom:8px;">Full Plot Analysis</h2>
+        <p style="font-size:13px; color:var(--chalk-3); margin-bottom:28px; line-height:1.7;">
+          Review document availability from compliance, enter plot values manually, run the single `tn_rules.py` engine, save versions, and export a report.
+        </p>
+        <a href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}"
+           class="btn btn-primary" style="font-size:14px; padding:12px 32px;">
+          <svg viewBox="0 0 24 24" style="width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0;">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Open Plot Analysis Module
+        </a>
+      </div>
+
+      <!-- Workflow steps -->
+      <div style="display:flex; margin-top:20px;">
+        {% for step_num, step_label in [('1','Open Compliance'), ('2','Gather Inputs'), ('3','Enter Values'), ('4','Run Engine'), ('5','Review Report')] %}
+        <div class="pa-step{% if loop.first %} pa-step-first{% elif loop.last %} pa-step-last{% endif %}{% if not loop.first %} pa-step-mid{% endif %}">
+          <div class="pa-step-num">{{ step_num }}</div>
+          <div class="pa-step-label">{{ step_label }}</div>
         </div>
-        {% endif %}
-        
-        <form action="{{ url_for('plot.upload', project_id=project.id) }}" method="POST" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="field">
-                <label>Upload new sketch (JPG, PNG, PDF)</label>
-                <input type="file" name="sketch" required>
-            </div>
-            <button type="submit" class="btn btn-ghost" style="width:100%;">Upload Sketch</button>
-        </form>
+        {% endfor %}
+      </div>
     </div>
 
-    <!-- Row 2: Manual Entry Form -->
-    <div class="card">
-        <div class="section-title">Compliance Dimensions</div>
-        <form action="{{ url_for('plot.update', project_id=project.id) }}" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            {% set plot = project.plot %}
-            {% set flags = plot.compliance_json|fromjson if plot and plot.compliance_json else {} %}
-            
-            <div class="three-col" style="grid-template-columns: 1fr 1fr 1fr;">
-                <div class="field">
-                    <label>Area (sq ft)</label>
-                    <input type="number" step="0.01" name="area" value="{{ plot.area if plot else '' }}">
-                    {% if flags.area %}<span class="badge badge-{{ 'teal' if flags.area == 'pass' else 'gold' if flags.area == 'warn' else 'rose' }}">{{ flags.area }}</span>{% endif %}
-                </div>
-                <div class="field">
-                    <label>Frontage (ft)</label>
-                    <input type="number" step="0.01" name="frontage" value="{{ plot.frontage if plot else '' }}">
-                    {% if flags.frontage %}<span class="badge badge-{{ 'teal' if flags.frontage == 'pass' else 'gold' if flags.frontage == 'warn' else 'rose' }}">{{ flags.frontage }}</span>{% endif %}
-                </div>
-                <div class="field">
-                    <label>Depth (ft)</label>
-                    <input type="number" step="0.01" name="depth" value="{{ plot.depth if plot else '' }}">
-                    {% if flags.depth %}<span class="badge badge-{{ 'teal' if flags.depth == 'pass' else 'gold' if flags.depth == 'warn' else 'rose' }}">{{ flags.depth }}</span>{% endif %}
-                </div>
-            </div>
+    <!-- RIGHT: status summary -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
 
-            <div class="three-col" style="grid-template-columns: 1fr 1fr 1fr;">
-                <div class="field">
-                    <label>Front Setback (ft)</label>
-                    <input type="number" step="0.01" name="front_setback" value="{{ plot.front_setback if plot else '' }}">
-                </div>
-                <div class="field">
-                    <label>Rear Setback (ft)</label>
-                    <input type="number" step="0.01" name="rear_setback" value="{{ plot.rear_setback if plot else '' }}">
-                </div>
-                <div class="field">
-                    <label>Side Setback (ft)</label>
-                    <input type="number" step="0.01" name="side_setback" value="{{ plot.side_setback if plot else '' }}">
-                </div>
-            </div>
-
-            <div class="two-col">
-                <div class="field">
-                    <label>Road Width (ft)</label>
-                    <input type="number" step="0.01" name="road_width" value="{{ plot.road_width if plot else '' }}">
-                </div>
-                <div class="field">
-                    <label>Height (m)</label>
-                    <input type="number" step="0.01" name="height" value="{{ plot.height if plot else '' }}">
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:12px;">Save & Check Compliance</button>
-        </form>
-
-        {% if plot and plot.compliance_json %}
-        <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--line);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <span class="badge badge-sky">Track {{ plot.track }} detected</span>
-                {% if not plot.confirmed %}
-                <form action="{{ url_for('plot.confirm', project_id=project.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="btn btn-primary" style="background:var(--gold-grad); color:#000;">Confirm & Show Client</button>
-                </form>
-                {% else %}
-                <span class="badge badge-teal">✅ Confirmed on {{ plot.confirmed_at|strftime('%d %b') }}</span>
-                {% endif %}
-            </div>
-            {% if plot.fuzzy_score is not none %}
-            <div style="margin-top:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-size:11px; color:var(--chalk-3); text-transform:uppercase; letter-spacing:0.06em;">Compliance Confidence</span>
-                    <span style="font-size:14px; font-weight:700; color:{% if plot.fuzzy_score >= 80 %}#4ADE80{% elif plot.fuzzy_score >= 50 %}#F5C842{% else %}#E05252{% endif %};">
-                        {{ '%.1f'|format(plot.fuzzy_score) }}%
-                    </span>
-                </div>
-                <div style="background:var(--ink-2); border-radius:6px; height:10px; overflow:hidden;">
-                    <div style="height:100%; width:{{ plot.fuzzy_score }}%; border-radius:6px; transition:width 0.6s ease;
-                        background:{% if plot.fuzzy_score >= 80 %}#4ADE80{% elif plot.fuzzy_score >= 50 %}#F5C842{% else %}#E05252{% endif %};"></div>
-                </div>
-                <div style="font-size:11px; color:var(--chalk-3); margin-top:4px;">
-                    {% if plot.fuzzy_score >= 80 %}✅ Good — ready for submission
-                    {% elif plot.fuzzy_score >= 50 %}⚠️ Partial compliance — review flagged items
-                    {% else %}❌ Poor compliance — redesign required{% endif %}
-                </div>
-            </div>
-            {% endif %}
+      {% if latest_pa %}
+      <!-- Latest analysis card -->
+      <div class="section-card" style="padding:0; overflow:hidden;">
+        <div style="padding:14px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:12px; font-weight:600; color:var(--chalk-3); text-transform:uppercase; letter-spacing:0.06em;">Latest Analysis</div>
+          {% if latest_pa_result and latest_pa_result.valid %}
+          <span class="pa-score-badge {% if latest_pa_result.compliant %}pa-badge-pass{% else %}pa-badge-warn{% endif %}">
+            {{ 'Compliant' if latest_pa_result.compliant else 'Needs Attention' }}
+          </span>
+          {% else %}
+          <span style="padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700; background:rgba(98,95,91,0.12); color:var(--chalk-3);">Pending</span>
+          {% endif %}
         </div>
-        {% endif %}
+        <div style="padding:14px 18px;">
+          <div style="font-size:13px; color:var(--chalk); font-weight:500; margin-bottom:4px;">{{ latest_pa.status|replace('_', ' ')|title }}</div>
+          <div style="font-size:11px; color:var(--chalk-3);">{{ latest_pa.created_at|strftime('%d %b %Y') }} · {{ latest_pa.trust_level or 'No trust level yet' }}</div>
+          {% if latest_pa_result and latest_pa_result.valid %}
+          <div style="margin-top:10px; font-size:12px; color:var(--chalk-2);">
+            {{ latest_pa_result.data_completeness }}% completeness · {{ latest_pa_result.violations|length }} violations · {{ latest_pa_result.warnings|length }} warnings
+          </div>
+          {% endif %}
+        </div>
+        <div style="padding:10px 18px; border-top:1px solid var(--line);">
+          <a href="{{ url_for('plot_analysis.result', project_id=project.id, analysis_id=latest_pa.id) }}"
+             class="btn btn-primary" style="width:100%; text-align:center; font-size:11px; padding:6px; box-sizing:border-box;">View Results</a>
+        </div>
+      </div>
+
+      {% else %}
+      <div class="section-card" style="text-align:center; padding:24px; border:1px dashed var(--mt-border);">
+        <div style="font-size:12px; color:var(--chalk-3); margin-bottom:12px;">No analyses yet for this project.</div>
+        <a href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}"
+           class="btn btn-ghost" style="font-size:12px;">Start First Analysis</a>
+      </div>
+      {% endif %}
+
+      <!-- Versions count -->
+      <div class="section-card" style="padding:14px 18px;">
+        <div style="font-size:13px; font-weight:600; color:var(--mt-text);">{{ pa_count }} Analysis Session{{ 's' if pa_count != 1 }}</div>
+        <div class="metric-foot" style="margin-top:4px;">Across all versions</div>
+      </div>
     </div>
+
   </div>
 </div>
 
@@ -296,11 +266,11 @@
 </style>
 
 <div class="tab-panel" data-panel="documents">
-    <div class="card">
+    <div class="section-card">
 
         <!-- ── Header ───────────────────────────────────────────── -->
-        <div class="page-head-row" style="margin-bottom:20px;">
-            <div class="section-title" style="margin:0;">Document Vault</div>
+        <div class="meetings-head" style="margin-bottom:20px;">
+            <div class="meetings-kicker">Document Vault</div>
             <button type="button" class="btn btn-primary" id="doc-upload-toggle">
                 <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Upload Document
@@ -344,40 +314,59 @@
             </form>
         </div>
 
+        <!-- ── Source module label map ──────────────────────────── -->
+        {% set SOURCE_LABELS = {
+            'compliance':    'Compliance',
+            'plot_analysis': 'Plot Analysis',
+            'meetings':      'MOM / Minutes',
+            'payments':      'Payment',
+            'vault':         'General',
+            'documents':     'General'
+        } %}
+
         <!-- ── Document Table ───────────────────────────────────── -->
         <table class="data-table">
             <thead>
                 <tr>
                     <th style="min-width:220px;">Document</th>
-                    <th class="dv-cat-col">Category</th>
+                    <th class="dv-cat-col">Source</th>
                     <th class="dv-ver-cell">Version</th>
                     <th>Visibility</th>
-                    <th style="width:90px; text-align:center;">Actions</th>
+                    <th style="width:120px; text-align:center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
-            {% set docs_list = project.documents.all() %}
+            {# docs_list is passed pre-sorted from the route #}
             {% if docs_list %}
                 {% for d in docs_list %}
                 {% set cv = d.current_version %}
                 {% set vc = d.versions.count() %}
 
                 <!-- ── Main row ─────────────────────────────────── -->
-                <tr class="dv-main-row">
+                <tr class="dv-main-row" id="doc-vault-row-{{ d.id }}">
 
-                    {# DOCUMENT #}
+                    {# DOCUMENT + pending tag #}
                     <td>
                         <div class="dv-title">{{ d.original_name }}</div>
-                        <div class="dv-meta">
-                            {{ d.created_at|strftime('%d %b %Y · %H:%M') }}
-                            &nbsp;·&nbsp;{{ d.uploader_role }}
-                            &nbsp;·&nbsp;{{ vc }} version{{ 's' if vc != 1 else '' }}
+                        <div class="dv-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;">
+                            <span>{{ d.created_at|strftime('%d %b %Y') }}</span>
+                            <span style="color:#555;">·</span>
+                            <span>{{ d.uploader_role|title }}</span>
+                            <span style="color:#555;">·</span>
+                            <span>{{ vc }} ver{{ 's' if vc != 1 else '' }}</span>
+                            {% if d.pending_verification %}
+                            <span class="dv-pending-tag" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;
+                                         background:rgba(245,200,66,.12);color:#f5c842;font-size:10px;font-weight:700;
+                                         text-transform:uppercase;letter-spacing:.05em;">
+                                &#9679; Pending Verification
+                            </span>
+                            {% endif %}
                         </div>
                     </td>
 
-                    {# CATEGORY #}
+                    {# SOURCE badge #}
                     <td class="dv-cat-col">
-                        <span class="badge badge-muted">{{ d.category }}</span>
+                        <span class="badge badge-muted">{{ SOURCE_LABELS.get(d.source_module, d.source_module or 'General') }}</span>
                     </td>
 
                     {# VERSION + dropdown + file meta #}
@@ -437,9 +426,9 @@
                         </button>
                     </td>
 
-                    {# ACTIONS — icon buttons only #}
+                    {# ACTIONS — icon buttons + Verify if pending #}
                     <td style="text-align:center;">
-                        <div style="display:inline-flex; gap:8px; align-items:center;">
+                        <div style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center;">
                             {# Download latest #}
                             <a href="{{ url_for('documents.download', doc_id=d.id) }}"
                                target="_blank" rel="noopener"
@@ -453,6 +442,16 @@
                                     title="Add new version">
                                 <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                             </button>
+                            {# Verify — only when client uploaded and pending #}
+                            {% if d.pending_verification %}
+                            <button type="button"
+                                    class="btn btn-ghost dv-verify-btn"
+                                    data-doc-id="{{ d.id }}"
+                                    style="font-size:11px;padding:4px 10px;color:#f5c842;border-color:rgba(245,200,66,.3);"
+                                    title="Verify this client upload">
+                                Verify
+                            </button>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>
@@ -588,6 +587,40 @@
             });
         });
     });
+
+    // ── Verify client-uploaded document (AJAX) ───────────────────
+    document.querySelectorAll('.dv-verify-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var docId = btn.dataset.docId;
+            btn.disabled = true;
+            btn.textContent = 'Verifying…';
+            fetch('/documents/' + docId + '/verify', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': CSRF }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    var row = document.getElementById('doc-vault-row-' + docId);
+                    if (row) {
+                        // Remove the amber pending tag from the meta line
+                        var tag = row.querySelector('.dv-pending-tag');
+                        if (tag) tag.remove();
+                        // Remove the Verify button itself
+                        btn.remove();
+                    }
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Verify';
+                    alert(data.error || 'Verification failed.');
+                }
+            })
+            .catch(function () {
+                btn.disabled = false;
+                btn.textContent = 'Verify';
+            });
+        });
+    });
 }());
 </script>
 
@@ -599,599 +632,37 @@
      New endpoint: POST /projects/<id>/compliance/add-custom
      Body: { label: str, description: str } -->
 <div class="tab-panel" data-panel="compliance">
-  <style>
-    .comp-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; flex-shrink:0; }
-    .comp-title { font-size:18px; color:#fff; font-weight:500; margin:0; }
-    .comp-subtitle { font-size:13px; color:#606060; margin:4px 0 8px; }
-    .comp-progress-pill { display:inline-flex; align-items:center; gap:6px; background:#2A2010; color:#F5C842; font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px; }
-    .comp-body { height:calc(100vh - 260px); overflow-y:auto; padding-right:4px; }
-    .comp-body::-webkit-scrollbar { width:4px; } .comp-body::-webkit-scrollbar-track { background:transparent; } .comp-body::-webkit-scrollbar-thumb { background:#3A3A3A; border-radius:2px; } .comp-body::-webkit-scrollbar-thumb:hover { background:#F5C842; }
-    .comp-row { display:flex; align-items:center; gap:16px; background:#1A1A1A; border:1px solid #2A2A2A; border-radius:8px; padding:14px 20px; margin-bottom:8px; transition:border-color 0.2s ease; cursor:default; }
-    .comp-row:hover { border-color:#F5C842; }
-    .comp-check-col { display:flex; flex-direction:column; align-items:center; gap:4px; min-width:52px; }
-    .comp-check-lbl { font-size:10px; color:#606060; text-transform:uppercase; letter-spacing:0.06em; }
-    .comp-check { width:24px; height:24px; border-radius:5px; border:2px solid #3A3A3A; background:#0D0D0D; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; flex-shrink:0; }
-    .comp-check.arch-check.checked { background:#F5C842; border-color:#F5C842; }
-    .comp-check.client-check.checked { background:#4ADE80; border-color:#4ADE80; }
-    .comp-check:hover:not([disabled]) { border-color:#F5C842; transform:scale(1.08); }
-    .comp-check[disabled] { opacity:0.45; cursor:default; }
-    .comp-check svg { width:14px; height:14px; stroke:#0D0D0D; stroke-width:3; fill:none; }
-    .comp-info { flex:1; min-width:0; }
-    .comp-name { font-size:13px; color:#fff; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .comp-desc { font-size:11px; color:#606060; margin-top:2px; }
-    .comp-status { flex-shrink:0; }
-    .pill-complete { background:#1A3A2A; color:#4ADE80; font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px; }
-    .pill-inprog { background:#2A2010; color:#F5C842; font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px; }
-    .pill-pending { background:#1E1E1E; color:#606060; font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px; }
-    .pill-custom { background:#2A1A00; color:#F5C842; font-size:10px; font-weight:500; padding:2px 8px; border-radius:20px; margin-left:6px; }
-    .sep-vert { width:1px; background:#2A2A2A; height:36px; flex-shrink:0; }
-    .add-criteria-form { background:#1A1A1A; border:1px solid #2A2A2A; border-radius:8px; padding:14px 20px; margin-bottom:12px; display:none; }
-    .add-criteria-form.open { display:flex; flex-direction:column; gap:10px; }
-  </style>
-
-  <div style="height:100%; display:flex; flex-direction:column;">
-    <div class="comp-header">
-      <div>
-        <p class="comp-title">Compliance Checklist</p>
-        <p class="comp-subtitle">Track mandatory TNPCR submission documents.</p>
-        <span class="comp-progress-pill" id="comp-progress">
-          {% set arch_checked = project.checklist.filter_by(arch_checked=True).count() if project.checklist.filter_by is defined else 0 %}
-          {% set total_items = project.checklist.count() %}
-          {{ arch_checked }} of {{ total_items }} verified
-        </span>
-      </div>
-      <div style="display:flex; gap:10px; align-items:center;">
-        <button onclick="toggleAddCriteria()" class="comp-check" style="width:auto; padding:6px 14px; border-radius:6px; font-size:12px; color:#F5C842; border-color:#F5C842; background:transparent;">+ Add Criteria</button>
-        <form action="{{ url_for('projects.toggle_compliance_visibility', project_id=project.id) }}" method="POST">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" style="background:transparent; border:1px solid #F5C842; color:#F5C842; font-size:11px; padding:6px 12px; border-radius:6px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#F5C842';this.style.color='#0D0D0D'" onmouseout="this.style.background='transparent';this.style.color='#F5C842'">
-            {{ 'Hide from Client' if project.allow_client_compliance else 'Show to Client' }}
-          </button>
-        </form>
-      </div>
-    </div>
-
-    <!-- Add Criteria Form -->
-    <div class="add-criteria-form" id="add-criteria-form">
-      <div style="font-size:13px; color:#A0A0A0; font-weight:500;">New Compliance Criteria</div>
-      <form action="{{ url_for('projects.workspace', project_id=project.id) }}" method="POST" style="display:flex; gap:10px; flex-wrap:wrap;" onsubmit="return false;">
-        <input id="new-crit-label" type="text" placeholder="Document / Criteria name" required style="flex:1; min-width:180px; background:#0D0D0D; border:1px solid #2A2A2A; color:#fff; padding:10px 14px; font-size:13px; border-radius:6px;" onfocus="this.style.borderColor='#F5C842'" onblur="this.style.borderColor='#2A2A2A'">
-        <input id="new-crit-desc" type="text" placeholder="Description (optional)" style="flex:1; min-width:180px; background:#0D0D0D; border:1px solid #2A2A2A; color:#fff; padding:10px 14px; font-size:13px; border-radius:6px;" onfocus="this.style.borderColor='#F5C842'" onblur="this.style.borderColor='#2A2A2A'">
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button onclick="submitAddCriteria('{{ project.id }}', '{{ csrf_token() }}')" style="background:#F5C842; color:#0D0D0D; border:none; padding:10px 20px; border-radius:6px; font-weight:600; cursor:pointer;">Add</button>
-          <button onclick="toggleAddCriteria()" style="background:transparent; border:none; color:#606060; font-size:13px; cursor:pointer;">Cancel</button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Column headers -->
-    <div style="display:flex; gap:16px; padding:0 20px 8px; align-items:center; flex-shrink:0;">
-      <div style="min-width:52px; text-align:center; font-size:10px; color:#606060; text-transform:uppercase; letter-spacing:0.06em;">Arch ✓</div>
-      <div class="sep-vert" style="height:16px;"></div>
-      <div style="min-width:52px; text-align:center; font-size:10px; color:#606060; text-transform:uppercase; letter-spacing:0.06em;">Client ✓</div>
-      <div style="flex:1; font-size:10px; color:#606060; text-transform:uppercase; letter-spacing:0.06em;">Document</div>
-      <div style="min-width:80px; font-size:10px; color:#606060; text-transform:uppercase; letter-spacing:0.06em; text-align:right;">Status</div>
-    </div>
-
-    <div class="comp-body">
-      {% for item in project.checklist.all() %}
-      {% set arch_done = item.arch_checked if item.arch_checked is defined else item.checked %}
-      {% set cli_done = item.client_checked if item.client_checked is defined else false %}
-      {% if arch_done and cli_done %}
-        {% set row_status = 'complete' %}
-      {% elif arch_done or cli_done %}
-        {% set row_status = 'inprog' %}
-      {% else %}
-        {% set row_status = 'pending' %}
-      {% endif %}
-      <div class="comp-row" id="comp-row-{{ item.id }}">
-        <!-- Architect checkbox -->
-        <div class="comp-check-col">
-          <span class="comp-check-lbl">Arch</span>
-          <button class="comp-check arch-check {% if arch_done %}checked{% endif %}"
-                  onclick="toggleCompCheck({{ item.id }}, 'architect', {{ 'true' if arch_done else 'false' }}, '{{ project.id }}', '{{ csrf_token() }}')"
-                  title="Architect verification">
-            {% if arch_done %}<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}
-          </button>
-        </div>
-        <div class="sep-vert"></div>
-        <!-- Client checkbox (disabled for architect) -->
-        <div class="comp-check-col">
-          <span class="comp-check-lbl">Client</span>
-          <button class="comp-check client-check {% if cli_done %}checked{% endif %}"
-                  disabled title="Client verification">
-            {% if cli_done %}<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>{% endif %}
-          </button>
-        </div>
-        <div class="sep-vert"></div>
-        <!-- Info -->
-        <div class="comp-info">
-          <div class="comp-name">{{ item.label }}
-            {% if item.is_custom is defined and item.is_custom %}
-            <span class="pill-custom">Custom</span>
-            {% endif %}
-          </div>
-          {% if item.description is defined and item.description %}
-          <div class="comp-desc">{{ item.description }}</div>
-          {% endif %}
-        </div>
-        <!-- Status pill -->
-        <div class="comp-status">
-          {% if row_status == 'complete' %}
-          <span class="pill-complete">✓ Complete</span>
-          {% elif row_status == 'inprog' %}
-          <span class="pill-inprog">In Progress</span>
-          {% else %}
-          <span class="pill-pending">Pending</span>
-          {% endif %}
-        </div>
-      </div>
-      {% else %}
-      <div style="text-align:center; padding:40px; color:#606060; font-size:13px;">No compliance items yet. Add criteria above.</div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <script>
-    function toggleAddCriteria() {
-      const f = document.getElementById('add-criteria-form');
-      f.classList.toggle('open');
-    }
-    function submitAddCriteria(projectId, csrf) {
-      const label = document.getElementById('new-crit-label').value.trim();
-      const desc = document.getElementById('new-crit-desc').value.trim();
-      if (!label) return;
-      fetch('/projects/' + projectId + '/compliance/add-custom', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-        body: JSON.stringify({ label, description: desc })
-      }).then(r => r.json()).then(data => {
-        if (data.success && data.item) {
-          const compBody = document.querySelector('.comp-body');
-          const newRow = document.createElement('div');
-          newRow.className = 'comp-row';
-          newRow.id = 'comp-row-' + data.item.id;
-          newRow.innerHTML = `
-            <div class="comp-check-col">
-              <span class="comp-check-lbl">Arch</span>
-              <button class="comp-check arch-check"
-                      onclick="toggleCompCheck(${data.item.id}, 'architect', false, '${projectId}', '${csrf}')"
-                      title="Architect verification"></button>
-            </div>
-            <div class="sep-vert"></div>
-            <div class="comp-check-col">
-              <span class="comp-check-lbl">Client</span>
-              <button class="comp-check client-check" disabled></button>
-            </div>
-            <div class="sep-vert"></div>
-            <div class="comp-info">
-              <div class="comp-name">${data.item.label}<span class="pill-custom">Custom</span></div>
-              ${data.item.description ? '<div class="comp-desc">' + data.item.description + '</div>' : ''}
-            </div>
-            <div class="comp-status">
-              <span class="pill-pending">Pending</span>
-            </div>
-          `;
-          compBody.appendChild(newRow);
-          document.getElementById('new-crit-label').value = '';
-          document.getElementById('new-crit-desc').value = '';
-          document.getElementById('add-criteria-form').classList.remove('open');
-          // Update progress
-          const progressEl = document.getElementById('comp-progress');
-          if (progressEl) {
-            const text = progressEl.textContent;
-            const match = text.match(/(\d+) of (\d+)/);
-            if (match) {
-              const x = parseInt(match[1]);
-              const y = parseInt(match[2]) + 1;
-              progressEl.textContent = `${x} of ${y} verified`;
-            }
-          }
-        }
-      });
-    }
-    let _compDebounce = {};
-    function toggleCompCheck(itemId, role, currentlyChecked, projectId, csrf) {
-      clearTimeout(_compDebounce[itemId+role]);
-      _compDebounce[itemId+role] = setTimeout(() => {
-        const newChecked = !currentlyChecked;
-        fetch('/projects/' + projectId + '/compliance/toggle/' + itemId, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-          body: JSON.stringify({ checked_by: role, checked: newChecked })
-        }).then(r => r.json()).then(data => {
-          if (data.success) {
-            const row = document.getElementById('comp-row-' + itemId);
-            if (row) {
-              const checkBtn = role === 'architect' 
-                ? row.querySelector('.arch-check')
-                : row.querySelector('.client-check');
-              const archCheck = data.item.arch_checked;
-              const clientCheck = data.item.client_checked;
-              if (role === 'architect') {
-                if (newChecked) {
-                  checkBtn.classList.add('checked');
-                  checkBtn.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
-                } else {
-                  checkBtn.classList.remove('checked');
-                  checkBtn.innerHTML = '';
-                }
-                // Update progress
-                const progressEl = document.getElementById('comp-progress');
-                if (progressEl) {
-                  const text = progressEl.textContent;
-                  const match = text.match(/(\d+) of (\d+)/);
-                  if (match) {
-                    let x = parseInt(match[1]);
-                    const y = parseInt(match[2]);
-                    x = newChecked ? x + 1 : x - 1;
-                    progressEl.textContent = `${x} of ${y} verified`;
-                  }
-                }
-              }
-              const statusSpan = row.querySelector('.comp-status span');
-              if (archCheck && clientCheck) {
-                statusSpan.className = 'pill-complete';
-                statusSpan.textContent = '✓ Complete';
-              } else if (archCheck || clientCheck) {
-                statusSpan.className = 'pill-inprog';
-                statusSpan.textContent = 'In Progress';
-              } else {
-                statusSpan.className = 'pill-pending';
-                statusSpan.textContent = 'Pending';
-              }
-            }
-          }
-        });
-      }, 300);
-    }
-  </script>
+  {% include "architect/_compliance_workspace.html" %}
 </div>
 
 <!-- Tab: Meetings -->
-<style>
-.mt-card   { background:#141414; border:1px solid #222; border-radius:10px; padding:20px; margin-bottom:16px; }
-.mt-label  { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;
-             color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:12px; }
-.mt-section-head { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;
-                   color:var(--chalk-3); font-family:'Space Mono',monospace; padding:8px 0 10px;
-                   border-bottom:1px solid #1e1e1e; margin-bottom:14px; display:flex;
-                   align-items:center; gap:8px; }
-.mt-section-count { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:20px;
-                    padding:1px 8px; font-size:10px; color:var(--chalk-3); }
-.slot-btn  { display:block; width:100%; text-align:left; padding:10px 14px; margin-bottom:8px;
-             background:#0d0d0d; border:1px solid #2a2a2a; border-radius:6px; color:var(--chalk-2);
-             font-size:13px; cursor:default; }
-.cmt-item  { display:flex; gap:12px; padding:12px 0; border-bottom:1px solid #1a1a1a; }
-.cmt-item:last-child { border-bottom:none; }
-.cmt-avatar{ width:30px; height:30px; border-radius:50%; background:var(--gold-dim);
-             display:flex; align-items:center; justify-content:center; font-size:11px;
-             font-weight:700; color:var(--gold); flex-shrink:0; }
-.cmt-body  { flex:1; min-width:0; }
-.cmt-meta  { font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:4px; }
-.cmt-text  { font-size:13px; color:var(--chalk-2); line-height:1.5; }
-.cmt-action a { color:var(--gold); text-decoration:none; font-size:11px; }
-.cmt-action a:hover { text-decoration:underline; }
-.req-tag   { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:2px 8px;
-             border-radius:20px; background:rgba(94,234,212,.1); color:#5eead4;
-             border:1px solid rgba(94,234,212,.25); margin-top:4px; }
-.log-row   { display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px solid #1a1a1a; }
-.log-row:last-child { border-bottom:none; }
-.log-dot   { width:8px; height:8px; border-radius:50%; background:#2a2a2a; flex-shrink:0; margin-top:5px; }
-.log-dot.PROPOSED   { background:#e8c97a; }
-.log-dot.CONFIRMED  { background:#5eead4; }
-.log-dot.COUNTERED  { background:#fb923c; }
-.log-dot.REQUESTED  { background:#a78bfa; }
-.log-dot.MOM_SAVED  { background:#60a5fa; }
-.log-dot.COMMENT    { background:#4ade80; }
-</style>
 
 <div class="tab-panel" data-panel="meetings">
-
-{% set all_meetings = project.meetings.order_by(Meeting.created_at.desc()).all() %}
-{% set requested_meetings   = all_meetings | selectattr('status','equalto','requested')       | list %}
-{% set pending_meetings     = all_meetings | selectattr('status','in',['awaiting_client','countered']) | list %}
-{% set confirmed_meetings   = all_meetings | selectattr('status','equalto','confirmed')       | list %}
-
-<div style="display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;">
-
-  <!-- LEFT SIDEBAR: actions + summary -->
-  <div>
-    <!-- Toggle propose form -->
-    <div class="mt-card" style="padding:0; overflow:hidden;">
-      <button type="button" id="propose-toggle"
-              style="width:100%; padding:14px 18px; display:flex; align-items:center; gap:10px;
-                     background:none; border:none; cursor:pointer; color:var(--chalk); font-size:13px; font-weight:600;"
-              onclick="var p=document.getElementById('propose-form-wrap'); p.style.display=p.style.display==='none'?'block':'none';">
-        <span style="font-size:18px; color:var(--gold);">+</span> Propose New Meeting
-      </button>
-      <div id="propose-form-wrap" style="display:none; padding:0 18px 18px;">
-        <form action="{{ url_for('meetings.propose', project_id=project.id) }}" method="POST">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="field"><label>Option 1 *</label><input type="datetime-local" name="slot_1" required class="doc-field-input" style="color-scheme:dark;"></div>
-          <div class="field"><label>Option 2</label><input type="datetime-local" name="slot_2" class="doc-field-input" style="color-scheme:dark;"></div>
-          <div class="field"><label>Option 3</label><input type="datetime-local" name="slot_3" class="doc-field-input" style="color-scheme:dark;"></div>
-          <button type="submit" class="btn btn-primary" style="width:100%; margin-top:4px;">Send to Client</button>
-        </form>
-      </div>
-    </div>
-
-    <a href="{{ url_for('requirements.kanban', project_id=project.id) }}"
-       class="btn btn-ghost" style="width:100%; text-align:center; display:block; box-sizing:border-box; margin-top:10px;">
-      &#9776; Requirements Kanban
-    </a>
-
-    <!-- Stats -->
-    <div class="mt-card" style="margin-top:10px;">
-      <div class="mt-label">Summary</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-        {% for label, count, color in [
-            ('Requests', requested_meetings|length, '#a78bfa'),
-            ('Pending',  pending_meetings|length,   '#e8c97a'),
-            ('Confirmed',confirmed_meetings|length,  '#5eead4'),
-            ('Total',    all_meetings|length,        '#888'),
-        ] %}
-        <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:6px; padding:10px;">
-          <div style="font-size:20px; font-weight:700; color:{{ color }};">{{ count }}</div>
-          <div style="font-size:10px; color:var(--chalk-3); text-transform:uppercase; letter-spacing:1px;">{{ label }}</div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-
-  <!-- RIGHT: Meeting cards grouped by status -->
-  <div>
-    {% if not all_meetings %}
-    <div class="mt-card" style="text-align:center; padding:40px; color:var(--chalk-3);">
-      No meetings yet. Use "Propose New Meeting" or wait for a client request.
-    </div>
-    {% endif %}
-
-    <!-- ── Client Requests ─────────────────────────────── -->
-    {% if requested_meetings %}
-    <div class="mt-section-head" style="color:#a78bfa;">
-      Client Requests <span class="mt-section-count">{{ requested_meetings|length }}</span>
-    </div>
-    {% for m in requested_meetings %}
-    <div class="mt-card" style="border-color:rgba(167,139,250,.2);">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
-        <div>
-          <span class="badge badge-muted" style="background:rgba(167,139,250,.1); color:#a78bfa; border-color:rgba(167,139,250,.2); margin-bottom:6px;">Client Request</span>
-          <div style="font-size:13px; color:var(--chalk-2); margin-top:4px;">
-            {% if m.description %}{{ m.description }}{% else %}No reason provided.{% endif %}
-          </div>
-          <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-top:4px;">
-            Requested {{ m.created_at|strftime('%d %b %Y') }} · #{{ m.id }}
-          </div>
-        </div>
-        <a href="{{ url_for('meetings.detail', meeting_id=m.id) }}"
-           class="btn btn-ghost" style="font-size:11px; padding:4px 12px; white-space:nowrap;">Details &#8594;</a>
-      </div>
-      <!-- Propose slots for this request -->
-      <div style="border-top:1px solid #1e1e1e; padding-top:14px;">
-        <div class="mt-label">Propose Slots for This Request</div>
-        <form action="{{ url_for('meetings.propose', project_id=project.id) }}" method="POST">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="meeting_id" value="{{ m.id }}">
-          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
-            <div><label class="doc-field-label">Option 1 *</label><input type="datetime-local" name="slot_1" required class="doc-field-input" style="color-scheme:dark;"></div>
-            <div><label class="doc-field-label">Option 2</label><input type="datetime-local" name="slot_2" class="doc-field-input" style="color-scheme:dark;"></div>
-            <div><label class="doc-field-label">Option 3</label><input type="datetime-local" name="slot_3" class="doc-field-input" style="color-scheme:dark;"></div>
-          </div>
-          <button type="submit" class="btn btn-primary" style="padding:7px 18px; font-size:12px;">Propose Slots</button>
-        </form>
-      </div>
-    </div>
-    {% endfor %}
-    {% endif %}
-
-    <!-- ── Awaiting / Countered ────────────────────────── -->
-    {% if pending_meetings %}
-    <div class="mt-section-head" style="color:#e8c97a;">
-      Pending Response <span class="mt-section-count">{{ pending_meetings|length }}</span>
-    </div>
-    {% for m in pending_meetings %}
-    {% set vcnt = m.comments.count() %}
-    <div class="mt-card" style="border-color:rgba(232,201,122,.15);">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
-        <div>
-          <span class="badge {% if m.status == 'countered' %}badge-gold{% else %}badge-muted{% endif %}" style="margin-bottom:6px;">
-            {{ m.status|replace('_',' ')|title }}
-          </span>
-          <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-top:3px;">
-            Proposed {{ m.created_at|strftime('%d %b %Y') }} · #{{ m.id }}
-          </div>
-        </div>
-        <a href="{{ url_for('meetings.detail', meeting_id=m.id) }}"
-           class="btn btn-ghost" style="font-size:11px; padding:4px 12px; white-space:nowrap;">Details &#8594;</a>
-      </div>
-      <div class="mt-label">Proposed Slots</div>
-      {% for slot in [m.slot_1, m.slot_2, m.slot_3] if slot %}
-      <div class="slot-btn">{{ loop.index }}. {{ slot|strftime('%d %b %Y · %H:%M') }}</div>
-      {% endfor %}
-      {% if m.status == 'countered' and m.counter_slot %}
-      <div style="font-size:12px; color:#fb923c; margin:10px 0 8px; display:flex; align-items:center; gap:6px;">
-        <span>&#x21bb;</span> Client proposed: <strong>{{ m.counter_slot|strftime('%d %b %Y · %H:%M') }}</strong>
-      </div>
-      <form action="{{ url_for('meetings.confirm', meeting_id=m.id) }}" method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="slot_choice" value="counter_slot">
-        <button type="submit" class="btn btn-primary" style="padding:6px 18px; font-size:12px;">Confirm This Slot</button>
-      </form>
-      {% endif %}
-
-      <!-- Discussion -->
-      <div style="margin-top:16px; border-top:1px solid #1e1e1e; padding-top:14px;">
-        <div class="mt-label">Discussion{% if vcnt %} ({{ vcnt }}){% endif %}</div>
-        {% for c in m.comments.all() %}
-        <div class="cmt-item">
-          <div class="cmt-avatar">{{ c.author.initials if c.author else '?' }}</div>
-          <div class="cmt-body">
-            <div class="cmt-meta">{{ c.author.name if c.author else 'Unknown' }} &middot; {{ c.created_at|strftime('%d %b · %H:%M') }}</div>
-            <div class="cmt-text">{{ c.content }}</div>
-            {% if c.requirement %}<span class="req-tag">&#10003; {{ c.requirement.title[:40] }}</span>
-            {% else %}<div class="cmt-action"><a href="#" onclick="openConvertModal({{ c.id }}, {{ c.content|tojson }}); return false;">&#8594; Requirement</a></div>{% endif %}
-          </div>
-        </div>
-        {% endfor %}
-        <form action="{{ url_for('requirements.add_comment', meeting_id=m.id) }}" method="POST"
-              style="display:flex; gap:8px; align-items:flex-end; margin-top:10px;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <textarea name="content" rows="2" placeholder="Add a note..." required
-                    class="doc-field-input" style="flex:1; resize:none; font-size:13px;"></textarea>
-          <button type="submit" class="btn btn-ghost" style="padding:8px 14px;">Post</button>
-        </form>
-      </div>
-    </div>
-    {% endfor %}
-    {% endif %}
-
-    <!-- ── Confirmed ───────────────────────────────────── -->
-    {% if confirmed_meetings %}
-    <div class="mt-section-head" style="color:#5eead4;">
-      Confirmed <span class="mt-section-count">{{ confirmed_meetings|length }}</span>
-    </div>
-    {% for m in confirmed_meetings %}
-    {% set vcnt = m.comments.count() %}
-    <div class="mt-card" style="border-color:rgba(94,234,212,.15);">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
-        <div>
-          <span class="badge badge-teal" style="margin-bottom:6px;">Confirmed</span>
-          <div style="font-weight:600; font-size:15px; color:var(--chalk);">
-            {{ m.confirmed_slot|strftime('%d %b %Y · %H:%M') if m.confirmed_slot else 'Time TBD' }}
-          </div>
-          <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-top:3px;">#{{ m.id }}</div>
-        </div>
-        <a href="{{ url_for('meetings.detail', meeting_id=m.id) }}"
-           class="btn btn-ghost" style="font-size:11px; padding:5px 12px;">Full Details &#8594;</a>
-      </div>
-
-      <!-- MOM -->
-      <div style="margin-bottom:14px;">
-        <div class="mt-label">Minutes of Meeting</div>
-        {% if m.mom_content %}
-        <div style="font-size:13px; color:var(--chalk-2); background:#0d0d0d; border:1px solid #1e1e1e;
-                    border-radius:6px; padding:12px; white-space:pre-wrap; line-height:1.6; margin-bottom:8px;">{{ m.mom_content }}</div>
-        <div style="font-size:11px; color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:6px;">
-          Logged {{ m.mom_date|strftime('%d %b %Y · %H:%M') if m.mom_date else '' }}
-        </div>
-        {% endif %}
-        <button type="button" class="btn btn-ghost" style="font-size:11px; padding:6px 14px;"
-                onclick="var f=document.getElementById('mom-form-{{ m.id }}'); f.style.display=f.style.display==='none'?'block':'none';">
-          {{ 'Update MOM' if m.mom_content else 'Log MOM' }}
-        </button>
-        <form id="mom-form-{{ m.id }}" action="{{ url_for('meetings.notes', meeting_id=m.id) }}" method="POST" style="display:none; margin-top:10px;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <textarea name="mom_content" rows="5" class="doc-field-input"
-                    placeholder="Summarise discussion, decisions, and next steps..."
-                    style="resize:vertical; margin-bottom:8px;">{{ m.mom_content or '' }}</textarea>
-          <div style="display:flex; gap:8px;">
-            <button type="submit" class="btn btn-primary" style="padding:7px 18px;">Save MOM</button>
-            <button type="button" class="btn btn-ghost" style="padding:7px 14px;"
-                    onclick="document.getElementById('mom-form-{{ m.id }}').style.display='none';">Cancel</button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Discussion + Logs -->
-      <div style="border-top:1px solid #1e1e1e; padding-top:14px;">
-        <div style="display:grid; grid-template-columns:1fr 220px; gap:16px;">
-          <div>
-            <div class="mt-label">Discussion{% if vcnt %} ({{ vcnt }}){% endif %}</div>
-            {% for c in m.comments.all() %}
-            <div class="cmt-item">
-              <div class="cmt-avatar">{{ c.author.initials if c.author else '?' }}</div>
-              <div class="cmt-body">
-                <div class="cmt-meta">{{ c.author.name if c.author else 'Unknown' }} &middot; {{ c.created_at|strftime('%d %b · %H:%M') }}</div>
-                <div class="cmt-text">{{ c.content }}</div>
-                {% if c.requirement %}<span class="req-tag">&#10003; {{ c.requirement.title[:40] }}</span>
-                {% else %}<div class="cmt-action"><a href="#" onclick="openConvertModal({{ c.id }}, {{ c.content|tojson }}); return false;">&#8594; Requirement</a></div>{% endif %}
-              </div>
-            </div>
-            {% else %}
-            <div style="font-size:12px; color:#333; margin-bottom:10px;">No comments yet.</div>
-            {% endfor %}
-            <form action="{{ url_for('requirements.add_comment', meeting_id=m.id) }}" method="POST"
-                  style="display:flex; gap:8px; align-items:flex-end; margin-top:10px;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <textarea name="content" rows="2" placeholder="Add a comment..." required
-                        class="doc-field-input" style="flex:1; resize:none; font-size:13px;"></textarea>
-              <button type="submit" class="btn btn-primary" style="padding:8px 14px;">Post</button>
-            </form>
-          </div>
-          <!-- Activity log -->
-          <div>
-            <div class="mt-label">Activity</div>
-            {% set mlogs = m.logs.all() %}
-            {% if mlogs %}
-            {% for l in mlogs %}
-            <div class="log-row">
-              <div class="log-dot {{ l.action }}"></div>
-              <div>
-                <div style="font-size:11px; color:var(--chalk-2);">{{ l.actor.name if l.actor else '?' }}</div>
-                <div style="font-size:10px; color:var(--chalk-3); font-family:'Space Mono',monospace;">
-                  {{ l.action|replace('_',' ')|title }} · {{ l.created_at|strftime('%d %b %H:%M') }}
-                </div>
-                {% if l.note %}<div style="font-size:11px; color:#555; margin-top:2px;">{{ l.note[:60] }}</div>{% endif %}
-              </div>
-            </div>
-            {% endfor %}
-            {% else %}
-            <div style="font-size:11px; color:#333;">No activity logged.</div>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endfor %}
-    {% endif %}
-
-  </div>
+{% set req_count  = all_meetings | selectattr('normalized_status','equalto','pending_request') | list | length %}
+{% set conf_count = all_meetings | selectattr('status','equalto','confirmed')  | list | length %}
+{% set done_count = all_meetings | selectattr('status','equalto','completed')  | list | length %}
+<div class="summary-grid" style="margin-bottom:20px;">
+  {% for label, count, color in [
+    ('Requests', req_count, '#a78bfa'),
+    ('Pending',  all_meetings|selectattr('normalized_status','in',['proposed','counter_proposed'])|list|length, '#e8c97a'),
+    ('Confirmed',conf_count, '#5eead4'),
+    ('Completed',done_count, '#60a5fa'),
+  ] %}
+  <article class="metric-card">
+    <div class="metric-label">{{ label }}</div>
+    <div class="metric-value" style="color:{{ color }};">{{ count }}</div>
+  </article>
+  {% endfor %}
 </div>
-
-<!-- Convert to Requirement modal -->
-<div id="convert-modal" style="display:none; position:fixed; inset:0; z-index:500;
-     background:rgba(0,0,0,.75); align-items:center; justify-content:center;">
-  <div style="background:#161616; border:1px solid #2a2a2a; border-radius:12px; padding:28px; width:460px; max-width:90vw;">
-    <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;
-                color:var(--chalk-3); font-family:'Space Mono',monospace; margin-bottom:14px;">Convert Comment &#8594; Requirement</div>
-    <form id="convert-form" method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="margin-bottom:12px;">
-        <label class="doc-field-label">Requirement Title</label>
-        <input id="convert-title" class="doc-field-input" type="text" name="req_title" required>
-      </div>
-      <div style="margin-bottom:16px;">
-        <label class="doc-field-label">Category</label>
-        <select class="doc-field-input" name="req_category" style="appearance:auto;">
-          <option value="General">General</option>
-          <option value="Design">Design</option>
-          <option value="Structural">Structural</option>
-          <option value="Compliance">Compliance</option>
-          <option value="Client Request">Client Request</option>
-          <option value="Budget">Budget</option>
-        </select>
-      </div>
-      <div style="display:flex; gap:8px;">
-        <button type="submit" class="btn btn-primary" style="padding:9px 22px;">Create Requirement</button>
-        <button type="button" class="btn btn-ghost" style="padding:9px 16px;"
-                onclick="document.getElementById('convert-modal').style.display='none';">Cancel</button>
-      </div>
-    </form>
+<div class="section-card" style="display:flex; align-items:center; justify-content:space-between; padding:28px 32px;">
+  <div>
+    <div style="font-size:18px; font-weight:700; color:var(--mt-text); margin-bottom:6px;">Project Meetings</div>
+    <div class="metric-foot">Manage scheduling, MOM, discussion and requirements for this project.</div>
   </div>
+  <a href="/projects/{{ project.id }}/meetings" class="mt-btn primary" style="white-space:nowrap;">
+    Open Meetings →
+  </a>
 </div>
-<script>
-function openConvertModal(commentId, content) {
-  var modal = document.getElementById('convert-modal');
-  document.getElementById('convert-form').action = '/comments/' + commentId + '/convert';
-  document.getElementById('convert-title').value = content.substring(0, 80);
-  modal.style.display = 'flex';
-}
-document.getElementById('convert-modal').addEventListener('click', function(e) {
-  if (e.target === this) this.style.display = 'none';
-});
-</script>
 </div>
 
 <!-- Tab: Payments -->
@@ -1249,7 +720,7 @@ document.getElementById('convert-modal').addEventListener('click', function(e) {
   .file-label span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 
-{% set total_paid = project.payments.all()|sum(attribute='amount') %}
+{% set total_paid = payment_logs|sum(attribute='amount') %}
 {% set budget = project.total_budget or 0 %}
 {% set remaining = budget - total_paid %}
 {% set over_budget = total_paid > budget and budget > 0 %}
@@ -1389,17 +860,17 @@ document.getElementById('convert-modal').addEventListener('click', function(e) {
       <div class="paylog-body">
         <table style="width:100%; border-collapse:collapse;" id="pay-table">
           <tbody>
-            {% for p in project.payments.all()|sort(attribute='date', reverse=True) %}
-            <tr class="pay-row" data-role="{{ p.logged_by_role or 'architect' }}" style="border-bottom:1px solid #1E1E1E; transition:background 0.15s;" onmouseover="this.style.background='#1A1A1A'" onmouseout="this.style.background='transparent'">
-              <td style="padding:10px 12px; font-size:12px; color:#A0A0A0; white-space:nowrap;">{{ p.date|strftime('%d %b %Y') }}</td>
+            {% for p in payment_logs %}
+            <tr class="pay-row" data-role="{{ p.paid_by or 'architect' }}" style="border-bottom:1px solid #1E1E1E; transition:background 0.15s;" onmouseover="this.style.background='#1A1A1A'" onmouseout="this.style.background='transparent'">
+              <td style="padding:10px 12px; font-size:12px; color:#A0A0A0; white-space:nowrap;">{{ p.created_at|strftime('%d %b %Y') }}</td>
               <td style="padding:10px 12px;">
-                <div style="font-size:13px; font-weight:500; color:#fff;">{{ p.purpose|replace('_',' ')|title }}</div>
-                {% if p.notes %}<div style="font-size:11px; color:#606060; margin-top:2px;">{{ p.notes }}</div>{% endif %}
+                <div style="font-size:13px; font-weight:500; color:#fff;">{{ p.description|replace('_',' ')|title }}</div>
+                {% if p.comment %}<div style="font-size:11px; color:#606060; margin-top:2px;">{{ p.comment }}</div>{% endif %}
               </td>
               <td style="padding:10px 12px; font-size:13px; font-weight:600; color:#F5C842; white-space:nowrap;">₹{{ "{:,}".format(p.amount|int) }}</td>
               <td style="padding:10px 12px;">
-                {% if p.bill_filename %}
-                <a href="{{ url_for('payments.download_bill', payment_id=p.id) }}" target="_blank" style="color:#F5C842; font-size:12px; text-decoration:none; display:flex; align-items:center; gap:4px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                {% if p.proof_path %}
+                <a href="{{ url_for('payments.download_proof', payment_log_id=p.id) }}" target="_blank" style="color:#F5C842; font-size:12px; text-decoration:none; display:flex; align-items:center; gap:4px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
                   <svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;stroke-width:2;fill:none"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   View Bill
                 </a>
@@ -1408,14 +879,19 @@ document.getElementById('convert-modal').addEventListener('click', function(e) {
                 {% endif %}
               </td>
               <td style="padding:10px 12px;">
-                {% if (p.logged_by_role if p.logged_by_role is defined else 'architect') == 'architect' %}
+                {% if (p.paid_by or 'architect') == 'architect' %}
                 <span class="role-arch">Architect</span>
                 {% else %}
                 <span class="role-client">Client</span>
                 {% endif %}
               </td>
               <td style="padding:10px 12px;">
-                <span style="background:#1A3A2A; color:#4ADE80; font-size:10px; font-weight:500; padding:3px 10px; border-radius:20px;">Paid</span>
+                <span style="
+                  background:{% if p.status in ['confirmed', 'auto_confirmed'] %}#1A3A2A{% elif p.status == 'pending' %}rgba(245,200,66,.12){% elif p.status == 'rejected' %}rgba(224,82,82,.12){% else %}#1A1A1A{% endif %};
+                  color:{% if p.status in ['confirmed', 'auto_confirmed'] %}#4ADE80{% elif p.status == 'pending' %}#F5C842{% elif p.status == 'rejected' %}#E05252{% else %}#A0A0A0{% endif %};
+                  font-size:10px; font-weight:500; padding:3px 10px; border-radius:20px;">
+                  {{ p.status|replace('_', ' ')|title }}
+                </span>
               </td>
             </tr>
             {% else %}
@@ -1489,9 +965,15 @@ document.getElementById('convert-modal').addEventListener('click', function(e) {
 
 <!-- Tab: Activity -->
 <div class="tab-panel" data-panel="activity">
-    <div class="card" style="padding:0;">
-        <div class="section-title" style="padding:24px 24px 0 24px;">Project Activity</div>
-        <table class="data-table" style="margin-top:16px;">
+    <div class="table-card">
+        <div class="table-toolbar">
+          <div>
+            <div class="section-kicker">Audit Trail</div>
+            <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">Project Activity</h3>
+          </div>
+          <span class="muted-copy">{{ audit_logs|length }} entries</span>
+        </div>
+        <table class="dark-table">
             <thead>
                 <tr>
                     <th>Time</th>
@@ -1501,16 +983,24 @@ document.getElementById('convert-modal').addEventListener('click', function(e) {
                 </tr>
             </thead>
             <tbody>
-                {% for log in project.audit_logs.order_by(AuditLog.created_at.desc()) %}
+                {% for log in audit_logs %}
                 <tr>
-                    <td style="font-size:12px;">{{ log.created_at|timeago }}</td>
-                    <td>{{ log.actor.name }}</td>
-                    <td><span class="badge badge-muted">{{ log.action }}</span></td>
-                    <td>{{ log.description }}</td>
+                    <td style="color:var(--mt-faint); white-space:nowrap; font-size:11px; font-family:'Space Mono',monospace;">{{ log.created_at|timeago }}</td>
+                    <td>{{ log.actor.name if log.actor else '—' }}</td>
+                    <td>
+                      <span class="status-pill {{
+                        'confirmed' if log.action in ('PAYMENT_CONFIRMED', 'DOCUMENT_VERIFIED', 'REQ_DONE', 'MEETING_CONFIRMED', 'APPROVE', 'VERIFIED', 'STATUS_CHANGE')
+                        else 'pending' if log.action in ('PAYMENT_LOGGED', 'EXPENSE_LOGGED', 'PAYMENT_COMMENT', 'MOM_UPDATE', 'UPDATE', 'UPLOAD', 'PAYMENT_AUTO_CONFIRMED')
+                        else 'requested' if log.action in ('DOCUMENT_UPLOADED', 'REQ_CREATE', 'MEETING_PROPOSE', 'CREATE')
+                        else 'rejected' if log.action in ('PAYMENT_REJECTED', 'REQ_DECLINED', 'REJECT', 'DELETE')
+                        else 'info-pill'
+                      }}">{{ log.action | replace('_', ' ') | title }}</span>
+                    </td>
+                    <td style="font-size:13px; color:var(--mt-text);">{{ log.description }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4" style="text-align:center; padding:40px; color:var(--chalk-3);">No activity logged.</td>
+                    <td colspan="4" style="text-align:center; padding:48px; color:var(--mt-faint);">No activity logged.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -1518,90 +1008,37 @@ document.getElementById('convert-modal').addEventListener('click', function(e) {
     </div>
 </div>
 
+</div><!-- /.meetings-page -->
 {% endblock %}
 
 {% block extra_js %}
-<!-- MOM MODAL -->
-<div class="modal-backdrop" id="modal-mom">
-  <div class="modal">
-    <div class="modal-head">
-      <div class="modal-eyebrow">Minutes of Meeting</div>
-      <div class="modal-title">Log Discussion</div>
-    </div>
-    <form id="mom-form" method="POST">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="field">
-        <label>Discussion Points</label>
-        <textarea name="mom_discussion" id="mom-disc" rows="5" placeholder="What was talked about?"></textarea>
-      </div>
-      <div class="field">
-        <label>Decisions / Outcomes</label>
-        <textarea name="mom_decision" id="mom-dec" rows="3" placeholder="What was decided?"></textarea>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="btn btn-ghost" onclick="closeModal('modal-mom')">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save MOM</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script>
-    function openMomModal(meetingId, discussion, decision) {
-        const form = document.getElementById('mom-form');
-        form.action = '/meetings/' + meetingId + '/notes';
-        document.getElementById('mom-disc').value = discussion;
-        document.getElementById('mom-dec').value = decision;
-        document.getElementById('modal-mom').classList.add('open');
-    }
+    (function () {
+        var panels = document.querySelectorAll('.tab-panel');
+        var ptabs  = document.querySelectorAll('#proj-tab-nav .ptab[data-tab]');
 
-    document.addEventListener('DOMContentLoaded', () => {
-        const tabs = document.querySelectorAll('.tab-btn');
-        const panels = document.querySelectorAll('.tab-panel');
-        const meetingsIndexUrl = "{{ url_for('meetings.index') }}";
-        const paymentsProjectUrl = "{{ url_for('payments.project_overview', project_id=project.id) }}";
+        var INLINE = ['overview', 'documents', 'compliance', 'activity'];
 
-        function switchTab(tabId) {
-            if (tabId === 'meetings') {
-                window.location.href = meetingsIndexUrl;
-                return;
-            }
-            if (tabId === 'payments') {
-                window.location.href = paymentsProjectUrl;
-                return;
-            }
-            tabs.forEach(t => t.classList.remove('active'));
-            panels.forEach(p => p.classList.remove('active'));
-
-            const targetTab = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-            const targetPanel = document.querySelector(`.tab-panel[data-panel="${tabId}"]`);
-
-            if(targetTab) targetTab.classList.add('active');
-            if(targetPanel) targetPanel.classList.add('active');
-            // Normalise URL to hash form (removes ?tab= param)
-            window.history.replaceState(null, null, `#${tabId}`);
+        function activatePanel(tabId) {
+            panels.forEach(function(p) { p.classList.remove('active'); });
+            var panel = document.querySelector('.tab-panel[data-panel="' + tabId + '"]');
+            if (panel) panel.classList.add('active');
         }
 
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => switchTab(tab.dataset.tab));
-        });
+        function setActiveTopTab(tabId) {
+            ptabs.forEach(function(a) { a.classList.remove('active'); });
+            var link = document.querySelector('#proj-tab-nav .ptab[data-tab="' + tabId + '"]');
+            if (link) link.classList.add('active');
+        }
 
-        // Prefer ?tab= query param (set by server redirects), fall back to #hash
-        const params = new URLSearchParams(window.location.search);
-        const tabFromParam = params.get('tab');
-        const tabFromHash  = window.location.hash.replace('#', '');
-        const initialTab   = tabFromParam || tabFromHash;
-        if (initialTab === 'meetings') {
-            window.location.replace(meetingsIndexUrl);
-            return;
+        var initTab = {{ (active_tab or 'overview') | tojson }};
+        if (INLINE.indexOf(initTab) !== -1) {
+            activatePanel(initTab);
+            setActiveTopTab(initTab);
+        } else {
+            activatePanel('overview');
+            setActiveTopTab('overview');
         }
-        if (initialTab === 'payments') {
-            window.location.replace(paymentsProjectUrl);
-            return;
-        }
-        if (initialTab && [...tabs].some(t => t.dataset.tab === initialTab)) {
-            switchTab(initialTab);
-        }
-    });
+    }());
 </script>
 {% endblock %}

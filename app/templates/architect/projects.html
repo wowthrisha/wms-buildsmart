@@ -1,76 +1,102 @@
 {% extends "base_architect.html" %}
 {% block title %}Projects — BuildSmart{% endblock %}
-
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div class="page-head-row">
-    <div>
-      <div class="page-eyebrow">Workspace</div>
-      <h1 class="page-title">Projects</h1>
-    </div>
-    <div class="gap-12">
-        <button class="btn btn-ghost" id="toggle-view">Card View</button>
-    </div>
-  </div>
-</div>
+<div class="page-shell">
 
-<div id="projects-card-view">
-    <div class="three-col">
-      {% for p in projects %}
-      <div class="project-card">
-        <div class="project-card-name">{{ p.name }}</div>
-        <div class="project-card-meta">
-          <span class="badge {% if p.status == 'Approved' %}badge-teal{% elif p.status == 'Design' %}badge-gold{% else %}badge-sky{% endif %}">
-            {{ p.status }}
-          </span>
-          <span>{{ p.client.name if p.client else 'No client' }}</span>
+  <div class="page-hero">
+    <p class="page-kicker">Workspace</p>
+    <h1 class="page-title">Projects</h1>
+    <p class="page-subtitle">Every project now sits on the same surface language as payments, so switching between workspace areas feels continuous.</p>
+    <button class="hero-cta" onclick="document.getElementById('modal-new-project').classList.add('open')">+ New Project</button>
+  </div>
+
+  <div class="next-step-bar">
+    <p class="ns-kicker">Portfolio</p>
+    <p class="ns-title">{{ projects|length }} project{{ 's' if projects|length != 1 }} in workspace</p>
+    <p class="ns-body">Switch to table view for a compact directory. Click any card to open the full project workspace.</p>
+  </div>
+
+  <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+    <button class="mt-btn ghost" id="toggle-view">Table View</button>
+  </div>
+
+  <div id="projects-card-view" class="project-card-grid">
+    {% for p in projects %}
+    <article class="project-link-card">
+      <div class="project-card-head">
+        <div>
+          <div class="section-kicker">Project</div>
+          <h3 style="margin-top:6px;">{{ p.name }}</h3>
         </div>
-        <div class="card-foot" style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
-          <span style="font-size:11px; color:var(--chalk-3);">Updated {{ p.updated_at|timeago }}</span>
-          <a href="{{ url_for('projects.workspace', project_id=p.id) }}" class="btn btn-ghost" style="padding:6px 12px; font-size:12px;">Open</a>
+        <span class="status-pill {% if p.status == 'Approved' %}confirmed{% elif p.status == 'Design' %}pending{% else %}proposed{% endif %}">{{ p.status }}</span>
+      </div>
+      <div class="project-card-meta" style="margin-top:12px;">{{ p.client.name if p.client else 'No client assigned' }}</div>
+      <div class="stat-grid" style="margin-top:16px; grid-template-columns:repeat(2, minmax(0, 1fr));">
+        <div class="stat-tile">
+          <div class="st-label">Zone</div>
+          <div class="st-value" style="font-size:22px;">{{ p.plot_zone }}</div>
+          <div class="st-sub">Project type</div>
+        </div>
+        <div class="stat-tile">
+          <div class="st-label">Updated</div>
+          <div class="st-value" style="font-size:16px; font-weight:700;">{{ p.updated_at|timeago }}</div>
+          <div class="st-sub">Recent activity</div>
         </div>
       </div>
-      {% else %}
-      <div style="text-align:center; padding:40px; color:var(--chalk-3); grid-column:1/-1;">No projects found. Create a new project to get started.</div>
-      {% endfor %}
+      <div class="inline-actions" style="margin-top:16px;">
+        <a href="{{ url_for('projects.workspace', project_id=p.id) }}" class="mt-btn ghost">Open Project</a>
+      </div>
+    </article>
+    {% else %}
+    <div class="surface-card">
+      <div class="mt-empty">No projects found. Create a new project to get started.</div>
     </div>
-</div>
+    {% endfor %}
+  </div>
 
-<div id="projects-table-view" style="display:none;">
-    <div class="card" style="padding:0;">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Status</th>
-                    <th>Client</th>
-                    <th>Zone</th>
-                    <th>Last Updated</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for p in projects %}
-                <tr>
-                    <td><strong>{{ p.name }}</strong></td>
-                    <td><span class="badge {% if p.status == 'Approved' %}badge-teal{% elif p.status == 'Design' %}badge-gold{% else %}badge-sky{% endif %}">{{ p.status }}</span></td>
-                    <td>{{ p.client.name if p.client else '--' }}</td>
-                    <td>{{ p.plot_zone }}</td>
-                    <td>{{ p.updated_at|timeago }}</td>
-                    <td>
-                        <a href="{{ url_for('projects.workspace', project_id=p.id) }}" style="color:var(--gold); text-decoration:none; font-weight:600;">Open</a>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="6" style="text-align:center; padding:40px; color:var(--chalk-3);">No projects found. Create a new project to get started.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+  <div id="projects-table-view" class="table-card" style="display:none;">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Directory</div>
+        <h3 style="margin:6px 0 0;">Projects table</h3>
+      </div>
     </div>
-</div>
+    <div class="table-card-body">
+      <table class="dark-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Client</th>
+            <th>Zone</th>
+            <th>Last Updated</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in projects %}
+          <tr>
+            <td><strong>{{ p.name }}</strong></td>
+            <td><span class="status-pill {% if p.status == 'Approved' %}confirmed{% elif p.status == 'Design' %}pending{% else %}proposed{% endif %}">{{ p.status }}</span></td>
+            <td>{{ p.client.name if p.client else '--' }}</td>
+            <td>{{ p.plot_zone }}</td>
+            <td>{{ p.updated_at|timeago }}</td>
+            <td><a href="{{ url_for('projects.workspace', project_id=p.id) }}" class="ghost-link">Open</a></td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6"><div class="mt-empty">No projects found. Create a new project to get started.</div></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -78,10 +104,10 @@
     const cardBtn = document.getElementById('toggle-view');
     const cardView = document.getElementById('projects-card-view');
     const tableView = document.getElementById('projects-table-view');
-    
+
     cardBtn.addEventListener('click', () => {
         if (cardView.style.display === 'none') {
-            cardView.style.display = 'block';
+            cardView.style.display = 'grid';
             tableView.style.display = 'none';
             cardBtn.textContent = 'Table View';
         } else {

@@ -1,0 +1,76 @@
+{% extends "base_architect.html" %}
+{% block title %}Documents — {{ project.name }} — BuildSmart{% endblock %}
+{% block content %}
+{% set visible_docs = docs_list | selectattr('visible_to_client') | list | length %}
+{% set pending_docs = docs_list | selectattr('pending_verification') | list | length %}
+{% set latest_doc = docs_list[0] if docs_list else None %}
+<div class="meetings-page">
+  <div class="meetings-shell project-tab-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Project Documents</div>
+          <h1 class="meetings-title">{{ project.name }}</h1>
+          <p class="meetings-subtitle">Keep every drawing, permit, upload, and revision inside one consistent vault for this project.</p>
+        </div>
+        <div class="inline-actions">
+          <a class="mt-btn ghost" href="{{ url_for('projects.project_compliance', project_id=project.id) }}">Open Compliance</a>
+          <a class="mt-btn ghost" href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}">Open Plot Analysis</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="next-step-card status-bar {{ 'warning' if pending_docs else 'neutral' }}">
+      <div>
+        <div class="section-kicker">Next Step</div>
+        <div style="font-size:20px; font-weight:700; margin-top:6px;">
+          {% if pending_docs %}
+          {{ pending_docs }} client upload{{ 's' if pending_docs != 1 else '' }} waiting for verification
+          {% elif latest_doc %}
+          Vault is in sync
+          {% else %}
+          Upload the first project document
+          {% endif %}
+        </div>
+        <div class="muted-copy" style="margin-top:6px;">
+          {% if pending_docs %}
+          Review pending files so the compliance and client views stay current.
+          {% elif latest_doc %}
+          Latest activity: {{ latest_doc.original_name }} on {{ latest_doc.created_at|strftime('%d %b %Y') }}.
+          {% else %}
+          Start with the most recent drawing, approval, or client file for this workspace.
+          {% endif %}
+        </div>
+      </div>
+      <span class="status-pill {% if pending_docs %}pending{% else %}confirmed{% endif %}">
+        {% if pending_docs %}Needs Review{% else %}On Track{% endif %}
+      </span>
+    </section>
+
+    <div class="summary-grid">
+      <article class="metric-card">
+        <div class="metric-label">Total Documents</div>
+        <div class="metric-value">{{ docs_list|length }}</div>
+        <div class="metric-foot">Current files in the project vault</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Visible To Client</div>
+        <div class="metric-value">{{ visible_docs }}</div>
+        <div class="metric-foot">Shared through the client portal</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Pending Verification</div>
+        <div class="metric-value">{{ pending_docs }}</div>
+        <div class="metric-foot">Client uploads awaiting architect review</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Latest Upload</div>
+        <div class="metric-value" style="font-size:26px;">{{ latest_doc.created_at|strftime('%d %b') if latest_doc else '—' }}</div>
+        <div class="metric-foot">{{ latest_doc.original_name if latest_doc else 'No documents uploaded yet' }}</div>
+      </article>
+    </div>
+
+    {% include "architect/_documents_workspace.html" %}
+  </div>
+</div>
+{% endblock %}

@@ -1,165 +1,133 @@
 {% extends "base_client.html" %}
 {% block title %}My Project — BuildSmart{% endblock %}
-
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div class="page-head-row">
-    <div>
-      <div class="page-eyebrow">Client Portal</div>
-      <h1 class="page-title">{{ project.name }}</h1>
-      <p class="page-subtitle">Welcome back. Track your project progress and compliance status.</p>
+<div class="page-shell">
+
+  <div class="page-hero">
+    <p class="page-kicker">Client Portal</p>
+    <h1 class="page-title">{{ project.name }}</h1>
+    <p class="page-subtitle">Track progress, compliance, and conversation with your architect — all in one place.</p>
+    {% if projects|length > 1 %}
+    <div style="margin-top:20px; display:flex; align-items:center; gap:12px;">
+      <span style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.1em;">Switch project</span>
+      <select class="ds-input ds-select" style="width:auto; min-width:200px;" onchange="window.location='/my_project/switch/' + this.value">
+        {% for p in projects %}
+        <option value="{{ p.id }}" {% if p.id == project.id %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="next-step-bar">
+    <p class="ns-kicker">Project Status</p>
+    <p class="ns-title">{{ project.status }}</p>
+    <p class="ns-body">Architect: {{ project.architect.name }} · {{ project.checklist.count() }} compliance item{{ 's' if project.checklist.count() != 1 }} · Last updated {{ project.updated_at|timeago }}.</p>
+  </div>
+
+  <div class="stat-grid" style="margin-bottom:24px;">
+    <div class="stat-tile">
+      <div class="st-label">Project Status</div>
+      <div class="st-value" style="font-size:22px;">{{ project.status }}</div>
+      <div class="st-sub">Current stage</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Architect</div>
+      <div class="st-value" style="font-size:18px; font-weight:700;">{{ project.architect.name }}</div>
+      <div class="st-sub">{{ project.architect.email }}</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Last Update</div>
+      <div class="st-value" style="font-size:18px; font-weight:700;">{{ project.updated_at|timeago }}</div>
+      <div class="st-sub">Recent activity</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Checklist</div>
+      <div class="st-value">{{ project.checklist.count() }}</div>
+      <div class="st-sub">Compliance items</div>
     </div>
   </div>
-</div>
 
-<div class="stats-row">
-  <div class="stat-card">
-    <div class="stat-label">Project Status</div>
-    <div class="stat-val" style="font-size:24px; color:var(--sky);">{{ project.status }}</div>
-    <div class="stat-sub">Current Stage</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Architect</div>
-    <div class="stat-val" style="font-size:20px;">{{ project.architect.name }}</div>
-    <div class="stat-sub">{{ project.architect.email }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Last Update</div>
-    <div class="stat-val" style="font-size:20px;">{{ project.updated_at|timeago }}</div>
-    <div class="stat-sub">Recent activity</div>
-  </div>
-</div>
-
-<div class="two-col">
+  <div class="two-col">
     <!-- Progress Timeline -->
-    <div class="card">
-        <div class="section-title">Timeline</div>
-        <div class="timeline" style="position:relative; padding-left:24px; border-left:2px solid var(--line); margin-left:10px;">
-            {% for s in ['Design', 'Review', 'Submitted', 'Approved'] %}
-            {% set active = project.stage_index >= loop.index0 %}
-            <div class="timeline-item" style="margin-bottom:24px; opacity: {% if active %}1{% else %}0.3{% endif %}; position:relative;">
-                <div style="position:absolute; left:-33px; top:4px; width:16px; height:16px; border-radius:50%; background:{% if active %}var(--teal){% else %}var(--line){% endif %}; border:4px solid var(--ink-1);"></div>
-                <div style="font-weight:700; color:{% if active %}var(--chalk){% else %}var(--chalk-3){% endif %};">{{ s }}</div>
-                <div style="font-size:12px;">
-                    {% if project.status == s %}
-                    Active now
-                    {% elif project.stage_index > loop.index0 %}
-                    Completed
-                    {% else %}
-                    Upcoming
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
+    <div class="section-card">
+      <div class="section-kicker" style="margin-bottom:16px;">Project Timeline</div>
+      <div class="timeline" style="position:relative; padding-left:24px; border-left:2px solid var(--mt-border); margin-left:10px;">
+        {% for s in ['Design', 'Review', 'Submitted', 'Approved'] %}
+        {% set active = project.stage_index >= loop.index0 %}
+        <div class="timeline-item" style="margin-bottom:24px; opacity: {% if active %}1{% else %}0.35{% endif %}; position:relative;">
+          <div style="position:absolute; left:-33px; top:4px; width:16px; height:16px; border-radius:50%; background:{% if active %}var(--teal){% else %}var(--mt-border){% endif %}; border:4px solid var(--mt-panel-strong);"></div>
+          <div style="font-weight:700; color:{% if active %}var(--chalk){% else %}var(--chalk-3){% endif %};">{{ s }}</div>
+          <div style="font-size:12px; color:var(--mt-muted);">
+            {% if project.status == s %}Active now
+            {% elif project.stage_index > loop.index0 %}Completed
+            {% else %}Upcoming{% endif %}
+          </div>
         </div>
+        {% endfor %}
+      </div>
     </div>
 
     <!-- RAG Chatbot -->
-    <div class="card" style="display:flex; flex-direction:column; min-height:400px; height:auto; border:1px solid var(--sky-glow);">
-        <div class="section-title" style="color:var(--sky);">TNPCR AI Assistant</div>
-        <p style="font-size:12px; margin-bottom:12px; opacity:0.7;">Ask questions about building rules and compliance.</p>
-        
-        <div id="chat-history" style="flex:1; overflow-y:auto; padding:12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; background:rgba(0,0,0,0.2);">
-            <div class="chat-msg bot">Hello! I'm your TNPCR guide. How can I help you regarding your plot or the building rules today?</div>
+    <div class="section-card" style="display:flex; flex-direction:column; min-height:400px;">
+      <p class="section-kicker">Regulations Assistant</p>
+      <div class="meetings-head" style="margin-bottom:10px;">
+        <div>
+          <p style="font-size:15px; font-weight:700; color:var(--chalk); margin-bottom:8px;">Ask About Your Project</p>
+          <p style="color:var(--mt-muted); font-size:13px; margin-bottom:0;">Ask questions about TNPCR building rules, setbacks, FAR limits, and compliance requirements for your plot.</p>
         </div>
-        
-        <form id="chat-form" style="display:flex; gap:8px;">
-            <input type="text" id="chat-input" placeholder="Type your question..." style="flex:1; background:var(--ink-2); color:white; padding:12px; border-radius:8px; border:1px solid var(--line);">
-            <button type="submit" class="btn btn-primary" style="background:var(--sky-grad); color:#000;">Ask</button>
-        </form>
+        <a class="mt-btn ghost" href="{{ url_for('client.assistant') }}">Open Full Assistant</a>
+      </div>
+
+      <div id="rag-messages"
+           style="min-height:120px; max-height:320px; overflow-y:auto; margin-bottom:16px;
+                  display:flex; flex-direction:column; gap:10px; flex:1;">
+        <!-- messages appear here -->
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <input type="text"
+               id="rag-input"
+               class="ds-input"
+               placeholder="e.g. What is the minimum front setback for a 9m road?"
+               style="flex:1;"
+               onkeydown="if(event.key==='Enter') sendRagQuery()">
+        <button class="btn btn-primary"
+                onclick="sendRagQuery()"
+                id="rag-send-btn"
+                style="white-space:nowrap;">Ask</button>
+      </div>
     </div>
-</div>
-
-<!-- P0-1C: Client Compliance Checklist -->
-{% if project.allow_client_compliance and project.checklist.count() > 0 %}
-<div class="card" style="margin-top:24px;">
-  <div class="section-title" style="margin-bottom:4px;">Compliance Checklist</div>
-  <p style="font-size:12px; color:var(--chalk-3); margin-bottom:20px;">Tick each document once you have verified or submitted it. Your architect can see your updates.</p>
-  {% for item in project.checklist.all() %}
-  <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line);">
-    <div style="flex:1; font-size:14px; color:var(--chalk);">{{ item.label }}</div>
-    <span style="font-size:11px; padding:2px 8px; border-radius:12px;
-      background:{% if item.arch_checked %}rgba(74,222,128,0.15){% else %}rgba(255,255,255,0.05){% endif %};
-      color:{% if item.arch_checked %}#4ADE80{% else %}var(--chalk-3){% endif %};">
-      Architect {% if item.arch_checked %}✓{% else %}—{% endif %}
-    </span>
-    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; color:var(--chalk-2);">
-      <input type="checkbox" id="comp-{{ item.id }}"
-             {% if item.client_checked %}checked{% endif %}
-             onchange="toggleCompliance({{ project.id }}, {{ item.id }}, this)"
-             style="width:16px; height:16px; cursor:pointer;">
-      My ✓
-    </label>
-    <span id="comp-status-{{ item.id }}" style="font-size:11px; padding:2px 8px; border-radius:12px;
-      background:{% if item.arch_checked and item.client_checked %}rgba(74,222,128,0.15){% elif item.arch_checked or item.client_checked %}rgba(245,200,66,0.15){% else %}rgba(255,255,255,0.05){% endif %};
-      color:{% if item.arch_checked and item.client_checked %}#4ADE80{% elif item.arch_checked or item.client_checked %}#F5C842{% else %}var(--chalk-3){% endif %};">
-      {% if item.arch_checked and item.client_checked %}Complete{% elif item.arch_checked or item.client_checked %}In Progress{% else %}Pending{% endif %}
-    </span>
   </div>
-  {% endfor %}
+
+  {% if project.checklist.count() > 0 %}
+  <div class="section-card" style="margin-top:18px;">
+    <div class="section-kicker" style="margin-bottom:4px;">Compliance Checklist</div>
+    <p style="font-size:12px; color:var(--mt-muted); margin-bottom:20px;">Track which documents are still missing, uploaded into the vault, or fully verified.</p>
+    {% for item in project.checklist.all() %}
+    <div style="display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--mt-border);">
+      <div style="flex:1; font-size:14px; color:var(--chalk);">{{ item.label }}</div>
+      <span id="comp-status-{{ item.id }}" style="font-size:11px; padding:2px 8px; border-radius:12px;
+        background:{% if item.status == 'verified' %}rgba(96,165,250,0.15){% elif item.status == 'uploaded' %}rgba(74,222,128,0.15){% elif item.status == 'optional' %}rgba(245,200,66,0.15){% else %}rgba(255,255,255,0.05){% endif %};
+        color:{% if item.status == 'verified' %}#60A5FA{% elif item.status == 'uploaded' %}#4ADE80{% elif item.status == 'optional' %}#F5C842{% else %}var(--chalk-3){% endif %};">
+        {{ item.display_status }}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
 </div>
-{% endif %}
 
-
-<style>
-    .chat-msg { margin-bottom:12px; padding:8px 12px; border-radius:12px; font-size:13px; max-width:85%; }
-    .chat-msg.bot { background:var(--ink-2); color:var(--chalk); border-left:3px solid var(--sky); align-self:flex-start; }
-    .chat-msg.user { background:var(--sky); color:#000; align-self:flex-end; margin-left:auto; }
-</style>
 {% endblock %}
-
 
 {% block extra_js %}
 <script>
-    // Compliance checkbox live toggle (P0-1C)
-    async function toggleCompliance(projectId, itemId, checkbox) {
-        try {
-            const res = await fetch(`/projects/${projectId}/compliance/toggle/${itemId}`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': '{{ csrf_token() }}', 'Content-Type': 'application/json' }
-            });
-            if (!res.ok) { checkbox.checked = !checkbox.checked; return; }
-            const data = await res.json();
-            const statusEl = document.getElementById(`comp-status-${itemId}`);
-            if (statusEl) {
-                const both = data.arch_checked && data.client_checked;
-                const any  = data.arch_checked || data.client_checked;
-                statusEl.textContent = both ? 'Complete' : any ? 'In Progress' : 'Pending';
-                statusEl.style.color = both ? '#4ADE80' : any ? '#F5C842' : 'var(--chalk-3)';
-                const bgColor = both ? 'rgba(74,222,128,0.15)' : any ? 'rgba(245,200,66,0.15)' : 'rgba(255,255,255,0.05)';
-                statusEl.style.background = bgColor;
-            }
-        } catch(e) { checkbox.checked = !checkbox.checked; }
-    }
-
-    // RAG chat
-    const chatForm    = document.getElementById('chat-form');
-    const chatInput   = document.getElementById('chat-input');
-    const chatHistory = document.getElementById('chat-history');
-
-    chatForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const msg = chatInput.value.trim();
-        if (!msg) return;
-        const userDiv = document.createElement('div');
-        userDiv.className = 'chat-msg user';
-        userDiv.textContent = msg;
-        chatHistory.appendChild(userDiv);
-        chatInput.value = '';
-        chatHistory.scrollTop = chatHistory.scrollHeight;
-
-        const formData = new FormData();
-        formData.append('question', msg);
-        formData.append('csrf_token', '{{ csrf_token() }}');
-        try {
-            const res  = await fetch('{{ url_for("plot.rag_query") }}', { method: 'POST', body: formData });
-            const data = await res.json();
-            const botDiv = document.createElement('div');
-            botDiv.className = 'chat-msg bot';
-            botDiv.innerHTML = data.answer.replace(/\n/g, '<br>');
-            chatHistory.appendChild(botDiv);
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        } catch(e) { console.error(e); }
-    });
+// Store CSRF and endpoint for sendRagQuery
+window._RAG_CSRF = '{{ csrf_token() }}';
+window._RAG_ENDPOINT = '{{ url_for("client.assistant_query") }}';
 </script>
 {% endblock %}

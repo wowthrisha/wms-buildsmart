@@ -23,7 +23,7 @@ from app.time_utils import utc_now
 
 bp = Blueprint('meetings', __name__)
 
-REQUEST_STATUSES = ['requested']
+REQUEST_STATUSES = ['pending_request', 'requested']
 PROPOSED_STATUSES = ['proposed', 'awaiting_client']
 COUNTER_STATUSES = ['counter_proposed', 'countered']
 CONFIRMED_STATUSES = ['confirmed']
@@ -110,6 +110,15 @@ def _access_check(meeting):
         abort(403)
 
 
+def _meeting_or_404(meeting_id, project_id=None):
+    if project_id is None:
+        meeting = Meeting.query.get_or_404(meeting_id)
+    else:
+        meeting = Meeting.query.filter_by(id=meeting_id, project_id=project_id).first_or_404()
+    _access_check(meeting)
+    return meeting
+
+
 def _meeting_counts(meetings):
     counts = {
         'pending_requests': 0,
@@ -119,7 +128,7 @@ def _meeting_counts(meetings):
     }
     for meeting in meetings:
         status = _status_bucket(meeting)
-        if status == 'requested':
+        if status == 'pending_request':
             counts['pending_requests'] += 1
         elif status in ('proposed', 'counter_proposed'):
             counts['proposed'] += 1
@@ -139,7 +148,7 @@ def _format_slot_summary(meeting):
 
 def _upcoming_confirmed(meetings):
     rows = [m for m in meetings if _status_bucket(m) == 'confirmed']
-    return sorted(rows, key=lambda meeting: meeting.confirmed_slot or meeting.created_at)
+    return sorted(rows, key=lambda meeting: meeting.confirmed_time or meeting.confirmed_slot or meeting.created_at)
 
 
 def _completed_meetings(meetings):
@@ -148,11 +157,11 @@ def _completed_meetings(meetings):
 
 
 def _requested_meetings(meetings):
-    return [m for m in meetings if _status_bucket(m) == 'requested']
+    return [m for m in meetings if _status_bucket(m) == 'pending_request']
 
 
 def _client_request_feed(meetings):
-    return [m for m in meetings if _status_bucket(m) in ('requested', 'proposed', 'counter_proposed')]
+    return [m for m in meetings if _status_bucket(m) in ('pending_request', 'proposed', 'counter_proposed')]
 
 
 def _meeting_detail_payload(meeting):
@@ -170,11 +179,11 @@ def _meeting_detail_payload(meeting):
     }
 
 
-def _redirect_after_detail(meeting_id):
+def _redirect_after_detail(meeting):
     target = request.form.get('next') or request.args.get('next')
     if target == 'mom':
-        return redirect(url_for('meetings.mom_workspace', meeting_id=meeting_id))
-    return redirect(url_for('meetings.detail', meeting_id=meeting_id))
+        return redirect(url_for('meetings.project_mom', project_id=meeting.project_id, meeting_id=meeting.id))
+    return redirect(url_for('meetings.project_detail', project_id=meeting.project_id, meeting_id=meeting.id))
 
 
 def _notify_counterparty(project, title, body):
@@ -191,54 +200,43 @@ def _notify_counterparty(project, title, body):
 def index():
     meetings = _get_user_meetings()
     projects = _user_projects()
-    counts = _meeting_counts(meetings)
     return render_template(
         'meetings_overview.html',
         meetings=meetings,
         projects=projects,
-        counts=counts,
     )
 
 
-@bp.route('/meetings/requests')
+
+@bp.route('/projects/<int:project_id>/meetings')
 @login_required
-def requests_page():
-    meetings = _get_user_meetings()
-    projects = _user_projects()
-    requested_meetings = _requested_meetings(meetings)
-    client_feed = _client_request_feed(meetings)
+def project_meetings(project_id):
+    project = Project.query.get_or_404(project_id)
+    if current_user.role == 'architect' and project.architect_id != current_user.id:
+        abort(403)
+    if current_user.role == 'client' and project.client_id != current_user.id:
+        abort(403)
+    meetings_list = Meeting.query.filter_by(project_id=project.id).order_by(Meeting.created_at.desc()).all()
     return render_template(
-        'meetings_requests.html',
-        projects=projects,
-        requested_meetings=requested_meetings,
-        client_feed=client_feed,
+        'architect/project_meetings.html',
+        project=project,
+        active_project=project,
+        active_tab='meetings',
+        meetings=meetings_list,
     )
 
 
-@bp.route('/meetings/active')
+@bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>')
 @login_required
-def active_page():
-    meetings = _upcoming_confirmed(_get_user_meetings())
-    return render_template('meetings_active.html', meetings=meetings)
-
-
-@bp.route('/meetings/completed')
-@login_required
-def completed_page():
-    meetings = _completed_meetings(_get_user_meetings())
-    return render_template('meetings_completed.html', meetings=meetings)
-
-
-@bp.route('/meetings/<int:meeting_id>')
-@login_required
-def detail(meeting_id):
-    meeting = Meeting.query.get_or_404(meeting_id)
-    _access_check(meeting)
+def project_detail(project_id, meeting_id):
+    meeting = _meeting_or_404(meeting_id, project_id=project_id)
     payload = _meeting_detail_payload(meeting)
     return render_template(
         'meeting_detail.html',
         meeting=meeting,
         project=meeting.project,
+        active_project=meeting.project,
+        active_tab='meetings',
         requirements=payload['requirements'],
         comments=payload['comments'],
         logs=payload['logs'],
@@ -248,17 +246,18 @@ def detail(meeting_id):
     )
 
 
-@bp.route('/meetings/<int:meeting_id>/mom')
+@bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>/mom')
 @login_required
-def mom_workspace(meeting_id):
-    meeting = Meeting.query.get_or_404(meeting_id)
-    _access_check(meeting)
+def project_mom(project_id, meeting_id):
+    meeting = _meeting_or_404(meeting_id, project_id=project_id)
     payload = _meeting_detail_payload(meeting)
     new_requirements = [req for req in payload['requirements'] if req.status == 'new']
     return render_template(
         'mom_workspace.html',
         meeting=meeting,
         project=meeting.project,
+        active_project=meeting.project,
+        active_tab='meetings',
         requirements=payload['requirements'],
         new_requirements=new_requirements,
         comments=payload['comments'],
@@ -268,46 +267,68 @@ def mom_workspace(meeting_id):
     )
 
 
+
 # ── Mutations ───────────────────────────────────────────────────────────────
 
 @bp.route('/projects/<int:project_id>/meetings/request', methods=['POST'])
 @login_required
 def request_meeting(project_id):
-    project = Project.query.get_or_404(project_id)
-    if current_user.role != 'client' or project.client_id != current_user.id:
-        abort(403)
-
-    description = (request.form.get('description') or '').strip()[:1000]
-    if not description:
-        flash('Please add a short reason for the meeting request.', 'error')
-        return redirect(url_for('meetings.requests_page'))
-
-    with _transaction():
-        meeting = Meeting(project_id=project.id, status='requested', description=description)
-        db.session.add(meeting)
-        db.session.flush()
-
-        db.session.add(MeetingRequest(
-            meeting_id=meeting.id,
-            project_id=project.id,
-            requester_id=current_user.id,
-            description=description,
-        ))
-        _log(meeting.id, 'REQUESTED', description)
-        _audit(project.id, 'MEETING_REQUEST', f'{current_user.name} requested a meeting for {project.name}.')
-
     try:
-        if project.architect:
-            notify_user_comms(
-                project.architect,
-                'Meeting Requested',
-                f'{current_user.name} requested a meeting for {project.name}: {description}',
-            )
-    except Exception:
-        pass
+        project = Project.query.get_or_404(project_id)
+        if current_user.role != 'client' or project.client_id != current_user.id:
+            abort(403)
 
-    flash('Meeting request submitted.', 'success')
-    return redirect(url_for('meetings.requests_page'))
+        title = (request.form.get('title') or '').strip()[:200]
+        notes = (request.form.get('notes') or request.form.get('description') or '').strip()[:1000]
+        preferred_1 = _parse_slot(request.form.get('preferred_1'))
+        preferred_2 = _parse_slot(request.form.get('preferred_2'))
+        if not title:
+            flash('Please add a meeting topic.', 'error')
+            return redirect(url_for('meetings.project_meetings', project_id=project_id))
+
+        with _transaction():
+            meeting = Meeting(
+                project_id=project.id,
+                title=title,
+                status='pending_request',
+                description=notes,
+                slot_1=preferred_1,
+                slot_2=preferred_2,
+            )
+            db.session.add(meeting)
+            db.session.flush()
+
+            db.session.add(MeetingRequest(
+                meeting_id=meeting.id,
+                project_id=project.id,
+                requester_id=current_user.id,
+                description=notes,
+            ))
+            _log(meeting.id, 'REQUESTED', title)
+            _audit(project.id, 'MEETING_REQUEST', f'{current_user.name} requested a meeting for {project.name}: {title}.')
+
+        try:
+            if project.architect:
+                notify_user_comms(
+                    project.architect,
+                    'Meeting Requested',
+                    f'{current_user.name} requested a meeting for {project.name}: {title}',
+                )
+        except Exception:
+            pass
+
+        flash('Meeting request submitted.', 'success')
+        return redirect(url_for('meetings.project_meetings', project_id=project.id))
+    except HTTPException:
+        raise
+    except ValueError:
+        db.session.rollback()
+        flash('One of the preferred date values was invalid.', 'error')
+        return redirect(url_for('meetings.project_meetings', project_id=project_id))
+    except Exception:
+        db.session.rollback()
+        flash('Something went wrong while requesting the meeting.', 'error')
+        return redirect(url_for('meetings.project_meetings', project_id=project_id))
 
 
 @bp.route('/projects/<int:project_id>/meetings/propose', methods=['POST'])
@@ -319,33 +340,40 @@ def propose(project_id):
             abort(403)
 
         slots = [_parse_slot(request.form.get(f'slot_{idx}')) for idx in range(1, 4)]
+        title = (request.form.get('title') or '').strip()[:200]
+        description = (request.form.get('notes') or request.form.get('description') or '').strip()[:1000]
         if not any(slots):
             flash('Add at least one proposed slot.', 'error')
-            return redirect(url_for('meetings.requests_page'))
+            return redirect(url_for('meetings.project_meetings', project_id=project_id))
 
         meeting = None
         meeting_id = (request.form.get('meeting_id') or '').strip()
         if meeting_id:
-            meeting = Meeting.query.get_or_404(int(meeting_id))
-            if meeting.project_id != project.id:
-                abort(403)
+            meeting = Meeting.query.filter_by(id=int(meeting_id), project_id=project.id).first_or_404()
+        elif not title:
+            flash('Add a meeting topic before sending slots.', 'error')
+            return redirect(url_for('meetings.project_meetings', project_id=project_id))
         with _transaction():
             if meeting is None:
-                meeting = Meeting(project_id=project.id, status='proposed')
+                meeting = Meeting(project_id=project.id, title=title, status='proposed', description=description)
                 db.session.add(meeting)
                 db.session.flush()
 
             meeting.slot_1, meeting.slot_2, meeting.slot_3 = slots
             meeting.status = 'proposed'
-            if request.form.get('description') and not meeting.description:
-                meeting.description = request.form.get('description', '').strip()[:1000]
+            if title:
+                meeting.title = title
+            if description and not meeting.description:
+                meeting.description = description
+            if not meeting.title:
+                meeting.title = meeting.requested_description or f'Meeting #{meeting.id}'
 
-            if not meeting.request_record and meeting.description:
+            if not meeting.request_record and (meeting.description or meeting.title):
                 db.session.add(MeetingRequest(
                     meeting_id=meeting.id,
                     project_id=project.id,
                     requester_id=project.client_id or current_user.id,
-                    description=meeting.description,
+                    description=meeting.description or meeting.title,
                 ))
 
             slot_note = ', '.join(slot.strftime('%d %b %Y %H:%M') for slot in meeting.proposed_slots)
@@ -363,27 +391,29 @@ def propose(project_id):
             pass
 
         flash('Meeting slots proposed.', 'success')
-        return redirect(url_for('meetings.requests_page'))
+        return redirect(url_for('meetings.project_meetings', project_id=project_id))
     except HTTPException:
         raise
     except ValueError:
         db.session.rollback()
         flash('One of the date/time values was invalid.', 'error')
-        return redirect(url_for('meetings.requests_page'))
+        return redirect(url_for('meetings.project_meetings', project_id=project_id))
     except Exception:
         db.session.rollback()
         flash('Something went wrong while proposing slots.', 'error')
-        return redirect(url_for('meetings.requests_page'))
+        return redirect(url_for('meetings.project_meetings', project_id=project_id))
 
 
+@bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>/confirm', methods=['POST'])
 @bp.route('/meetings/<int:meeting_id>/confirm', methods=['POST'])
 @login_required
-def confirm(meeting_id):
+def confirm(meeting_id, project_id=None):
     try:
-        meeting = Meeting.query.get_or_404(meeting_id)
-        _access_check(meeting)
+        meeting = _meeting_or_404(meeting_id, project_id=project_id)
 
         selected = (
+            request.form.get('selected_slot')
+            or
             request.form.get('slot')
             or request.form.get('slot_choice')
             or request.form.get('slot_idx')
@@ -401,23 +431,24 @@ def confirm(meeting_id):
         slot_attr = slot_map.get(selected)
         if slot_attr is None:
             flash('Select a valid meeting slot.', 'error')
-            return _redirect_after_detail(meeting.id)
+            return _redirect_after_detail(meeting)
 
         if current_user.role == 'client' and slot_attr == 'counter_slot':
             flash('Clients can confirm one of the proposed slots only.', 'error')
-            return _redirect_after_detail(meeting.id)
+            return _redirect_after_detail(meeting)
 
         if current_user.role == 'architect' and slot_attr == 'counter_slot' and _status_bucket(meeting) != 'counter_proposed':
             flash('There is no client counter proposal to approve.', 'error')
-            return _redirect_after_detail(meeting.id)
+            return _redirect_after_detail(meeting)
 
         confirmed_time = getattr(meeting, slot_attr, None)
         if not confirmed_time:
             flash('That slot is not available on this meeting.', 'error')
-            return _redirect_after_detail(meeting.id)
+            return _redirect_after_detail(meeting)
 
         with _transaction():
             meeting.status = 'confirmed'
+            meeting.confirmed_time = confirmed_time
             meeting.confirmed_slot = confirmed_time
             meeting.confirmed_at = utc_now()
             if not meeting.outcome:
@@ -433,7 +464,7 @@ def confirm(meeting_id):
             pass
 
         flash('Meeting confirmed.', 'success')
-        return redirect(url_for('meetings.detail', meeting_id=meeting.id))
+        return redirect(url_for('meetings.project_detail', project_id=meeting.project_id, meeting_id=meeting.id))
     except HTTPException:
         raise
     except Exception:
@@ -442,22 +473,29 @@ def confirm(meeting_id):
         return redirect(request.referrer or url_for('meetings.index'))
 
 
+@bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>/counter', methods=['POST'])
 @bp.route('/meetings/<int:meeting_id>/counter', methods=['POST'])
 @login_required
-def counter(meeting_id):
+def counter(meeting_id, project_id=None):
     try:
-        meeting = Meeting.query.get_or_404(meeting_id)
+        meeting = _meeting_or_404(meeting_id, project_id=project_id)
         if current_user.role != 'client' or meeting.project.client_id != current_user.id:
             abort(403)
+
+        # Enforce max 2 counter-proposals
+        if (meeting.counter_count or 0) >= 2:
+            flash('Maximum counter-proposals reached (2). Please confirm one of the proposed slots or ask your architect for new slots.', 'error')
+            return redirect(url_for('meetings.project_detail', project_id=meeting.project_id, meeting_id=meeting.id))
 
         counter_value = (request.form.get('counter_slot') or '').strip()
         if not counter_value:
             flash('Please choose a counter-proposed time.', 'error')
-            return redirect(url_for('meetings.detail', meeting_id=meeting.id))
+            return redirect(url_for('meetings.project_detail', project_id=meeting.project_id, meeting_id=meeting.id))
 
         with _transaction():
             meeting.counter_slot = _parse_slot(counter_value)
             meeting.status = 'counter_proposed'
+            meeting.counter_count = (meeting.counter_count or 0) + 1
 
             note = meeting.counter_slot.strftime('%d %b %Y · %H:%M')
             _log(meeting.id, 'COUNTER_PROPOSED', note)
@@ -474,31 +512,35 @@ def counter(meeting_id):
             pass
 
         flash('Counter proposal sent.', 'success')
-        return redirect(url_for('meetings.detail', meeting_id=meeting.id))
+        return redirect(url_for('meetings.project_detail', project_id=meeting.project_id, meeting_id=meeting.id))
     except HTTPException:
         raise
     except ValueError:
         db.session.rollback()
         flash('Invalid date/time format.', 'error')
-        return redirect(url_for('meetings.detail', meeting_id=meeting_id))
+        return redirect(url_for('meetings.project_detail', project_id=meeting.project_id, meeting_id=meeting.id))
     except Exception:
         db.session.rollback()
         flash('Something went wrong while saving the counter proposal.', 'error')
-        return redirect(url_for('meetings.detail', meeting_id=meeting_id))
+        m = Meeting.query.get(meeting_id)
+        if m:
+            return redirect(url_for('meetings.project_detail', project_id=m.project_id, meeting_id=meeting_id))
+        return redirect(url_for('meetings.index'))
 
 
+@bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>/notes', methods=['POST'])
 @bp.route('/meetings/<int:meeting_id>/notes', methods=['POST'])
 @login_required
-def notes(meeting_id):
+def notes(meeting_id, project_id=None):
     try:
-        meeting = Meeting.query.get_or_404(meeting_id)
+        meeting = _meeting_or_404(meeting_id, project_id=project_id)
         if current_user.role != 'architect' or meeting.project.architect_id != current_user.id:
             abort(403)
 
         content = (request.form.get('mom_content') or '').strip()
         if not content:
             flash('Add MOM content before saving.', 'error')
-            return redirect(url_for('meetings.mom_workspace', meeting_id=meeting.id))
+            return redirect(url_for('meetings.project_mom', project_id=meeting.project_id, meeting_id=meeting.id))
 
         with _transaction():
             meeting.mom_content = content[:20000]
@@ -510,20 +552,24 @@ def notes(meeting_id):
             _audit(meeting.project_id, 'MOM_UPDATE', f'MOM updated for meeting #{meeting.id}.')
 
         flash('MOM saved.', 'success')
-        return redirect(url_for('meetings.mom_workspace', meeting_id=meeting.id))
+        return redirect(url_for('meetings.project_mom', project_id=meeting.project_id, meeting_id=meeting.id))
     except HTTPException:
         raise
     except Exception:
         db.session.rollback()
         flash('Something went wrong while saving the MOM.', 'error')
-        return redirect(url_for('meetings.mom_workspace', meeting_id=meeting_id))
+        m = Meeting.query.get(meeting_id)
+        if m:
+            return redirect(url_for('meetings.project_mom', project_id=m.project_id, meeting_id=meeting_id))
+        return redirect(url_for('meetings.index'))
 
 
+@bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>/complete', methods=['POST'])
 @bp.route('/meetings/<int:meeting_id>/complete', methods=['POST'])
 @login_required
-def complete(meeting_id):
+def complete(meeting_id, project_id=None):
     try:
-        meeting = Meeting.query.get_or_404(meeting_id)
+        meeting = _meeting_or_404(meeting_id, project_id=project_id)
         if current_user.role != 'architect' or meeting.project.architect_id != current_user.id:
             abort(403)
 
@@ -547,27 +593,13 @@ def complete(meeting_id):
             pass
 
         flash('Meeting moved to completed.', 'success')
-        return redirect(url_for('meetings.completed_page'))
+        return redirect(url_for('meetings.project_meetings', project_id=meeting.project_id))
     except HTTPException:
         raise
     except Exception:
         db.session.rollback()
         flash('Something went wrong while closing the meeting.', 'error')
-        return redirect(url_for('meetings.mom_workspace', meeting_id=meeting_id))
-
-
-# ── Legacy / compatibility routes ───────────────────────────────────────────
-
-@bp.route('/meetings/schedule', methods=['POST'])
-@login_required
-def schedule():
-    project_id = request.form.get('project_id') or (request.get_json(silent=True) or {}).get('project_id')
-    if not project_id:
-        abort(400, 'project_id required')
-    return propose(int(project_id))
-
-
-@bp.route('/meetings/<int:meeting_id>/mom', methods=['POST'])
-@login_required
-def mom(meeting_id):
-    return notes(meeting_id)
+        m = Meeting.query.get(meeting_id)
+        if m:
+            return redirect(url_for('meetings.project_mom', project_id=m.project_id, meeting_id=meeting_id))
+        return redirect(url_for('meetings.index'))

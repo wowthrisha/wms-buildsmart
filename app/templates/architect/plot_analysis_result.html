@@ -1,0 +1,211 @@
+{% extends "base_architect.html" %}
+{% block title %}Plot Analysis Result — BuildSmart{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-row">
+    <div>
+      <div class="page-eyebrow">
+        <a href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}" style="color:var(--chalk-3); text-decoration:none;">Plot Analysis</a>
+        <span style="margin:0 6px; color:var(--chalk-3);">›</span>
+        Result
+      </div>
+      <h1 class="page-title">Plot Analysis Result</h1>
+      <p class="page-subtitle">Single-engine evaluation from `tn_rules.py`.</p>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button
+        type="button"
+        class="btn btn-ghost"
+        {% if analysis.trust_level == 'INSUFFICIENT' %}disabled title="Fill more fields before generating a report"{% else %}onclick="window.open('{{ url_for('plot_analysis.report', project_id=project.id, analysis_id=analysis.id) }}', '_blank')"{% endif %}>
+        Print Report
+      </button>
+      <a href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}" class="btn btn-ghost">Back</a>
+    </div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Result Summary</div>
+    {% if not result_payload %}
+    <p style="color:var(--chalk-3);">No result is available yet.</p>
+    {% elif not result_payload.valid %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for error in result_payload.input_errors %}
+      <div style="padding:12px 14px; border-radius:8px; border:1px solid rgba(251,113,133,0.25); color:#fb7185;">{{ error }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+
+    {# ── Trust-level banner ─────────────────────────────────────────────── #}
+    {% set trust = (analysis.trust_level or result_payload.trust_level or '') | upper %}
+    {% set completeness = analysis.effective_data_completeness or result_payload.data_completeness or 0 %}
+    {% if trust == 'INSUFFICIENT' %}
+    <div style="padding:14px 16px; border-radius:8px; border:1px solid rgba(239,159,39,0.35); background:rgba(239,159,39,0.08); margin-bottom:16px;">
+      <div style="font-weight:700; color:#EF9F27; margin-bottom:4px;">Insufficient Data</div>
+      <div style="font-size:12px; color:var(--chalk-3);">Only {{ completeness | round(1) }}% of fields provided.</div>
+    </div>
+    {% elif trust == 'PARTIAL' %}
+    <div style="padding:14px 16px; border-radius:8px; border:1px solid rgba(245,200,66,0.35); background:rgba(245,200,66,0.08); margin-bottom:16px;">
+      <div style="font-weight:700; color:#f5c842; margin-bottom:4px;">Partial Analysis</div>
+      <div style="font-size:12px; color:var(--chalk-3);">{{ completeness | round(1) }}% of fields provided. Some rules were checked, but more data is needed for confidence.</div>
+    </div>
+    {% elif trust == 'PROVISIONAL' %}
+    <div style="padding:14px 16px; border-radius:8px; border:1px solid rgba(96,165,250,0.35); background:rgba(96,165,250,0.08); margin-bottom:16px;">
+      <div style="font-weight:700; color:#60a5fa; margin-bottom:4px;">Provisional Result</div>
+      <div style="font-size:12px; color:var(--chalk-3);">Most fields provided. Result is indicative — fill remaining fields for a FULL assessment.</div>
+    </div>
+    {% else %}
+    <div style="padding:14px 16px; border-radius:8px; border:1px solid rgba({{ '74,222,128' if result_payload.compliant else '251,113,133' }},0.35); background:rgba({{ '74,222,128' if result_payload.compliant else '251,113,133' }},0.08); margin-bottom:16px;">
+      <div style="font-weight:700; color:{{ '#4ade80' if result_payload.compliant else '#fb7185' }}; margin-bottom:4px;">{{ 'Compliant' if result_payload.compliant else 'Needs Attention' }}</div>
+      <div style="font-size:12px; color:var(--chalk-3);">{{ completeness | round(1) }}% of fields provided. Full data assessment.</div>
+    </div>
+    {% endif %}
+
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; justify-content:space-between; gap:16px;">
+        <span>Overall Score</span>
+        {% if trust == 'INSUFFICIENT' %}
+        <strong style="text-align:right;">Insufficient data — fill more fields to get a reliable score.</strong>
+        {% else %}
+        <strong>{{ analysis.overall_score if analysis.overall_score is not none else '—' }}%</strong>
+        {% endif %}
+      </div>
+      <div style="display:flex; justify-content:space-between;"><span>Trust Level</span><strong>{{ trust }}</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Data Completeness</span><strong>{{ completeness | round(1) }}%</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Violations</span><strong>{{ result_summary.violations }}</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Warnings</span><strong>{{ result_summary.warnings }}</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Rule Source</span><strong>{{ result_payload.rule_source or '—' }}</strong></div>
+      <div style="display:flex; justify-content:space-between;"><span>Rule Reference</span><strong>{{ result_payload.rule_reference or '—' }}</strong></div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Versioning</div>
+    <form method="POST" action="{{ url_for('plot_analysis.save_version', project_id=project.id, analysis_id=analysis.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label style="display:block; font-size:12px; color:var(--chalk-3); margin-bottom:8px;">Version Name</label>
+      <input type="text" name="version_name" class="field-input" style="width:100%; background:var(--ink-2); border:1px solid var(--line); border-radius:8px; color:var(--chalk); padding:10px 12px;" placeholder="e.g. Draft A">
+      <button type="submit" class="btn btn-primary" style="margin-top:12px;">Save Version</button>
+    </form>
+  </div>
+</div>
+
+{% if result_payload and result_payload.valid and rule_rows %}
+<div class="card" style="margin-top:24px;">
+  <div class="section-title" style="margin-bottom:14px;">Rule Checks</div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:14px;">
+    {% for row in rule_rows %}
+    {% set tone = {
+      'pass': '#1D9E75',
+      'warning': '#EF9F27',
+      'fail': '#E24B4A',
+      'not_available': '#7a7a7a'
+    }[row.status] %}
+    {% set fill = {
+      'pass': 'rgba(29,158,117,0.12)',
+      'warning': 'rgba(239,159,39,0.12)',
+      'fail': 'rgba(226,75,74,0.12)',
+      'not_available': 'rgba(122,122,122,0.12)'
+    }[row.status] %}
+    {% set label = {
+      'pass': 'PASS',
+      'warning': 'WARN',
+      'fail': 'FAIL',
+      'not_available': 'NOT AVAILABLE'
+    }[row.status] %}
+    <div style="border:1px solid {{ tone }}44; background:{{ fill }}; border-radius:10px; padding:14px;">
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:10px;">
+        <strong style="font-size:13px;">{{ row.rule_label }}</strong>
+        <span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:999px; font-size:10px; font-weight:700; color:{{ tone }}; background:{{ fill }}; border:1px solid {{ tone }}44;">{{ label }}</span>
+      </div>
+      <div style="font-size:12px; color:var(--chalk-3); margin-bottom:4px;">Required value</div>
+      <div style="font-size:13px; margin-bottom:12px;">{{ row.expected_value }}</div>
+      <div style="font-size:12px; color:var(--chalk-3); margin-bottom:4px;">Actual value</div>
+      <div style="font-size:13px; margin-bottom:12px;">{{ row.actual_value or 'Not provided' }}</div>
+      {% if row.score is not none %}
+      <div style="height:7px; border-radius:999px; background:rgba(255,255,255,0.06); overflow:hidden; margin-bottom:8px;">
+        <div style="width:{{ row.score }}%; height:100%; border-radius:999px; background:{{ tone }};"></div>
+      </div>
+      <div style="font-size:11px; color:var(--chalk-3);">{{ row.score | round(0) }} / 100</div>
+      {% else %}
+      <div style="font-size:11px; color:var(--chalk-3);">Score unavailable until this field is provided.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if input_payload %}
+<div class="card" style="margin-top:24px;">
+  <div class="section-title" style="margin-bottom:14px;">Submitted Inputs</div>
+  <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px;">
+    {% for key, value in input_payload.items() %}
+      {% if key != 'setbacks' %}
+      <div style="padding:12px; border:1px solid var(--line); border-radius:8px;">
+        <div style="font-size:11px; color:var(--chalk-3); text-transform:uppercase; letter-spacing:.08em;">{{ key.replace('_', ' ') }}</div>
+        <div style="margin-top:6px; font-weight:600;">{{ value if value not in [None, ''] else '—' }}</div>
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if result_payload and result_payload.valid %}
+<div class="two-col" style="margin-top:24px;">
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Violations</div>
+    {% if result_payload.violations %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for violation in result_payload.violations %}
+      <div style="padding:12px 14px; border-radius:8px; border:1px solid rgba(251,113,133,0.25);">
+        <strong>{{ violation.field or violation.code or 'Rule' }}</strong><br>
+        <span style="color:var(--chalk-3);">{{ violation.msg or violation.message or violation }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--chalk-3);">No violations reported.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="margin-bottom:14px;">Warnings</div>
+    {% if result_payload.warnings %}
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for warning in result_payload.warnings %}
+      <div style="padding:12px 14px; border-radius:8px; border:1px solid rgba(245,200,66,0.25);">{{ warning }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--chalk-3);">No warnings reported.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:24px;">
+  <div class="section-title" style="margin-bottom:14px;">Applied Rules</div>
+  {% if applied_rule_rows %}
+  <table class="data-table">
+    <thead>
+      <tr><th>Rule</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      {% for row in applied_rule_rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td>{{ row.value }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color:var(--chalk-3);">No applied rules snapshot found.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

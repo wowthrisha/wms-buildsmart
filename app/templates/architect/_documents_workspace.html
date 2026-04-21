@@ -1,0 +1,472 @@
+<style>
+.dv-title { font-size: 14px; font-weight: 600; color: var(--chalk); line-height: 1.3; }
+.dv-meta { font-size: 11px; color: var(--chalk-3); margin-top: 4px; font-family: 'Space Mono', monospace; letter-spacing: .02em; }
+.dv-cat-col { min-width: 140px; }
+.dv-ver-cell { min-width: 160px; }
+.dv-file-meta { font-size: 11px; color: var(--chalk-3); margin-top: 5px; font-family: 'Space Mono', monospace; }
+.dv-drop-wrap { position: relative; display: inline-block; margin-top: 6px; }
+.dv-drop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--chalk-3);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: 'Space Mono', monospace;
+  transition: color .15s;
+}
+.dv-drop-btn:hover { color: var(--gold); }
+.dv-drop-btn svg { transition: transform .2s; }
+.dv-drop-btn.open svg { transform: rotate(180deg); }
+.dv-drop-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 120;
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  min-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .6);
+  overflow: hidden;
+}
+.dv-drop-panel.open { display: block; }
+.dv-drop-head {
+  padding: 10px 14px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--chalk-3);
+  border-bottom: 1px solid #1e1e1e;
+  font-family: 'Space Mono', monospace;
+}
+.dv-drop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #1a1a1a;
+  transition: background .12s;
+}
+.dv-drop-item:last-child { border-bottom: none; }
+.dv-drop-item:hover { background: rgba(255, 255, 255, .04); }
+.dv-drop-left { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dv-drop-ver { font-size: 12px; font-weight: 600; color: var(--chalk); }
+.dv-drop-detail {
+  font-size: 10px;
+  color: var(--chalk-3);
+  font-family: 'Space Mono', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv-drop-dl {
+  flex-shrink: 0;
+  color: var(--gold);
+  text-decoration: none;
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid rgba(232, 201, 122, .25);
+  border-radius: 4px;
+  background: var(--gold-dim);
+  transition: all .15s;
+  white-space: nowrap;
+}
+.dv-drop-dl:hover { background: rgba(232, 201, 122, .2); border-color: var(--gold); }
+.dv-vis-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  background: none;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.dv-vis-btn[data-visible="true"] {
+  color: var(--gold);
+  border-color: rgba(232, 201, 122, .25);
+  background: rgba(232, 201, 122, .08);
+}
+.dv-vis-btn[data-visible="false"] {
+  color: var(--chalk-3);
+  border-color: var(--line);
+  background: var(--ink-2);
+}
+.dv-vis-btn:hover { opacity: .85; }
+.dv-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--ink-2);
+  color: var(--chalk-2);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.dv-icon-btn:hover { border-color: var(--gold); color: var(--gold); background: var(--gold-dim); }
+.dv-icon-btn svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; }
+.dv-expand-row td { padding: 0 !important; border-top: none !important; }
+.dv-expand-inner { background: #0e0e0e; border-top: 1px solid #1c1c1c; padding: 18px 24px 22px; }
+.dv-expand-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--chalk-3);
+  margin-bottom: 14px;
+  font-family: 'Space Mono', monospace;
+}
+.doc-field-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--chalk-3);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Space Mono', monospace;
+}
+.doc-field-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: #0a0a0a;
+  border: 1px solid #252525;
+  border-radius: 6px;
+  color: var(--chalk);
+  font-size: 13px;
+  box-sizing: border-box;
+  transition: border-color .15s;
+}
+.doc-field-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-dim); }
+.doc-field-input[readonly] { opacity: .5; cursor: default; }
+.dv-main-row:hover td { background: rgba(255, 255, 255, .015); }
+</style>
+
+<section class="section-card">
+  <div class="meetings-head" style="margin-bottom:20px;">
+    <div>
+      <div class="meetings-kicker">Document Vault</div>
+      <p class="metric-foot" style="margin-top:8px;">Version-controlled files, upload status, and client visibility in one place.</p>
+    </div>
+    <button type="button" class="btn btn-primary" id="doc-upload-toggle">
+      <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload Document
+    </button>
+  </div>
+
+  <div id="doc-upload-panel" style="display:none; background:#0e0e0e; border:1px solid #252525; border-radius:10px; padding:22px; margin-bottom:24px;">
+    <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; color:var(--chalk-3); margin-bottom:16px; font-family:'Space Mono',monospace;">New Document</div>
+    <form action="{{ url_for('documents.upload', project_id=project.id) }}" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+        <div>
+          <label class="doc-field-label">Document Title</label>
+          <input class="doc-field-input" type="text" name="title" placeholder="e.g. Site Plan, Elevation Drawing">
+        </div>
+        <div>
+          <label class="doc-field-label">Version / Revision</label>
+          <input class="doc-field-input" type="text" name="version_label" placeholder="e.g. Rev A, v1, Draft">
+        </div>
+        <div>
+          <label class="doc-field-label">File Tag / Category</label>
+          <select class="doc-field-input" name="category" style="appearance:auto; cursor:pointer;">
+            <option value="Site Plan">Site Plan</option>
+            <option value="Structural">Structural</option>
+            <option value="Legal">Legal</option>
+            <option value="Client Docs">Client Docs</option>
+            <option value="Permit">Permit</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+        <div>
+          <label class="doc-field-label">File (PDF / JPG / PNG)</label>
+          <input class="doc-field-input" type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png" style="padding:6px; color:var(--chalk-2);">
+        </div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button type="submit" class="btn btn-primary" style="padding:9px 22px;">Save Document</button>
+        <button type="button" class="btn btn-ghost" id="doc-upload-cancel" style="padding:9px 16px;">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  {% set SOURCE_LABELS = {
+      'compliance': 'Compliance',
+      'plot_analysis': 'Plot Analysis',
+      'meetings': 'MOM / Minutes',
+      'payments': 'Payment',
+      'vault': 'General',
+      'documents': 'General'
+  } %}
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="min-width:220px;">Document</th>
+        <th class="dv-cat-col">Source</th>
+        <th class="dv-ver-cell">Version</th>
+        <th>Visibility</th>
+        <th style="width:120px; text-align:center;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if docs_list %}
+        {% for d in docs_list %}
+        {% set cv = d.current_version %}
+        {% set vc = d.versions.count() %}
+        <tr class="dv-main-row" id="doc-vault-row-{{ d.id }}">
+          <td>
+            <div class="dv-title">{{ d.original_name }}</div>
+            <div class="dv-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;">
+              <span>{{ d.created_at|strftime('%d %b %Y') }}</span>
+              <span style="color:#555;">·</span>
+              <span>{{ d.uploader_role|title }}</span>
+              <span style="color:#555;">·</span>
+              <span>{{ vc }} ver{{ 's' if vc != 1 else '' }}</span>
+              {% if d.pending_verification %}
+              <span class="dv-pending-tag" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:rgba(232,201,122,.12);color:var(--gold);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">
+                &#9679; Pending Verification
+              </span>
+              {% endif %}
+            </div>
+          </td>
+          <td class="dv-cat-col">
+            <span class="badge badge-muted">{{ SOURCE_LABELS.get(d.source_module, d.source_module or 'General') }}</span>
+          </td>
+          <td class="dv-ver-cell">
+            {% if cv %}
+            <span class="badge badge-gold">{{ cv.label }}</span>
+            <div class="dv-file-meta">
+              {{ cv.file_type.split('/')[-1].upper() if cv.file_type else '—' }}
+              {% if cv.file_size %}&nbsp;·&nbsp;{{ cv.file_size }}{% endif %}
+            </div>
+            {% else %}
+            <span style="color:#444; font-size:12px;">—</span>
+            {% endif %}
+            {% if vc > 0 %}
+            <div class="dv-drop-wrap">
+              <button type="button" class="dv-drop-btn" data-drop="drop-{{ d.id }}">
+                <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2.5" fill="none"><polyline points="6 9 12 15 18 9"/></svg>
+                {{ vc }} version{{ 's' if vc != 1 else '' }}
+              </button>
+              <div class="dv-drop-panel" id="drop-{{ d.id }}">
+                <div class="dv-drop-head">Version History</div>
+                {% for v in d.all_versions %}
+                <div class="dv-drop-item">
+                  <div class="dv-drop-left">
+                    <span class="dv-drop-ver">{{ v.label }}</span>
+                    <span class="dv-drop-detail">
+                      {{ v.file_type.split('/')[-1].upper() if v.file_type else '?' }}
+                      {% if v.file_size %}&nbsp;·&nbsp;{{ v.file_size }}{% endif %}
+                      &nbsp;·&nbsp;{{ v.created_at|strftime('%d %b %Y · %H:%M') }}
+                      {% if v.uploader %}&nbsp;·&nbsp;{{ v.uploader.name }}{% endif %}
+                    </span>
+                  </div>
+                  <a href="{{ url_for('documents.download_version', version_id=v.id) }}" target="_blank" rel="noopener" class="dv-drop-dl">&#x2193; Download</a>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </td>
+          <td>
+            <button type="button" class="dv-vis-btn toggle-visibility-btn" data-doc-id="{{ d.id }}" data-visible="{{ d.visible_to_client|lower }}">
+              {% if d.visible_to_client %}
+              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              Visible to Client
+              {% else %}
+              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              Hidden
+              {% endif %}
+            </button>
+          </td>
+          <td style="text-align:center;">
+            <div style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:center;">
+              <a href="{{ url_for('documents.download', doc_id=d.id) }}" target="_blank" rel="noopener" class="dv-icon-btn" title="Download latest version">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </a>
+              <button type="button" class="dv-icon-btn dv-upd-toggle" data-target="upd-row-{{ d.id }}" title="Add new version">
+                <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              </button>
+              {% if d.pending_verification %}
+              <button type="button" class="btn btn-ghost dv-verify-btn" data-doc-id="{{ d.id }}" style="font-size:11px;padding:4px 10px;color:var(--gold);border-color:rgba(232,201,122,.3);" title="Verify this client upload">
+                Verify
+              </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        <tr class="dv-expand-row" id="upd-row-{{ d.id }}" style="display:none;">
+          <td colspan="5">
+            <div class="dv-expand-inner">
+              <div class="dv-expand-label">Add New Version — {{ d.original_name }}</div>
+              <form action="{{ url_for('documents.upload_version', doc_id=d.id) }}" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:14px; margin-bottom:14px;">
+                  <div>
+                    <label class="doc-field-label">Title</label>
+                    <input class="doc-field-input" type="text" value="{{ d.original_name }}" readonly>
+                  </div>
+                  <div>
+                    <label class="doc-field-label">Category</label>
+                    <input class="doc-field-input" type="text" value="{{ d.category }}" readonly>
+                  </div>
+                  <div>
+                    <label class="doc-field-label">New Version Name</label>
+                    <input class="doc-field-input" type="text" name="version_label" placeholder="e.g. Rev B, Final, v2">
+                  </div>
+                  <div>
+                    <label class="doc-field-label">File (PDF / JPG / PNG)</label>
+                    <input class="doc-field-input" type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png" style="padding:6px; color:var(--chalk-2);">
+                  </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                  <button type="submit" class="btn btn-primary" style="padding:8px 22px;">Save Version</button>
+                  <button type="button" class="btn btn-ghost dv-upd-close" data-target="upd-row-{{ d.id }}" style="padding:8px 16px;">Cancel</button>
+                </div>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="5" style="padding:60px; text-align:center;">
+            <svg viewBox="0 0 24 24" style="width:36px;height:36px;stroke:#2a2a2a;stroke-width:1.5;fill:none;display:block;margin:0 auto 14px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            <div style="font-size:14px; font-weight:600; color:#333; margin-bottom:6px;">No documents yet</div>
+            <div style="font-size:12px; color:#2a2a2a;">Upload the first project file to start the vault.</div>
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+(function () {
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var uploadPanel = document.getElementById('doc-upload-panel');
+  var toggleButton = document.getElementById('doc-upload-toggle');
+  var cancelButton = document.getElementById('doc-upload-cancel');
+
+  if (toggleButton && uploadPanel) {
+    toggleButton.addEventListener('click', function () {
+      uploadPanel.style.display = uploadPanel.style.display === 'none' ? 'block' : 'none';
+    });
+  }
+
+  if (cancelButton && uploadPanel) {
+    cancelButton.addEventListener('click', function () {
+      uploadPanel.style.display = 'none';
+    });
+  }
+
+  document.querySelectorAll('.dv-upd-toggle').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var row = document.getElementById(button.dataset.target);
+      if (!row) return;
+      row.style.display = row.style.display === 'none' ? '' : 'none';
+    });
+  });
+
+  document.querySelectorAll('.dv-upd-close').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var row = document.getElementById(button.dataset.target);
+      if (row) row.style.display = 'none';
+    });
+  });
+
+  document.querySelectorAll('.dv-drop-btn').forEach(function (button) {
+    button.addEventListener('click', function (event) {
+      event.stopPropagation();
+      var panel = document.getElementById(button.dataset.drop);
+      if (!panel) return;
+      var isOpen = panel.classList.contains('open');
+      document.querySelectorAll('.dv-drop-panel.open').forEach(function (openPanel) {
+        openPanel.classList.remove('open');
+      });
+      document.querySelectorAll('.dv-drop-btn.open').forEach(function (openButton) {
+        openButton.classList.remove('open');
+      });
+      if (!isOpen) {
+        panel.classList.add('open');
+        button.classList.add('open');
+      }
+    });
+  });
+
+  document.addEventListener('click', function () {
+    document.querySelectorAll('.dv-drop-panel.open').forEach(function (panel) {
+      panel.classList.remove('open');
+    });
+    document.querySelectorAll('.dv-drop-btn.open').forEach(function (button) {
+      button.classList.remove('open');
+    });
+  });
+
+  document.querySelectorAll('.toggle-visibility-btn').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var docId = button.dataset.docId;
+      fetch('/documents/' + docId + '/toggle-visibility', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf }
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          var visible = data.visible_to_client;
+          button.dataset.visible = visible ? 'true' : 'false';
+          button.innerHTML = visible
+            ? '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Visible to Client'
+            : '<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> Hidden';
+        });
+    });
+  });
+
+  document.querySelectorAll('.dv-verify-btn').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var docId = button.dataset.docId;
+      button.disabled = true;
+      button.textContent = 'Verifying…';
+      fetch('/documents/' + docId + '/verify', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrf }
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          if (!data.success) {
+            button.disabled = false;
+            button.textContent = 'Verify';
+            alert(data.error || 'Verification failed.');
+            return;
+          }
+          var row = document.getElementById('doc-vault-row-' + docId);
+          if (row) {
+            var tag = row.querySelector('.dv-pending-tag');
+            if (tag) tag.remove();
+          }
+          button.remove();
+        })
+        .catch(function () {
+          button.disabled = false;
+          button.textContent = 'Verify';
+        });
+    });
+  });
+}());
+</script>

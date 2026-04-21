@@ -9,6 +9,80 @@ from datetime import datetime
 
 bp = Blueprint('projects', __name__)
 
+
+def _workspace_context(project_id, *, active_tab='overview'):
+    require_architect()
+    p = Project.query.get_or_404(project_id)
+    if current_user.role == 'architect' and p.architect_id != current_user.id:
+        abort(403)
+
+    from app.models import AuditLog, PaymentLog, PlotAnalysis
+
+    latest_pa = (PlotAnalysis.query
+                 .filter_by(project_id=p.id)
+                 .order_by(PlotAnalysis.created_at.desc())
+                 .first())
+    try:
+        latest_pa_result = json.loads(latest_pa.result_payload) if latest_pa and latest_pa.result_payload else None
+    except Exception:
+        latest_pa_result = None
+    pa_count = PlotAnalysis.query.filter_by(project_id=p.id).count()
+    checklist_items = ensure_project_compliance_items(p.id)
+    compliance_tree = build_compliance_tree(p)
+    compliance_stats = compliance_summary(p)
+    compliance_coverage = coverage_by_category(p)
+    docs_list = (Document.query
+                 .filter_by(project_id=p.id)
+                 .order_by(Document.created_at.desc())
+                 .all())
+    audit_logs = (AuditLog.query
+                  .filter_by(project_id=p.id)
+                  .order_by(AuditLog.created_at.desc())
+                  .all())
+    all_meetings = (Meeting.query
+                    .filter_by(project_id=p.id)
+                    .order_by(Meeting.created_at.desc())
+                    .all())
+    payment_logs = (PaymentLog.query
+                    .filter_by(project_id=p.id)
+                    .order_by(PaymentLog.created_at.desc(), PaymentLog.id.desc())
+                    .all())
+    db.session.commit()  # Release SQLite read transaction promptly
+    return {
+        'project': p,
+        'active_project': p,
+        'active_tab': active_tab,
+        'Meeting': Meeting,
+        'latest_pa': latest_pa,
+        'latest_pa_result': latest_pa_result,
+        'pa_count': pa_count,
+        'checklist_items': checklist_items,
+        'compliance_tree': compliance_tree,
+        'compliance_stats': compliance_stats,
+        'compliance_coverage': compliance_coverage,
+        'docs_list': docs_list,
+        'audit_logs': audit_logs,
+        'logs': audit_logs,
+        'all_meetings': all_meetings,
+        'payment_logs': payment_logs,
+    }
+
+
+def _workspace_template(active_tab):
+    return {
+        'overview': 'architect/project_overview.html',
+        'documents': 'architect/project_documents.html',
+        'compliance': 'architect/project_compliance.html',
+        'activity': 'architect/activity_project.html',
+    }.get(active_tab, 'architect/project_overview.html')
+
+
+def _workspace_response(project_id, *, active_tab='overview'):
+    return render_template(
+        _workspace_template(active_tab),
+        **_workspace_context(project_id, active_tab=active_tab),
+    )
+
 @bp.route('/')
 @login_required
 def root():
@@ -93,58 +167,102 @@ def new_project():
     ensure_project_compliance_items(p.id)
     db.session.commit()
 
-    return redirect(f'/projects/{p.id}')
+    from flask import session as _session
+    _session.pop(f'projects_{current_user.id}', None)
 
-@bp.route('/projects/create', methods=['POST'])
-@login_required
-def create():
-    return new_project()
+    return redirect(f'/projects/{p.id}')
 
 @bp.route('/projects/<int:project_id>')
 @login_required
 def workspace(project_id):
-    require_architect()
-    p = Project.query.get_or_404(project_id)
-    if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
-    if request.args.get('tab') == 'payments':
-        return redirect(url_for('payments.project_overview', project_id=p.id))
-    from app.models import PlotAnalysis
-    latest_pa = (PlotAnalysis.query
-                 .filter_by(project_id=p.id)
-                 .order_by(PlotAnalysis.created_at.desc())
-                 .first())
-    try:
-        latest_pa_result = json.loads(latest_pa.result_payload) if latest_pa and latest_pa.result_payload else None
-    except Exception:
-        latest_pa_result = None
-    pa_count = PlotAnalysis.query.filter_by(project_id=p.id).count()
-    checklist_items = ensure_project_compliance_items(p.id)
-    compliance_tree = build_compliance_tree(p)
-    compliance_stats = compliance_summary(p)
-    compliance_coverage = coverage_by_category(p)
-    from app.models import Document, AuditLog
-    docs_list = (Document.query
-                 .filter_by(project_id=p.id)
-                 .order_by(Document.created_at.desc())
-                 .all())
-    audit_logs = (AuditLog.query
-                  .filter_by(project_id=p.id)
-                  .order_by(AuditLog.created_at.desc())
-                  .all())
-    all_meetings = (Meeting.query
-                    .filter_by(project_id=p.id)
-                    .order_by(Meeting.created_at.desc())
-                    .all())
-    db.session.commit()
-    return render_template('architect/project_workspace.html', project=p, active_project=p,
-                           Meeting=Meeting, latest_pa=latest_pa, latest_pa_result=latest_pa_result, pa_count=pa_count,
-                           checklist_items=checklist_items,
-                           compliance_tree=compliance_tree,
-                           compliance_stats=compliance_stats,
-                           compliance_coverage=compliance_coverage,
-                           docs_list=docs_list,
-                           audit_logs=audit_logs,
-                           all_meetings=all_meetings)
+    _tab = request.args.get('tab')
+    if _tab == 'payments':
+        return redirect(url_for('payments.project_overview', project_id=project_id))
+    if _tab == 'meetings':
+        return redirect(url_for('meetings.project_meetings', project_id=project_id))
+    if _tab == 'references':
+        return redirect(url_for('projects.ref_index', project_id=project_id))
+    if _tab == 'plot':
+        return redirect(url_for('plot_analysis.project_overview', project_id=project_id))
+    if _tab == 'documents':
+        return redirect(url_for('projects.project_documents', project_id=project_id))
+    if _tab == 'compliance':
+        return redirect(url_for('projects.project_compliance', project_id=project_id))
+    if _tab == 'activity':
+        return redirect(url_for('projects.project_activity', project_id=project_id))
+    if _tab == 'requirements':
+        return redirect(url_for('requirements.kanban', project_id=project_id))
+    if _tab == 'assistant':
+        return redirect(url_for('requirements.assistant', project_id=project_id))
+    return _workspace_response(project_id, active_tab='overview')
+
+
+@bp.route('/projects/<int:project_id>/overview')
+@login_required
+def project_overview_tab(project_id):
+    return _workspace_response(project_id, active_tab='overview')
+
+
+@bp.route('/projects/<int:project_id>/documents')
+@login_required
+def project_documents(project_id):
+    return _workspace_response(project_id, active_tab='documents')
+
+
+@bp.route('/projects/<int:project_id>/compliance')
+@login_required
+def project_compliance(project_id):
+    return _workspace_response(project_id, active_tab='compliance')
+
+
+@bp.route('/projects/<int:project_id>/activity')
+@login_required
+def project_activity(project_id):
+    return _workspace_response(project_id, active_tab='activity')
+
+
+def _check_project_access(project):
+    if current_user.role == 'architect' and project.architect_id != current_user.id:
+        abort(403)
+    elif current_user.role == 'client' and project.client_id != current_user.id:
+        abort(403)
+
+
+@bp.route('/projects/<int:project_id>/tab/compliance')
+@login_required
+def tab_compliance(project_id):
+    project = Project.query.get_or_404(project_id)
+    _check_project_access(project)
+    from app.compliance_service import compliance_summary as _cs
+    stats = _cs(project)
+    return jsonify({'summary': stats, 'percent': stats.get('percent', 0)})
+
+
+@bp.route('/projects/<int:project_id>/tab/documents')
+@login_required
+def tab_documents(project_id):
+    project = Project.query.get_or_404(project_id)
+    _check_project_access(project)
+    count = Document.query.filter_by(project_id=project_id).count()
+    docs = (Document.query.filter_by(project_id=project_id)
+            .order_by(Document.created_at.desc()).limit(10).all())
+    return jsonify({
+        'count': count,
+        'recent': [{'id': d.id, 'name': d.name,
+                    'source_module': d.source_module,
+                    'created_at': d.created_at.isoformat()} for d in docs]
+    })
+
+
+@bp.route('/projects/<int:project_id>/tab/meetings')
+@login_required
+def tab_meetings(project_id):
+    project = Project.query.get_or_404(project_id)
+    _check_project_access(project)
+    total = Meeting.query.filter_by(project_id=project_id).count()
+    pending = Meeting.query.filter_by(project_id=project_id, status='pending_request').count()
+    return jsonify({'total': total, 'pending_count': pending})
+
 
 # REMOVED:
 # @bp.route('/api/debug-clients')
@@ -169,6 +287,8 @@ def update_status(project_id):
     if new_status in Project.STATUS_ORDER:
         p.status = new_status
         db.session.commit()
+        from flask import session as _session
+        _session.pop(f'projects_{current_user.id}', None)
         flash(f'Status updated to {new_status}.', 'success')
 
         # Audit
@@ -204,8 +324,9 @@ def delete(project_id):
     db.session.add(log)
     db.session.delete(p)
     db.session.commit()
-    
-    from flask import flash
+
+    from flask import flash, session as _session
+    _session.pop(f'projects_{current_user.id}', None)
     flash(f"Project '{p_name}' securely deleted.", "success")
     return redirect('/projects')
 
@@ -224,7 +345,8 @@ def upload_image(project_id):
             from flask import flash
             flash('Invalid image type. Only JPG and PNG are allowed.', 'error')
             if request.form.get('next') == 'mom' and request.form.get('meeting_id'):
-                return redirect(url_for('meetings.mom_workspace', meeting_id=request.form.get('meeting_id', type=int)))
+                mid = request.form.get('meeting_id', type=int)
+                return redirect(url_for('meetings.project_mom', project_id=project_id, meeting_id=mid))
             return redirect(request.referrer or '/dashboard')
             
         filename = save_file_securely(file)
@@ -272,11 +394,10 @@ def upload_image(project_id):
         from flask import flash
         flash('Image uploaded.', 'success')
         if request.form.get('next') == 'mom' and meeting:
-            return redirect(url_for('meetings.mom_workspace', meeting_id=meeting.id))
+            return redirect(url_for('meetings.project_mom', project_id=project_id, meeting_id=meeting.id))
 
     return redirect(request.referrer or '/dashboard')
 
-@bp.route('/projects/<int:project_id>/images/delete/<int:image_id>', methods=['POST'])
 @bp.route('/projects/<int:project_id>/images/<int:image_id>/delete', methods=['POST'])
 @login_required
 def delete_image(project_id, image_id):
@@ -443,7 +564,7 @@ def ref_delete(project_id, ref_id):
 
     ref = VisualReference.query.filter_by(id=ref_id, project_id=project_id).first_or_404()
     if current_user.id != ref.uploader_id and current_user.role != 'architect':
-        return jsonify({'error': 'Forbidden'}), 403
+        abort(403)
 
     db.session.delete(ref)
     db.session.commit()
@@ -530,18 +651,6 @@ def serve_reference_image(project_id, ref_id):
     if not path:
         abort(404)
     return send_file_securely(path)
-
-@bp.route('/projects/<int:project_id>/update-status-api', methods=['POST'])
-@login_required
-def update_status_api(project_id):
-    require_architect()
-    p = Project.query.get_or_404(project_id)
-    if current_user.role == 'architect' and p.architect_id != current_user.id: abort(403)
-    data = request.get_json()
-    if data and 'status' in data:
-        p.status = data['status']
-        db.session.commit()
-    return jsonify({'ok': True, 'status': p.status})
 
 @bp.route('/projects/<int:project_id>/toggle-compliance', methods=['POST'])
 @login_required

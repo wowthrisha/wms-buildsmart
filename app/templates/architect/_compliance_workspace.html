@@ -1,0 +1,1067 @@
+<style>
+/* ══════════════════════════════════════════════════════════════
+   COMPLIANCE — MIND MAP + TABLE
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Map outer card ───────────────────────────────────────────── */
+.cw-map-card {
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.cw-map-topbar {
+  padding: 20px 24px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.cw-map-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--chalk-3);
+  margin-bottom: 4px;
+}
+.cw-map-heading {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+.cw-map-subtitle {
+  font-size: 12px;
+  color: var(--chalk-3);
+  margin-top: 2px;
+}
+
+/* ── Legend ───────────────────────────────────────────────────── */
+.cw-legend {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cw-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--chalk-3);
+  font-weight: 500;
+}
+.cw-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── SVG canvas ───────────────────────────────────────────────── */
+#cw-canvas {
+  position: relative;
+  width: 100%;
+  height: 500px;
+  cursor: default;
+  overflow: hidden;
+}
+#cw-canvas svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+#cw-nodes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ── Node circles ─────────────────────────────────────────────── */
+.cwn {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  border: 2px solid transparent;
+  user-select: none;
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease;
+  pointer-events: all;
+}
+.cwn.visible {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+}
+.cwn.leaf {
+  cursor: pointer;
+}
+.cwn.leaf:hover {
+  transform: translate(-50%, -50%) scale(1.14) !important;
+}
+.cwn-label {
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.25;
+  padding: 0 5px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.cwn-sub {
+  font-size: 6.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  opacity: .65;
+  margin-top: 3px;
+}
+/* Info badge */
+.cwn-info {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: #111;
+  font-size: 8px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity .15s ease, transform .15s ease;
+  pointer-events: none;
+}
+.cwn.leaf:hover .cwn-info {
+  opacity: 1;
+  transform: scale(1);
+}
+/* Pulse on missing required */
+@keyframes cwPulse {
+  0%, 100% { box-shadow: inherit; }
+  50%       { box-shadow: 0 0 24px var(--cw-pulse-color, #fb7185) !important; }
+}
+.cwn[data-pulse="1"] {
+  animation: cwPulse 2.5s ease-in-out infinite 0.6s;
+}
+
+/* ── Coverage strip ───────────────────────────────────────────── */
+.cw-coverage {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--line);
+}
+.cw-cov-cell {
+  padding: 14px 18px;
+  border-right: 1px solid var(--line);
+}
+.cw-cov-cell:last-child { border-right: none; }
+.cw-cov-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--chalk-3);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.cw-cov-row { display: flex; align-items: center; gap: 10px; }
+.cw-cov-track {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,.06);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.cw-cov-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .7s cubic-bezier(.34,1.1,.64,1);
+}
+.cw-cov-fill.full { background: var(--gold); }
+.cw-cov-fill.part { background: var(--gold); opacity: .7; }
+.cw-cov-fill.zero { background: rgba(240,237,232,.45); }
+.cw-cov-pct {
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+  transition: color .4s ease;
+}
+
+/* ── Table card ───────────────────────────────────────────────── */
+.cw-tbl-card {
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 24px;
+}
+.cw-tbl-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.cw-tbl {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cw-tbl th {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--chalk-3);
+  padding: 0 0 11px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+}
+.cw-tbl td {
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  vertical-align: middle;
+}
+.cw-tbl tr:last-child td { border-bottom: none; }
+.cw-tbl td:not(:last-child) { padding-right: 18px; }
+.cw-tbl tr {
+  transition: background .12s ease;
+}
+.cw-tbl tbody tr:hover { background: rgba(255,255,255,.02); }
+
+/* ── Status ───────────────────────────────────────────────────── */
+.cw-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cw-dot::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cw-dot.red    { color: var(--chalk); } .cw-dot.red::before    { background: var(--chalk); }
+.cw-dot.yellow { color: var(--gold); } .cw-dot.yellow::before { background: var(--gold); }
+.cw-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.cw-pill.green { background: rgba(232,201,122,.12);  color: var(--gold); }
+.cw-pill.yellow { background: rgba(232,201,122,.12); color: var(--gold); }
+.cw-pill.blue  { background: rgba(255,255,255,.06);  color: var(--chalk); }
+
+/* ── Category chip ────────────────────────────────────────────── */
+.cw-cat {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,.05);
+  color: var(--chalk-3);
+  white-space: nowrap;
+}
+
+/* ── Action buttons ───────────────────────────────────────────── */
+.cw-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cw-act { font-size: 11px !important; padding: 4px 11px !important; border-radius: 7px !important; }
+
+/* ── Popup backdrop ───────────────────────────────────────────── */
+.cw-bd {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(3px);
+  z-index: 2100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.cw-bd.open { display: flex; }
+
+/* ── Popup card ───────────────────────────────────────────────── */
+.cw-pop {
+  width: min(500px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #0e0e0e;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 20px;
+  padding: 28px;
+  animation: cwPopIn .22s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes cwPopIn {
+  from { opacity: 0; transform: scale(.9) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.cw-pop-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cw-pop-title {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+.cw-pop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 20px;
+}
+.cw-pop-badge.critical { background: rgba(255,255,255,.06); color: var(--chalk); border: 1px solid rgba(255,255,255,.12); }
+.cw-pop-badge.required { background: rgba(232,201,122,.12);  color: var(--gold); border: 1px solid rgba(232,201,122,.25); }
+.cw-pop-badge.optional { background: rgba(232,201,122,.08);   color: var(--gold); border: 1px solid rgba(232,201,122,.18); }
+.cw-pop-badge.verified { background: rgba(232,201,122,.12);  color: var(--gold); border: 1px solid rgba(232,201,122,.25); }
+.cw-pop-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.cw-pop-field  { font-size: 13px; line-height: 1.55; }
+.cw-pop-field strong { color: #e2e2e2; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; opacity: .6; }
+.cw-pop-field span { color: #bbb; }
+.cw-pop-hr { border: none; border-top: 1px solid rgba(255,255,255,.07); margin: 18px 0; }
+.cw-pop-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--chalk-3);
+  margin-bottom: 10px;
+}
+.cw-pop-extracts { display: flex; flex-direction: column; gap: 7px; }
+.cw-pop-extract {
+  padding: 8px 12px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 9px;
+  font-size: 12px;
+  color: #bbb;
+}
+.cw-pop-extract strong { color: #e2e2e2; }
+.cw-pop-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+.cw-pop-upload-btn {
+  background: var(--gold) !important;
+  color: #111 !important;
+  border: none !important;
+  font-weight: 700 !important;
+  padding: 10px 22px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  transition: background .15s ease, transform .1s ease;
+}
+.cw-pop-upload-btn:hover {
+  background: #f0a84a !important;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+  .cw-coverage { grid-template-columns: repeat(2,1fr); }
+  #cw-canvas   { height: 380px; }
+}
+@media (max-width: 600px) {
+  .cw-coverage { grid-template-columns: 1fr; }
+  #cw-canvas   { height: 300px; }
+}
+</style>
+
+{# ═══════════════════════════════════════════════════════════════
+   MIND MAP CARD
+   ═══════════════════════════════════════════════════════════════ #}
+<div class="cw-map-card">
+
+  {# Top bar #}
+  <div class="cw-map-topbar">
+    <div>
+      <div class="cw-map-eyebrow">Compliance Overview</div>
+      <div class="cw-map-heading">Plot Analysis — Document Mind Map</div>
+      <div class="cw-map-subtitle">Click any document node to view details. Upload documents in the checklist table below.</div>
+    </div>
+    <div class="cw-legend">
+      <div class="cw-legend-item"><div class="cw-legend-dot" style="background:var(--gold);box-shadow:0 0 6px rgba(232,201,122,.4);"></div>Uploaded</div>
+      <div class="cw-legend-item"><div class="cw-legend-dot" style="background:var(--gold);opacity:.7;box-shadow:0 0 6px rgba(232,201,122,.28);"></div>Optional</div>
+      <div class="cw-legend-item"><div class="cw-legend-dot" style="background:var(--chalk);box-shadow:0 0 6px rgba(240,237,232,.24);"></div>Missing / critical</div>
+      <div class="cw-legend-item"><div class="cw-legend-dot" style="background:var(--gold);box-shadow:0 0 6px rgba(232,201,122,.4);"></div>Verified</div>
+    </div>
+  </div>
+
+  {# Canvas + tooltip #}
+  <div id="cw-canvas" style="position:relative;">
+    <canvas id="cw-canvas-el" style="display:block;width:100%;height:500px;"></canvas>
+    <div id="cw-tooltip" style="position:absolute;display:none;width:220px;
+         background:#111;border:1px solid rgba(255,255,255,.12);border-radius:12px;
+         padding:14px;box-shadow:0 8px 32px rgba(0,0,0,.6);z-index:50;pointer-events:all;"></div>
+  </div>
+
+  {# Coverage strip #}
+  <div class="cw-coverage" id="cw-cov-strip">
+    {% for cov in compliance_coverage %}
+    {% set fill_cls = 'full' if cov.pct == 100 else ('zero' if cov.pct == 0 else 'part') %}
+    {% set pct_color = 'var(--gold)' if cov.pct > 0 else 'var(--chalk)' %}
+    <div class="cw-cov-cell" data-cov-key="{{ cov.key }}">
+      <div class="cw-cov-label">{{ cov.label }}</div>
+      <div class="cw-cov-row">
+        <div class="cw-cov-track"><div class="cw-cov-fill {{ fill_cls }}" style="width:{{ cov.pct }}%;"></div></div>
+        <div class="cw-cov-pct" style="color:{{ pct_color }};">{{ cov.pct }}%</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════
+   COMPLIANCE TABLE
+   ═══════════════════════════════════════════════════════════════ #}
+<div class="cw-tbl-card">
+  <div class="cw-tbl-topbar">
+    <div>
+      <div class="section-title" style="margin-bottom:3px;">Compliance Documents</div>
+      <p style="font-size:12px;color:var(--chalk-3);margin:0;">All uploads route through the Document Vault. Status reflects in the map above instantly.</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span class="badge badge-muted" id="cw-stat-up">{{ compliance_stats.uploaded }}/{{ compliance_stats.total }} uploaded</span>
+      <span class="badge badge-muted" id="cw-stat-vr">{{ compliance_stats.verified }} verified</span>
+    </div>
+  </div>
+
+  {# ── Section: required standard + custom items ── #}
+  {% set required_items = checklist_items | selectattr('required') | list %}
+  {% set optional_items = checklist_items | rejectattr('required') | list %}
+
+  <table class="cw-tbl" id="cw-tbl">
+    <thead>
+      <tr>
+        <th style="width:36%">Document</th>
+        <th style="width:14%">Category</th>
+        <th style="width:17%">Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {# ── Required (standard + custom) ── #}
+      {% if required_items %}
+      <tr><td colspan="4" style="padding:8px 0 4px;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--chalk-3);">Required Documents</span>
+      </td></tr>
+      {% for item in required_items %}
+      <tr data-doc-type="{{ item.doc_type }}" data-item-id="{{ item.id }}" id="doc-row-{{ item.doc_type }}" data-row-id="{{ item.id }}">
+        <td>
+          <div style="font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            {{ item.custom_label or item.label }}
+            {% if item.is_custom %}
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+                         padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.06);color:var(--chalk);">Custom</span>
+            {% endif %}
+            {% if item.document and item.document.pending_verification %}
+            <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+                         padding:2px 7px;border-radius:5px;background:rgba(232,201,122,.12);color:var(--gold);">Pending Verification</span>
+            {% endif %}
+          </div>
+        </td>
+        <td><span class="cw-cat">{{ item.category|replace('_',' ')|title }}</span></td>
+        <td>
+          {% if item.status == 'verified' %}
+            <span class="cw-pill blue">Verified</span>
+          {% elif item.status == 'client_uploaded' %}
+            <span class="cw-pill yellow">Pending Verification</span>
+          {% elif item.status == 'uploaded' %}
+            <span class="cw-pill green">Uploaded</span>
+          {% elif item.status == 'optional' %}
+            <span class="cw-dot yellow">Optional</span>
+          {% else %}
+            <span class="cw-dot red">Missing</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="cw-acts">
+            <button type="button" class="btn btn-ghost cw-act upload-btn" data-item-id="{{ item.id }}">Upload</button>
+            {% if item.document_id %}
+            <a href="{{ url_for('documents.download', doc_id=item.document_id) }}" class="btn btn-ghost cw-act" target="_blank">View</a>
+            <button type="button" class="btn btn-ghost cw-act verify-btn" data-item-id="{{ item.id }}">{{ 'Unverify' if item.status == 'verified' else 'Verify' }}</button>
+            {% endif %}
+            {% if item.is_custom %}
+            <button type="button" class="btn btn-ghost cw-act remove-custom-btn"
+                    data-item-id="{{ item.id }}"
+                    style="color:var(--chalk);border-color:rgba(255,255,255,.16);" title="Remove custom item">✕</button>
+            {% endif %}
+            <input type="file" class="cw-file-in" accept=".pdf,.jpg,.jpeg,.png" hidden>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+
+      {# ── Optional standard items ── #}
+      {% if optional_items %}
+      <tr><td colspan="4" style="padding:16px 0 4px;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--chalk-3);">Optional Documents</span>
+      </td></tr>
+      {% for item in optional_items %}
+      <tr data-doc-type="{{ item.doc_type }}" data-item-id="{{ item.id }}" id="doc-row-{{ item.doc_type }}" data-row-id="{{ item.id }}">
+        <td style="font-weight:600;">{{ item.custom_label or item.label }}</td>
+        <td><span class="cw-cat">{{ item.category|replace('_',' ')|title }}</span></td>
+        <td>
+          {% if item.status == 'verified' %}
+            <span class="cw-pill blue">Verified</span>
+          {% elif item.status == 'client_uploaded' %}
+            <span class="cw-pill yellow">Pending Verification</span>
+          {% elif item.status == 'uploaded' %}
+            <span class="cw-pill green">Uploaded</span>
+          {% else %}
+            <span class="cw-dot yellow">Optional</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="cw-acts">
+            <button type="button" class="btn btn-ghost cw-act upload-btn" data-item-id="{{ item.id }}">Upload</button>
+            {% if item.document_id %}
+            <a href="{{ url_for('documents.download', doc_id=item.document_id) }}" class="btn btn-ghost cw-act" target="_blank">View</a>
+            <button type="button" class="btn btn-ghost cw-act verify-btn" data-item-id="{{ item.id }}">{{ 'Unverify' if item.status == 'verified' else 'Verify' }}</button>
+            {% endif %}
+            <input type="file" class="cw-file-in" accept=".pdf,.jpg,.jpeg,.png" hidden>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+    </tbody>
+  </table>
+
+  {# ── Add custom compliance item ── #}
+  <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
+    <button type="button" class="btn btn-ghost" id="cw-add-custom-btn"
+            style="font-size:12px;padding:6px 14px;">
+      + Add Compliance Requirement
+    </button>
+    <div id="cw-add-custom-panel" style="display:none;margin-top:14px;padding:18px;
+         background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:10px;">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end;">
+        <div>
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--chalk-3);display:block;margin-bottom:5px;">Document Name</label>
+          <input id="cw-custom-label" type="text" placeholder="e.g. NOC from Electricity Board"
+                 style="width:100%;padding:8px 12px;background:#0a0a0a;border:1px solid #252525;
+                        border-radius:6px;color:var(--chalk);font-size:13px;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--chalk-3);display:block;margin-bottom:5px;">Category</label>
+          <select id="cw-custom-category"
+                  style="width:100%;padding:8px 12px;background:#0a0a0a;border:1px solid #252525;
+                         border-radius:6px;color:var(--chalk);font-size:13px;appearance:auto;">
+            <option>Legal</option><option>Permit</option><option>Site Plan</option>
+            <option>Structural</option><option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--chalk-3);display:block;margin-bottom:5px;">Required?</label>
+          <select id="cw-custom-required"
+                  style="width:100%;padding:8px 12px;background:#0a0a0a;border:1px solid #252525;
+                         border-radius:6px;color:var(--chalk);font-size:13px;appearance:auto;">
+            <option value="true">Required</option>
+            <option value="false">Optional</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="cw-custom-save" class="btn btn-primary" style="padding:8px 16px;font-size:12px;">Add</button>
+          <button type="button" id="cw-custom-cancel" class="btn btn-ghost" style="padding:8px 12px;font-size:12px;">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Node tooltip is absolutely positioned inside #cw-canvas — see JS below #}
+
+<style>
+@keyframes pulse-amber {
+  0%   { background-color: rgba(239,159,39,0.25); }
+  100% { background-color: transparent; }
+}
+.highlight-pulse { animation: pulse-amber 2s ease-out forwards; }
+</style>
+<script>
+(function () {
+  /* ── Server data ────────────────────────────────────────────── */
+  const SERVER_TREE = {{ compliance_tree | tojson }};
+  const PROJECT_ID  = {{ project.id }};
+  const CSRF        = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+  /* ── Build doc_type → item lookup from server data ─────────── */
+  const itemByDocType = {};
+  (SERVER_TREE.groups || []).forEach(g => {
+    (g.children || []).forEach(c => { itemByDocType[c.doc_type] = c; });
+  });
+
+  /* ── STATIC tree (8 leaves, never changes) ──────────────────── */
+  const STATIC_BRANCHES = [
+    { id: 'ownership',  label: ['Ownership', '& Title'],  leaves: ['patta','ec','sale_deed'] },
+    { id: 'dimensions', label: ['Plot', 'Dimensions'],     leaves: ['fmb','site_measurement'] },
+    { id: 'road',       label: ['Road &', 'Site Data'],    leaves: ['road_width','authority'] },
+    { id: 'layout',     label: ['Layout', 'Approval'],     leaves: ['layout_approval'] },
+  ];
+  const LEAF_LABELS = {
+    patta:            ['Patta'],
+    ec:               ['Encumbrance', 'Cert.'],
+    sale_deed:        ['Sale Deed'],
+    fmb:              ['FMB Sketch'],
+    site_measurement: ['Site', 'Measurement'],
+    road_width:       ['Road Width', 'Proof'],
+    authority:        ['Authority', 'Record'],
+    layout_approval:  ['Layout', 'Approval'],
+  };
+  const LEAF_DESC = {
+    patta:            'Revenue record proving land ownership',
+    ec:               'Certificate of no pending liabilities',
+    sale_deed:        'Registered document of property transfer',
+    fmb:              'Field measurement book plot boundary sketch',
+    site_measurement: 'On-site dimension verification report',
+    road_width:       'Official record of abutting road width',
+    authority:        'Approving authority jurisdiction record',
+    layout_approval:  'Approved layout plan from authority',
+  };
+  function statusColor(status, required) {
+    if (status === 'missing' && required !== false) return '#f0ede8';
+    return '#e8c97a';
+  }
+  function statusSeverity(status, required) {
+    if (status === 'verified') return 0;
+    if (status === 'uploaded' || status === 'client_uploaded' || status === 'optional') return 1;
+    if (status === 'missing' && required === false) return 1;
+    return 2;
+  }
+
+  /* ── Canvas refs ────────────────────────────────────────────── */
+  const container = document.getElementById('cw-canvas');
+  const canvas    = document.getElementById('cw-canvas-el');
+  const tooltip   = document.getElementById('cw-tooltip');
+  let   hitAreas  = [];
+
+  /* ── Layout computation (spec algorithm) ─────────────────────── */
+  function computeLayout(W) {
+    const root_y = 70, branch_y = 220, leaf_y = 400;
+    const r_root = 44, r_branch = 36, r_leaf = 28;
+    const total_leaves = 8;
+    const leaf_spacing = W / (total_leaves + 1);
+
+    let global_leaf_index = 0;
+    const branches = STATIC_BRANCHES.map(b => {
+      const leaves = b.leaves.map(docType => {
+        const x = leaf_spacing * (global_leaf_index + 1);
+        global_leaf_index++;
+        const srv = itemByDocType[docType] || {};
+        return {
+          docType,
+          x, y: leaf_y, r: r_leaf,
+          status:      srv.status || 'missing',
+          required:    srv.required !== false,
+          label:       LEAF_LABELS[docType] || [docType],
+          description: LEAF_DESC[docType] || srv.description || srv.what_it_is || '—',
+          displayName: srv.label || (LEAF_LABELS[docType] || [docType]).join(' '),
+        };
+      });
+      const branch_x = leaves.reduce((s, l) => s + l.x, 0) / leaves.length;
+      const worstLeaf = leaves.slice().sort((a, z) => statusSeverity(z.status, z.required) - statusSeverity(a.status, a.required))[0];
+      return {
+        ...b,
+        x: branch_x,
+        y: branch_y,
+        r: r_branch,
+        leaves,
+        color: statusColor(worstLeaf.status, worstLeaf.required),
+      };
+    });
+
+    return { branches, root_x: W / 2, root_y, r_root, r_branch, r_leaf };
+  }
+
+  /* ── Bezier curve helper ─────────────────────────────────────── */
+    function curve(ctx, x1, y1, x2, y2) {
+      const my = y1 + (y2 - y1) * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(x1, my, x2, my, x2, y2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+  /* ── Draw node circle + label ────────────────────────────────── */
+  function drawNode(ctx, cx, cy, r, stroke, fill, lines) {
+    // Circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Text
+    ctx.fillStyle = stroke;
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (lines.length === 1) {
+      ctx.fillText(lines[0], cx, cy);
+    } else {
+      ctx.fillText(lines[0], cx, cy - 7);
+      ctx.fillText(lines[1], cx, cy + 7);
+    }
+  }
+
+  /* ── Full render ─────────────────────────────────────────────── */
+  function render() {
+    const W   = container.offsetWidth || 880;
+    const H   = 500;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const lo = computeLayout(W);
+    hitAreas = [];
+
+    // Draw curves first (under nodes)
+    lo.branches.forEach(b => {
+      curve(ctx, lo.root_x, lo.root_y + lo.r_root, b.x, b.y - b.r);
+      b.leaves.forEach(l => curve(ctx, b.x, b.y + b.r, l.x, l.y - l.r));
+    });
+
+    // Root node
+    drawNode(ctx, lo.root_x, lo.root_y, lo.r_root,
+      '#e8c97a', 'rgba(232,201,122,0.15)', ['Plot', 'Compliance']);
+
+    // Branch nodes
+    lo.branches.forEach(b => {
+      const clr = b.color || '#aaa';
+      drawNode(ctx, b.x, b.y, b.r, clr, clr + '26', b.label);
+    });
+
+    // Leaf nodes
+    lo.branches.forEach(b => {
+      b.leaves.forEach(leaf => {
+        const clr = statusColor(leaf.status, leaf.required);
+        drawNode(ctx, leaf.x, leaf.y, leaf.r, clr, clr + '26', leaf.label);
+        hitAreas.push({ x: leaf.x, y: leaf.y, r: leaf.r, data: leaf });
+      });
+    });
+  }
+
+  render();
+  let rTimer;
+  window.addEventListener('resize', () => { clearTimeout(rTimer); rTimer = setTimeout(render, 200); });
+
+  /* ── Tooltip ─────────────────────────────────────────────────── */
+  function showTooltip(hit) {
+    const d    = hit.data;
+    const clr  = statusColor(d.status, d.required);
+    const lbl  = { missing:'Missing', optional:'Optional', uploaded:'Uploaded',
+                   client_uploaded:'Pending Verification', verified:'Verified' }[d.status] || 'Missing';
+    tooltip.innerHTML = `
+      <strong style="font-size:13px;color:#e2e2e2;display:block;margin-bottom:8px;">${d.displayName}</strong>
+      <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;
+                   background:${clr}22;color:${clr};border:1px solid ${clr}44;margin-bottom:8px;">${lbl}</span>
+      <p style="font-size:12px;color:#999;margin:0 0 12px;line-height:1.5;">${d.description}</p>
+      <button onclick="scrollToRow('${d.docType}')" style="background:#e2e2e2;color:#111;border:none;
+              padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;width:100%;">
+        Go to row ↓
+      </button>`;
+
+    // Position near node (offset by r + 8px), clamped to container
+    const r   = hit.r;
+    const tipW = 220, tipH = 160;
+    let tx = hit.x + r + 8;
+    let ty = hit.y - 40;
+    if (tx + tipW > container.offsetWidth) tx = hit.x - r - 8 - tipW;
+    if (tx < 0) tx = 8;
+    if (ty < 0) ty = 8;
+    if (ty + tipH > 500) ty = 500 - tipH - 8;
+
+    tooltip.style.left    = tx + 'px';
+    tooltip.style.top     = ty + 'px';
+    tooltip.style.display = 'block';
+  }
+
+  function hideTooltip() { tooltip.style.display = 'none'; }
+
+  canvas.addEventListener('click', function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx   = e.clientX - rect.left;
+    const my   = e.clientY - rect.top;
+    hideTooltip();
+    for (const hit of hitAreas) {
+      if ((mx - hit.x) ** 2 + (my - hit.y) ** 2 <= hit.r ** 2) {
+        showTooltip(hit);
+        return;
+      }
+    }
+  });
+
+  // Close tooltip on outside click
+  document.addEventListener('click', function(e) {
+    if (!container.contains(e.target)) hideTooltip();
+  });
+
+  /* ── scrollToRow ─────────────────────────────────────────────── */
+  window.scrollToRow = function(docType) {
+    hideTooltip();
+    const row = document.getElementById('doc-row-' + docType);
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('highlight-pulse');
+    setTimeout(() => row.classList.remove('highlight-pulse'), 2000);
+  };
+
+  /* ── Status HTML helpers ─────────────────────────────────────── */
+  const COV_DATA   = {{ compliance_coverage | tojson }};
+  const TREE       = {{ compliance_tree | tojson }};
+  /* ── Status HTML helpers ─────────────────────────────────── */
+  function statusHtml(status) {
+    if (status === 'verified') return '<span class="cw-pill blue">Verified</span>';
+    if (status === 'client_uploaded') return '<span class="cw-pill yellow">Pending Verification</span>';
+    if (status === 'uploaded') return '<span class="cw-pill green">Uploaded</span>';
+    if (status === 'optional') return '<span class="cw-dot yellow">Optional</span>';
+    return '<span class="cw-dot red">Missing</span>';
+  }
+
+  /* ── Refresh item after API response ─────────────────────── */
+  function refreshItem(item) {
+    /* Table row */
+    const row = document.querySelector(`#cw-tbl tr[data-item-id="${item.id}"]`);
+    if (row) {
+      row.cells[2].innerHTML = statusHtml(item.status);
+      const acts = row.querySelector('.cw-acts');
+      acts.innerHTML = '';
+
+      const upBtn = mkBtn('Upload', 'btn btn-ghost cw-act upload-btn');
+      upBtn.dataset.itemId = item.id;
+      acts.appendChild(upBtn);
+
+      if (item.document_id) {
+        const vwLink     = document.createElement('a');
+        vwLink.href      = `/documents/${item.document_id}/download`;
+        vwLink.className = 'btn btn-ghost cw-act';
+        vwLink.target    = '_blank';
+        vwLink.textContent = 'View';
+        acts.appendChild(vwLink);
+
+        const vrBtn = mkBtn(item.status === 'verified' ? 'Unverify' : 'Verify', 'btn btn-ghost cw-act verify-btn');
+        vrBtn.dataset.itemId = item.id;
+        vrBtn.addEventListener('click', () => doVerify(item.id));
+        acts.appendChild(vrBtn);
+      }
+
+      const fi = document.createElement('input');
+      fi.type = 'file'; fi.className = 'cw-file-in';
+      fi.accept = '.pdf,.jpg,.jpeg,.png'; fi.hidden = true;
+      acts.appendChild(fi);
+      bindRow(row);
+    }
+
+    /* Update canvas (update server lookup, re-render) */
+    if (itemByDocType[item.doc_type]) {
+      itemByDocType[item.doc_type].status = item.status;
+      itemByDocType[item.doc_type].document_id = item.document_id;
+    }
+    render();
+
+    /* Summary badges */
+    let up = 0, vr = 0;
+    document.querySelectorAll('#cw-tbl tbody tr[data-item-id]').forEach(r => {
+      const s = r.cells[2].querySelector('[class]');
+      if (!s) return;
+      const cls = s.className;
+      if (cls.includes('pill'))  { up++; if (cls.includes('blue')) vr++; }
+    });
+    const total = document.querySelectorAll('#cw-tbl tbody tr[data-item-id]').length;
+    document.getElementById('cw-stat-up').textContent = `${up}/${total} uploaded`;
+    document.getElementById('cw-stat-vr').textContent = `${vr} verified`;
+
+    /* Coverage bars */
+    updateCoverage();
+  }
+
+  function updateCoverage() {
+    fetch(`/projects/${PROJECT_ID}/compliance/state`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.coverage) return;
+        d.coverage.forEach(cov => {
+          const cell = document.querySelector(`.cw-cov-cell[data-cov-key="${cov.key}"]`);
+          if (!cell) return;
+          const fill = cell.querySelector('.cw-cov-fill');
+          const pct  = cell.querySelector('.cw-cov-pct');
+          fill.style.width  = cov.pct + '%';
+          fill.className    = 'cw-cov-fill ' + (cov.pct === 100 ? 'full' : cov.pct === 0 ? 'zero' : 'part');
+          pct.style.color   = cov.pct === 0 ? '#f0ede8' : '#e8c97a';
+          pct.textContent   = cov.pct + '%';
+        });
+      })
+      .catch(() => {});
+  }
+
+  /* ── Single-step upload (new endpoint) ──────────────────── */
+  async function doUpload(row, file) {
+    const itemId = row.dataset.itemId;
+    const fd = new FormData();
+    fd.append('file', file);
+
+    const r = await fetch(`/projects/${PROJECT_ID}/compliance/${itemId}/upload`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd,
+    });
+    const j = await r.json();
+    if (!r.ok || !j.success) throw new Error(j.error || 'Upload failed.');
+    refreshItem(j.item);
+  }
+
+  async function doVerify(itemId) {
+    const r = await fetch(`/projects/${PROJECT_ID}/compliance/verify/${itemId}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) { alert(d.error || 'Verification failed.'); return; }
+    refreshItem(d.item);
+  }
+
+  async function doRemoveCustom(itemId, btn) {
+    if (!confirm('Remove this custom compliance requirement?')) return;
+    const r = await fetch(`/projects/${PROJECT_ID}/compliance/remove-custom/${itemId}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const d = await r.json();
+    if (!r.ok || !d.success) { alert(d.error || 'Failed.'); return; }
+    const row = document.querySelector(`#cw-tbl tr[data-item-id="${itemId}"]`);
+    if (row) row.remove();
+    updateCoverage();
+  }
+
+  function mkBtn(text, cls) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = cls; b.textContent = text;
+    return b;
+  }
+
+  function bindRow(row) {
+    const btn = row.querySelector('.upload-btn');
+    const fi  = row.querySelector('.cw-file-in');
+    if (btn && fi) {
+      btn.addEventListener('click', () => fi.click());
+      fi.addEventListener('change', async () => {
+        const file = fi.files[0];
+        if (!file) return;
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = 'Uploading…';
+        try { await doUpload(row, file); }
+        catch (e) { alert(e.message || 'Upload failed.'); }
+        finally { btn.disabled = false; if (btn.textContent === 'Uploading…') btn.textContent = orig; fi.value = ''; }
+      });
+    }
+    const vBtn = row.querySelector('.verify-btn');
+    if (vBtn) vBtn.addEventListener('click', () => doVerify(vBtn.dataset.itemId));
+    const rmBtn = row.querySelector('.remove-custom-btn');
+    if (rmBtn) rmBtn.addEventListener('click', () => doRemoveCustom(rmBtn.dataset.itemId, rmBtn));
+  }
+
+  /* Initial bind for all server-rendered rows */
+  document.querySelectorAll('#cw-tbl tbody tr[data-item-id]').forEach(bindRow);
+
+  /* ── Add custom item UI ──────────────────────────────────── */
+  const addBtn    = document.getElementById('cw-add-custom-btn');
+  const addPanel  = document.getElementById('cw-add-custom-panel');
+  const saveBtn   = document.getElementById('cw-custom-save');
+  const cancelBtn = document.getElementById('cw-custom-cancel');
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => { addPanel.style.display = 'block'; addBtn.style.display = 'none'; });
+    cancelBtn.addEventListener('click', () => { addPanel.style.display = 'none'; addBtn.style.display = ''; });
+    saveBtn.addEventListener('click', async () => {
+      const label    = document.getElementById('cw-custom-label').value.trim();
+      const category = document.getElementById('cw-custom-category').value;
+      const required = document.getElementById('cw-custom-required').value;
+      if (!label) { alert('Please enter a document name.'); return; }
+      saveBtn.disabled = true; saveBtn.textContent = 'Adding…';
+      try {
+        const r = await fetch(`/projects/${PROJECT_ID}/compliance/add-custom`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ label, category, required }),
+        });
+        const d = await r.json();
+        if (!r.ok || !d.success) throw new Error(d.error || 'Failed to add item.');
+        /* Inject new row into table */
+        const tbody = document.querySelector('#cw-tbl tbody');
+        const newRow = document.createElement('tr');
+        newRow.dataset.docType = d.item.doc_type;
+        newRow.dataset.itemId  = d.item.id;
+        newRow.id = `doc-row-${d.item.doc_type}`;
+        newRow.innerHTML = `
+          <td>
+            <div style="font-weight:600;display:flex;align-items:center;gap:8px;">
+              ${d.item.label}
+              <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+                           padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.06);color:var(--chalk);">Custom</span>
+            </div>
+          </td>
+          <td><span class="cw-cat">${category}</span></td>
+          <td><span class="cw-dot red">Missing</span></td>
+          <td>
+            <div class="cw-acts">
+              <button type="button" class="btn btn-ghost cw-act upload-btn" data-item-id="${d.item.id}">Upload</button>
+              <button type="button" class="btn btn-ghost cw-act remove-custom-btn"
+                      data-item-id="${d.item.id}"
+                      style="color:var(--chalk);border-color:rgba(255,255,255,.16);">✕</button>
+              <input type="file" class="cw-file-in" accept=".pdf,.jpg,.jpeg,.png" hidden>
+            </div>
+          </td>`;
+        tbody.appendChild(newRow);
+        bindRow(newRow);
+        /* Reset panel */
+        document.getElementById('cw-custom-label').value = '';
+        addPanel.style.display = 'none'; addBtn.style.display = '';
+        updateCoverage();
+      } catch (e) {
+        alert(e.message || 'Failed.');
+      } finally {
+        saveBtn.disabled = false; saveBtn.textContent = 'Add';
+      }
+    });
+  }
+})();
+</script>

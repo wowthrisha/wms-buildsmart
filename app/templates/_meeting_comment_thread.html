@@ -15,7 +15,7 @@
     <div class="inline-actions" style="margin-top:14px;">
       <button type="button" class="mt-btn ghost" data-toggle-reply="reply-{{ comment.id }}">Reply</button>
       {% if not comment.requirement_id %}
-      <form method="POST" action="{{ url_for('requirements.convert_comment', comment_id=comment.id) }}">
+      <form method="POST" action="{{ url_for('requirements.convert_comment', project_id=meeting.project_id, comment_id=comment.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ next_target }}">
         <input type="hidden" name="req_title" value="{{ comment.content[:80] }}">
@@ -24,7 +24,7 @@
       </form>
       {% endif %}
     </div>
-    <form id="reply-{{ comment.id }}" class="field-stack hide" method="POST" action="{{ url_for('requirements.add_comment', meeting_id=meeting.id) }}" style="margin-top:14px;">
+    <form id="reply-{{ comment.id }}" class="field-stack hide" method="POST" action="{{ url_for('requirements.add_comment', project_id=meeting.project_id, meeting_id=meeting.id) }}" style="margin-top:14px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="parent_id" value="{{ comment.id }}">
       <input type="hidden" name="next" value="{{ next_target }}">

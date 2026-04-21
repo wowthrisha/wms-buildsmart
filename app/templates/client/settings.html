@@ -1,32 +1,111 @@
 {% extends "base_client.html" %}
 {% block title %}Settings — BuildSmart{% endblock %}
-
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 {% block content %}
-<div class="page-head">
-    <h1 class="page-title">Settings</h1>
-    <p class="page-subtitle">Manage your account and notifications.</p>
-</div>
+<div class="meetings-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Settings</div>
+          <h1 class="meetings-title">Client Preferences</h1>
+          <p class="meetings-subtitle">Manage your account and update preferences in the same shared visual system as the financial workspace.</p>
+        </div>
+      </div>
+    </section>
 
-<div class="card" style="max-width:600px;">
+<style>
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: var(--ink-3);
+  transition: .35s ease;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+}
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  bottom: 3px;
+  background-color: var(--chalk-2);
+  transition: .35s ease;
+  border-radius: 50%;
+}
+input:checked + .toggle-slider {
+  background: var(--gold-grad);
+  border-color: transparent;
+}
+input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+  background-color: #000;
+}
+</style>
+
+<div class="surface-card" style="max-width:680px;">
     <form action="{{ url_for('settings.index') }}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="section-title">Account Details</div>
         <div class="field">
-            <label>Name</label>
+            <label>Full Name</label>
             <input type="text" name="name" value="{{ current_user.name }}" required>
         </div>
         <div class="field">
+            <label>Email Address</label>
+            <input type="email" value="{{ current_user.email }}" disabled style="opacity:0.6;">
+            <p style="font-size:11px; color:var(--chalk-3); margin-top:4px;">Email stays fixed so project records and approvals remain traceable.</p>
+        </div>
+        <div class="field">
             <label>Phone</label>
-            <input type="text" name="phone" value="{{ current_user.phone or '' }}">
+            <input type="text" name="phone" value="{{ current_user.phone or '' }}" placeholder="+91...">
+        </div>
+        <div class="field">
+            <label>Profession</label>
+            <input
+                type="text"
+                name="profession"
+                value="{{ current_user.profession or '' }}"
+                placeholder="Doctor, Lawyer, Founder, Consultant..."
+            >
+            <p style="font-size:11px; color:var(--chalk-3); margin-top:4px;">BuildSmart uses this to explain approvals and regulations with professional analogies that still sound formal and client-ready.</p>
         </div>
 
         <div class="section-title" style="margin-top:40px;">Preferences</div>
-        <div class="field" style="display:flex; align-items:center; gap:12px;">
-            <input type="checkbox" name="email" id="chk-email" {% if current_user.reminders_email %}checked{% endif %}>
-            <label for="chk-email" style="margin:0;">Email Updates</label>
+        <div class="field" style="background:var(--ink-2); padding:16px; border-radius:12px; border:1px solid var(--line); margin-bottom:12px; display:flex; align-items:center; gap:16px;">
+            <label class="toggle-switch">
+                <input type="checkbox" name="email" id="chk-email" {% if current_user.reminders_email %}checked{% endif %}>
+                <span class="toggle-slider"></span>
+            </label>
+            <label for="chk-email" style="margin:0; font-size:14px; color:var(--chalk); cursor:pointer;">Email Updates</label>
+        </div>
+        <div class="field" style="background:var(--ink-2); padding:16px; border-radius:12px; border:1px solid var(--line); display:flex; align-items:center; gap:16px;">
+            <label class="toggle-switch">
+                <input type="checkbox" name="sms" id="chk-sms" {% if current_user.reminders_sms %}checked{% endif %}>
+                <span class="toggle-slider"></span>
+            </label>
+            <label for="chk-sms" style="margin:0; font-size:14px; color:var(--chalk); cursor:pointer;">SMS Updates</label>
         </div>
 
         <button type="submit" class="btn btn-primary" style="margin-top:32px; width:100%;">Save Settings</button>
     </form>
+</div>
+</div>
 </div>
 {% endblock %}

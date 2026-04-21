@@ -1,99 +1,111 @@
 {% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
-{% block title %}Meetings Overview — BuildSmart{% endblock %}
+{% block title %}Meetings — BuildSmart{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
-<div class="meetings-page">
-  <div class="meetings-shell">
-    <section class="meetings-hero">
-      <div class="meetings-head">
-        <div>
-          <div class="meetings-kicker">Meetings Module</div>
-          <h1 class="meetings-title">Meetings Overview</h1>
-          <p class="meetings-subtitle">A clean control surface for requests, proposals, confirmed schedules, and completed MOM records. Each meeting opens into its own workspace instead of stacking everything into one crowded page.</p>
-        </div>
-        <div class="inline-actions">
-          {% include '_meetings_nav.html' %}
-        </div>
-      </div>
-      <div class="inline-actions" style="margin-top:18px;">
-        {% if current_user.role == 'client' and projects %}
-        <button type="button" class="mt-btn primary" data-open-modal="request-modal">Request Meeting</button>
-        {% endif %}
-        {% if current_user.role == 'architect' and projects %}
-        <button type="button" class="mt-btn secondary" data-open-modal="propose-modal">Propose Meeting</button>
-        {% endif %}
-      </div>
-    </section>
 
-    <section class="summary-grid">
-      <article class="metric-card">
-        <div class="metric-label">Pending Requests</div>
-        <div class="metric-value">{{ counts.pending_requests }}</div>
-        <div class="metric-foot">Client requests waiting for slot proposals</div>
-      </article>
-      <article class="metric-card">
-        <div class="metric-label">Proposed</div>
-        <div class="metric-value">{{ counts.proposed }}</div>
-        <div class="metric-foot">Meetings awaiting final selection</div>
-      </article>
-      <article class="metric-card">
-        <div class="metric-label">Confirmed</div>
-        <div class="metric-value">{{ counts.confirmed }}</div>
-        <div class="metric-foot">Scheduled meetings ready for MOM work</div>
-      </article>
-      <article class="metric-card">
-        <div class="metric-label">Completed</div>
-        <div class="metric-value">{{ counts.completed }}</div>
-        <div class="metric-foot">Closed meetings with archived outcome</div>
-      </article>
-    </section>
+{% set counts = namespace(requests=0, proposed=0, confirmed=0, completed=0) %}
+{% for m in meetings %}
+  {% if m.normalized_status == 'pending_request' %}{% set counts.requests = counts.requests + 1 %}
+  {% elif m.normalized_status in ('proposed', 'counter_proposed') %}{% set counts.proposed = counts.proposed + 1 %}
+  {% elif m.normalized_status == 'confirmed' %}{% set counts.confirmed = counts.confirmed + 1 %}
+  {% elif m.normalized_status == 'completed' %}{% set counts.completed = counts.completed + 1 %}
+  {% endif %}
+{% endfor %}
 
-    <section class="table-card">
-      <div class="table-toolbar">
-        <div>
-          <div class="section-kicker">Directory</div>
-          <h3 style="margin:6px 0 0;">All Meetings</h3>
-        </div>
-      </div>
-      {% if meetings %}
-      <table class="dark-table">
-        <thead>
-          <tr>
-            <th>Meeting ID</th>
-            <th>Project</th>
-            <th>Date</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for meeting in meetings %}
-          {% set state = meeting.normalized_status %}
-          <tr>
-            <td>#{{ meeting.id }}</td>
-            <td>{{ meeting.project.name }}</td>
-            <td>
-              {% if meeting.selected_time %}
-              {{ meeting.selected_time|strftime('%d %b %Y · %H:%M') }}
-              {% else %}
-              {{ meeting.created_at|strftime('%d %b %Y · %H:%M') }}
-              {% endif %}
-            </td>
-            <td>
-              <span class="status-pill {{ state|replace('_', '-') }}">{{ meeting.status_label }}</span>
-            </td>
-            <td><a class="ghost-link" href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}">Open →</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="mt-empty">No meetings yet. Start with a request or a fresh proposal.</div>
-      {% endif %}
-    </section>
+<div class="page-shell">
+
+  <div class="page-hero">
+    <p class="page-kicker">Meetings Module</p>
+    <h1 class="page-title">Meetings Overview</h1>
+    <p class="page-subtitle">All meetings across your projects — requests, proposals, confirmed schedules, and completed MOM records.</p>
+    {% if current_user.role == 'client' and projects %}
+    <button type="button" class="hero-cta" data-open-modal="request-modal">+ Request Meeting</button>
+    {% elif current_user.role == 'architect' and projects %}
+    <a href="/projects" class="hero-cta">Go to a Project →</a>
+    {% endif %}
   </div>
+
+  {% if counts.requests > 0 %}
+  <div class="next-step-bar">
+    <p class="ns-kicker">Action needed</p>
+    <p class="ns-title">{{ counts.requests }} pending meeting request{{ 's' if counts.requests != 1 }}</p>
+    <p class="ns-body">Open the relevant project to propose time slots.</p>
+  </div>
+  {% else %}
+  <div class="next-step-bar">
+    <p class="ns-kicker">Status</p>
+    <p class="ns-title">{{ meetings|length }} meeting{{ 's' if meetings|length != 1 }} on record</p>
+    <p class="ns-body">{{ counts.confirmed }} confirmed · {{ counts.completed }} completed · {{ counts.proposed }} awaiting selection.</p>
+  </div>
+  {% endif %}
+
+  <div class="stat-grid" style="margin-bottom:24px;">
+    <div class="stat-tile">
+      <div class="st-label">Pending Requests</div>
+      <div class="st-value">{{ counts.requests }}</div>
+      <div class="st-sub">Waiting for slot proposals</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Proposed</div>
+      <div class="st-value">{{ counts.proposed }}</div>
+      <div class="st-sub">Awaiting final selection</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Confirmed</div>
+      <div class="st-value">{{ counts.confirmed }}</div>
+      <div class="st-sub">Ready for MOM work</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Completed</div>
+      <div class="st-value">{{ counts.completed }}</div>
+      <div class="st-sub">Archived outcomes</div>
+    </div>
+  </div>
+
+  <section class="table-card">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Directory</div>
+        <h3 style="margin:6px 0 0;">All Meetings</h3>
+      </div>
+    </div>
+    {% if meetings %}
+    <table class="dark-table">
+      <thead>
+        <tr>
+          <th>Meeting ID</th>
+          <th>Project</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for meeting in meetings %}
+        {% set state = meeting.normalized_status %}
+        <tr>
+          <td>#{{ meeting.id }}</td>
+          <td>{{ meeting.project.name }}</td>
+          <td>
+            {% if meeting.confirmed_time or meeting.confirmed_slot %}{{ (meeting.confirmed_time or meeting.confirmed_slot)|strftime('%d %b %Y · %H:%M') }}
+            {% elif meeting.slot_1 %}{{ meeting.slot_1|strftime('%d %b %Y · %H:%M') }}
+            {% else %}{{ meeting.created_at|strftime('%d %b %Y · %H:%M') }}{% endif %}
+          </td>
+          <td>
+            <span class="status-pill {{ state|replace('_', '-') }}">{{ meeting.status_label }}</span>
+          </td>
+          <td><a class="ghost-link" href="/projects/{{ meeting.project_id }}/meetings/{{ meeting.id }}">Open →</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="mt-empty">No meetings yet. Go to a project to propose or request one.</div>
+    {% endif %}
+  </section>
+
 </div>
 
 {% if current_user.role == 'client' and projects %}
@@ -103,13 +115,13 @@
       <div class="section-kicker">Client Flow</div>
       <h2 class="modal-title">Request Meeting</h2>
     </div>
-    <form method="POST" action="{{ url_for('meetings.request_meeting', project_id=projects[0].id) }}" id="request-form">
+    <form method="POST" action="/projects/{{ projects[0].id }}/meetings/request" id="request-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="modal-body modal-fields">
         {% if projects|length > 1 %}
         <div>
-          <label>Project</label>
-          <select name="project_id" data-project-route="request">
+          <label class="ds-label">Project</label>
+          <select name="project_id" id="request-project-select" class="ds-input ds-select">
             {% for project in projects %}
             <option value="{{ project.id }}">{{ project.name }}</option>
             {% endfor %}
@@ -117,101 +129,43 @@
         </div>
         {% endif %}
         <div>
-          <label>Description</label>
-          <textarea name="description" placeholder="What should this meeting cover?" required></textarea>
+          <label class="ds-label">Topic</label>
+          <input type="text" name="title" class="ds-input" placeholder="What should this meeting cover?" required>
+        </div>
+        <div>
+          <label class="ds-label">Notes</label>
+          <textarea name="notes" class="ds-input" rows="3" placeholder="Add any context for your architect"></textarea>
         </div>
       </div>
       <div class="modal-foot">
         <button type="button" class="mt-btn ghost" data-close-modal="request-modal">Cancel</button>
-        <button type="submit" class="mt-btn primary">Send Request</button>
-      </div>
-    </form>
-  </div>
-</div>
-{% endif %}
-
-{% if current_user.role == 'architect' and projects %}
-<div class="modal-backdrop mt-modal" id="propose-modal">
-  <div class="modal-card">
-    <div class="modal-head">
-      <div class="section-kicker">Architect Flow</div>
-      <h2 class="modal-title">Propose Meeting</h2>
-    </div>
-    <form method="POST" action="{{ url_for('meetings.propose', project_id=projects[0].id) }}" id="propose-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="modal-body modal-fields">
-        {% if projects|length > 1 %}
-        <div>
-          <label>Project</label>
-          <select name="project_id" data-project-route="propose">
-            {% for project in projects %}
-            <option value="{{ project.id }}">{{ project.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        {% endif %}
-        <div>
-          <label>Agenda</label>
-          <textarea name="description" placeholder="Optional meeting context"></textarea>
-        </div>
-        <div class="field-grid two">
-          <div>
-            <label>Option 1</label>
-            <input type="datetime-local" name="slot_1" required>
-          </div>
-          <div>
-            <label>Option 2</label>
-            <input type="datetime-local" name="slot_2">
-          </div>
-        </div>
-        <div>
-          <label>Option 3</label>
-          <input type="datetime-local" name="slot_3">
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button type="button" class="mt-btn ghost" data-close-modal="propose-modal">Cancel</button>
-        <button type="submit" class="mt-btn primary">Save Proposal</button>
+        <button type="submit" class="mt-btn mt-btn-primary">Send Request</button>
       </div>
     </form>
   </div>
 </div>
 {% endif %}
 {% endblock %}
+
 {% block extra_js %}
 <script>
 (function () {
-  function openModal(id) {
-    var modal = document.getElementById(id);
-    if (modal) modal.classList.add('open');
-  }
-  function closeModal(id) {
-    var modal = document.getElementById(id);
-    if (modal) modal.classList.remove('open');
-  }
-  document.querySelectorAll('[data-open-modal]').forEach(function (button) {
-    button.addEventListener('click', function () { openModal(button.getAttribute('data-open-modal')); });
+  function openModal(id) { var m = document.getElementById(id); if (m) m.classList.add('open'); }
+  function closeModal(id) { var m = document.getElementById(id); if (m) m.classList.remove('open'); }
+  document.querySelectorAll('[data-open-modal]').forEach(function (b) {
+    b.addEventListener('click', function () { openModal(b.getAttribute('data-open-modal')); });
   });
-  document.querySelectorAll('[data-close-modal]').forEach(function (button) {
-    button.addEventListener('click', function () { closeModal(button.getAttribute('data-close-modal')); });
+  document.querySelectorAll('[data-close-modal]').forEach(function (b) {
+    b.addEventListener('click', function () { closeModal(b.getAttribute('data-close-modal')); });
   });
-  document.querySelectorAll('.modal-backdrop.mt-modal').forEach(function (modal) {
-    modal.addEventListener('click', function (event) {
-      if (event.target === modal) modal.classList.remove('open');
-    });
+  document.querySelectorAll('.modal-backdrop.mt-modal').forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) m.classList.remove('open'); });
   });
-  var requestSelect = document.querySelector('#request-form [data-project-route="request"]');
-  var requestForm = document.getElementById('request-form');
-  if (requestSelect && requestForm) {
-    requestSelect.addEventListener('change', function () {
-      requestForm.action = '/projects/' + requestSelect.value + '/meetings/request';
-    });
-  }
-  var proposeSelect = document.querySelector('#propose-form [data-project-route="propose"]');
-  var proposeForm = document.getElementById('propose-form');
-  if (proposeSelect && proposeForm) {
-    proposeSelect.addEventListener('change', function () {
-      proposeForm.action = '/projects/' + proposeSelect.value + '/meetings/propose';
+  var sel = document.getElementById('request-project-select');
+  var form = document.getElementById('request-form');
+  if (sel && form) {
+    sel.addEventListener('change', function () {
+      form.action = '/projects/' + sel.value + '/meetings/request';
     });
   }
 }());

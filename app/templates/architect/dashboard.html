@@ -1,133 +1,160 @@
 {% extends "base_architect.html" %}
 {% block title %}Dashboard — BuildSmart{% endblock %}
-
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div class="page-head-row">
-    <div>
-      <div class="page-eyebrow">Overview</div>
-      <h1 class="page-title">Architect Dashboard</h1>
-      <p class="page-subtitle">Welcome back, {{ current_user.name }}. Here is what's happening today.</p>
+<div class="page-shell">
+
+  <div class="page-hero">
+    <p class="page-kicker">Overview</p>
+    <h1 class="page-title">Architect Dashboard</h1>
+    <p class="page-subtitle">Welcome back, {{ current_user.name }}. Here is the current project, approvals, meetings, and compliance pulse across the workspace.</p>
+    <button class="hero-cta" onclick="document.getElementById('modal-new-project').classList.add('open')">+ New Project</button>
+  </div>
+
+  <div class="next-step-bar">
+    <p class="ns-kicker">Workspace pulse</p>
+    <p class="ns-title">{{ active_count }} active project{{ 's' if active_count != 1 }}</p>
+    <p class="ns-body">{{ pending_approvals }} pending approval{{ 's' if pending_approvals != 1 }} · {{ remaining_compliance }} compliance item{{ 's' if remaining_compliance != 1 }} still open · {{ confirmed_meetings }} confirmed meeting{{ 's' if confirmed_meetings != 1 }} this week.</p>
+  </div>
+
+  <div class="stat-grid" style="margin-bottom:24px;">
+    <div class="stat-tile">
+      <div class="st-label">Active Projects</div>
+      <div class="st-value">{{ active_count }}</div>
+      <div class="st-sub">Across all stages</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Pending Approvals</div>
+      <div class="st-value">{{ pending_approvals }}</div>
+      <div class="st-sub">Awaiting client review</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Confirmed Meetings</div>
+      <div class="st-value">{{ confirmed_meetings }}</div>
+      <div class="st-sub">Scheduled this week</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-label">Compliance Open</div>
+      <div class="st-value">{{ remaining_compliance }}</div>
+      <div class="st-sub">Items remaining</div>
     </div>
   </div>
-</div>
 
-<!-- Stat Row -->
-<div class="stats-row">
-  <div class="stat-card">
-    <div class="stat-label">Active Projects</div>
-    <div class="stat-val">{{ active_count }}</div>
-    <div class="stat-sub">Across all stages</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Pending Approvals</div>
-    <div class="stat-val">{{ pending_approvals }}</div>
-    <div class="stat-sub">Awaiting client review</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Confirmed Meetings</div>
-    <div class="stat-val">{{ confirmed_meetings }}</div>
-    <div class="stat-sub">Scheduled this week</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Compliance Alert</div>
-    <div class="stat-val">{{ remaining_compliance }}</div>
-    <div class="stat-sub">Items remaining</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">New Requirements</div>
-    <div class="stat-val">{{ new_requirements }}</div>
-    <div class="stat-sub">Raised from meetings and workflows</div>
-  </div>
-</div>
+  <section class="detail-grid">
+    <article class="surface-card">
+      <div class="section-kicker">System Overview</div>
+      <div class="stat-grid" style="margin-top:16px; grid-template-columns:repeat(3, minmax(0, 1fr));">
+        <div class="stat-tile">
+          <div class="st-label">Platform Projects</div>
+          <div class="st-value" style="font-size:32px;">{{ total_projects }}</div>
+          <div class="st-sub">Global total</div>
+        </div>
+        <div class="stat-tile">
+          <div class="st-label">Active Clients</div>
+          <div class="st-value" style="font-size:32px;">{{ total_clients }}</div>
+          <div class="st-sub">Across platform</div>
+        </div>
+        <div class="stat-tile">
+          <div class="st-label">Vaulted Files</div>
+          <div class="st-value" style="font-size:32px;">{{ total_docs }}</div>
+          <div class="st-sub">Total documents</div>
+        </div>
+      </div>
+    </article>
 
-<!-- Consolidated System Stats -->
-<div class="section-title">System Overview</div>
-<div class="stats-row" style="margin-top:16px;">
-  <div class="stat-card">
-    <div class="stat-label">Platform Projects</div>
-    <div class="stat-val">{{ total_projects }}</div>
-    <div class="stat-sub">Global total</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Active Clients</div>
-    <div class="stat-val">{{ total_clients }}</div>
-    <div class="stat-sub">Across platform</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Vaulted Files</div>
-    <div class="stat-val">{{ total_docs }}</div>
-    <div class="stat-sub">Total documents</div>
-  </div>
-</div>
+    <article class="surface-card">
+      <div class="section-kicker">Requirements</div>
+      <div style="margin-top:10px; font-size:42px; font-weight:800; letter-spacing:-0.05em; color:var(--text-primary);">{{ new_requirements }}</div>
+      <div style="margin-top:8px; font-size:12px; color:var(--text-secondary);">Raised from meetings and workflows</div>
+    </article>
+  </section>
 
-<div class="card" style="margin-top:24px;">
-    <div class="section-title">Site Configuration (TNPCR)</div>
-    <p style="color:var(--chalk-3); font-size:13px; margin-bottom:16px;">Global compliance engine rules.</p>
-    <table class="data-table">
+  <section class="table-card" style="margin-top:18px;">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Site Configuration</div>
+        <h3 style="margin:6px 0 0;">TNPCR Rules</h3>
+      </div>
+    </div>
+    <div class="table-card-body">
+      <table class="dark-table">
         <thead>
-            <tr><th>Rule ID</th><th>Parameter</th><th>Value</th><th>Status</th></tr>
+          <tr><th>Rule ID</th><th>Parameter</th><th>Value</th><th>Status</th></tr>
         </thead>
         <tbody>
-            <tr><td>R-01</td><td>Minimum Plot Area</td><td>80 sqm</td><td><span class="badge badge-teal">Active</span></td></tr>
-            <tr><td>R-02</td><td>Max Height (Residential)</td><td>12m</td><td><span class="badge badge-teal">Active</span></td></tr>
-            <tr><td>R-03</td><td>Front Setback (Std)</td><td>1.5m</td><td><span class="badge badge-teal">Active</span></td></tr>
+          <tr><td>R-01</td><td>Minimum Plot Area</td><td>80 sqm</td><td><span class="status-pill confirmed">Active</span></td></tr>
+          <tr><td>R-02</td><td>Max Height (Residential)</td><td>12m</td><td><span class="status-pill confirmed">Active</span></td></tr>
+          <tr><td>R-03</td><td>Front Setback (Std)</td><td>1.5m</td><td><span class="status-pill confirmed">Active</span></td></tr>
         </tbody>
-    </table>
-</div>
-
-<div class="section-title" style="margin-top:32px;">Project Pipeline</div>
-
-<!-- Kanban Board -->
-<div class="kanban-board">
-  {% for status in ['Design', 'Review', 'Submitted', 'Approved'] %}
-  <div class="kanban-col" data-status="{{ status }}">
-    <div class="kanban-col-head">
-      {{ status }}
-      <span class="kanban-count">
-        {{ projects|selectattr('status', 'equalto', status)|list|length }}
-      </span>
+      </table>
     </div>
-    {% for p in projects if p.status == status %}
-    <div class="kanban-card" data-project-id="{{ p.id }}">
-      <div class="kanban-card-title">
-        <a href="{{ url_for('projects.workspace', project_id=p.id) }}" style="text-decoration:none; color:inherit;">
-          {{ p.name }}
-        </a>
-      </div>
-      <div class="kanban-card-meta">
-        {{ p.client.name if p.client else 'No client' }}
-      </div>
-      <div class="kanban-card-meta" style="margin-top:4px; opacity:0.6; font-size:10px;">
-        Updated {{ p.updated_at|timeago }}
+  </section>
+
+  <section class="surface-card" style="margin-top:18px;">
+    <div class="section-head" style="padding-left:0; padding-right:0; padding-top:0;">
+      <div>
+        <div class="section-kicker">Project Pipeline</div>
+        <h3 style="margin-top:6px;">Delivery board</h3>
       </div>
     </div>
-    {% endfor %}
-  </div>
-  {% endfor %}
-</div>
-
-<div class="card" style="margin-top:24px;">
-  <div class="section-title">Recent Requirements</div>
-  {% if recent_requirements %}
-  <table class="data-table" style="margin-top:16px;">
-    <thead>
-      <tr><th>Title</th><th>Project</th><th>Status</th><th>Created</th></tr>
-    </thead>
-    <tbody>
-      {% for requirement in recent_requirements %}
-      <tr>
-        <td>{{ requirement.title }}</td>
-        <td>{{ requirement.project.name if requirement.project else '—' }}</td>
-        <td>{{ requirement.status|replace('_', ' ')|title }}</td>
-        <td>{{ requirement.created_at|timeago }}</td>
-      </tr>
+    <div class="kanban-grid">
+      {% for status in ['Design', 'Review', 'Submitted', 'Approved'] %}
+      <div class="kanban-column" data-status="{{ status }}">
+        <div class="kanban-head">
+          <div>
+            <div class="section-kicker">{{ status }}</div>
+          </div>
+          <span class="kanban-count">{{ projects|selectattr('status', 'equalto', status)|list|length }}</span>
+        </div>
+        <div class="kanban-dropzone">
+          {% for p in projects if p.status == status %}
+          <div class="kanban-card" data-project-id="{{ p.id }}">
+            <div class="kanban-card-title"><a href="{{ url_for('projects.workspace', project_id=p.id) }}" style="text-decoration:none; color:inherit;">{{ p.name }}</a></div>
+            <div class="kanban-card-meta">
+              <span>{{ p.client.name if p.client else 'No client' }}</span>
+              <span>{{ p.updated_at|timeago }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p style="color:var(--chalk-3); font-size:13px; margin-top:16px;">No requirements have been raised yet.</p>
-  {% endif %}
-</div>
+    </div>
+  </section>
 
+  <section class="table-card" style="margin-top:18px;">
+    <div class="table-toolbar">
+      <div>
+        <div class="section-kicker">Recent Requirements</div>
+        <h3 style="margin:6px 0 0;">Latest changes</h3>
+      </div>
+    </div>
+    <div class="table-card-body">
+      {% if recent_requirements %}
+      <table class="dark-table">
+        <thead>
+          <tr><th>Title</th><th>Project</th><th>Source</th><th>Raised By</th><th>Status</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+          {% for requirement in recent_requirements %}
+          <tr>
+            <td>{{ requirement.title }}</td>
+            <td>{{ requirement.project.name if requirement.project else '—' }}</td>
+            <td>{{ requirement.source|replace('_', ' ')|title }}</td>
+            <td>{{ requirement.raiser.name if requirement.raiser else requirement.creator.name if requirement.creator else 'System' }}</td>
+            <td>{{ requirement.status|replace('_', ' ')|title }}</td>
+            <td>{{ requirement.created_at|timeago }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="mt-empty">No requirements have been raised yet.</div>
+      {% endif %}
+    </div>
+  </section>
+
+</div>
 {% endblock %}

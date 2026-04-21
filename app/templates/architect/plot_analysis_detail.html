@@ -1,0 +1,213 @@
+{% extends "base_architect.html" %}
+{% block title %}Edit Plot Fields — BuildSmart{% endblock %}
+
+{% block extra_css %}
+<style>
+  .detail-layout { display:grid; grid-template-columns:1fr 420px; gap:24px; align-items:start; }
+  @media (max-width:1100px) { .detail-layout { grid-template-columns:1fr; } }
+
+  /* Drawing preview */
+  .drawing-frame { background:var(--ink-2); border:1px solid var(--line); border-radius:var(--r-md); overflow:hidden; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center; position:relative; }
+  .drawing-frame img { max-width:100%; max-height:100%; object-fit:contain; }
+  .drawing-frame .no-preview { text-align:center; color:var(--chalk-3); padding:40px; }
+
+  /* Field rows */
+  .field-table { width:100%; border-collapse:collapse; }
+  .field-table th { font-size:11px; font-weight:600; color:var(--chalk-3); text-transform:uppercase; letter-spacing:0.06em; padding:8px 12px; text-align:left; border-bottom:1px solid var(--line); }
+  .field-table td { padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+  .field-table tr:last-child td { border-bottom:none; }
+  .field-input { background:var(--ink-2); border:1px solid var(--line); border-radius:var(--r-sm); color:var(--chalk); padding:8px 10px; width:100%; font-size:13px; font-family:inherit; transition:border-color 0.2s; }
+  .field-input:focus { outline:none; border-color:var(--gold-glow); }
+  .field-input.missing { border-color:rgba(251,113,133,0.4); background:rgba(251,113,133,0.06); }
+  .field-input.manual  { border-color:rgba(245,200,66,0.4);  background:rgba(245,200,66,0.04); }
+
+  /* Confidence badge */
+  .conf-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:10px; font-weight:700; white-space:nowrap; }
+  .conf-badge.high    { background:rgba(74,222,128,0.12); color:#4ade80; }
+  .conf-badge.medium  { background:rgba(96,165,250,0.12); color:#60a5fa; }
+  .conf-badge.low     { background:rgba(245,200,66,0.12); color:#f5c842; }
+  .conf-badge.missing { background:rgba(251,113,133,0.12); color:#fb7185; }
+  .conf-badge.manual  { background:rgba(232,201,122,0.12); color:var(--gold); }
+
+  /* Needs-input highlight */
+  .needs-input-row { background:rgba(251,113,133,0.04); }
+
+  .action-bar { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+  .raw-text-block { background:var(--ink-2); border:1px solid var(--line); border-radius:var(--r-sm); padding:16px; font-family:'Space Mono', monospace; font-size:11px; color:var(--chalk-3); white-space:pre-wrap; max-height:180px; overflow-y:auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-row">
+    <div>
+      <div class="page-eyebrow">
+        <a href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}" style="color:var(--chalk-3); text-decoration:none;">Plot Analysis</a>
+        <span style="margin:0 6px; color:var(--chalk-3);">›</span>
+        Edit Fields
+      </div>
+      <h1 class="page-title">{{ analysis.original_filename or 'Untitled Drawing' }}</h1>
+      <p class="page-subtitle">Review OCR-extracted values, correct any errors, then run the compliance analysis.</p>
+    </div>
+  </div>
+</div>
+
+<div class="detail-layout">
+
+  <!-- LEFT: drawing preview + raw OCR text -->
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    <div class="card" style="padding:0; overflow:hidden;">
+      <div style="padding:16px 20px; border-bottom:1px solid var(--line);">
+        <div class="section-title">Drawing Preview</div>
+      </div>
+      <div class="drawing-frame" style="margin:20px; border-radius:var(--r-sm);">
+        {% if analysis.file_path %}
+          {% set ext = analysis.file_path.split('.')[-1].lower() %}
+          {% if ext in ['jpg', 'jpeg', 'png'] %}
+            <img src="{{ url_for('documents.serve_file', filename=analysis.file_path) }}"
+                 alt="Uploaded drawing"
+                 onerror="this.parentElement.innerHTML='<div class=\'no-preview\'><svg viewBox=\'0 0 24 24\' style=\'width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1;margin-bottom:12px;\'><path d=\'M3 3h18v18H3zM3 9h18M9 3v18\'/></svg><p>Preview not available</p></div>'">
+          {% else %}
+          <div class="no-preview">
+            <svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1;margin-bottom:12px;">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <p>{{ analysis.original_filename }}</p>
+            <p style="font-size:11px; margin-top:4px;">PDF — preview not available</p>
+          </div>
+          {% endif %}
+        {% else %}
+        <div class="no-preview">
+          <svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1;margin-bottom:12px;">
+            <path d="M3 3h18v18H3zM3 9h18M9 3v18"/>
+          </svg>
+          <p>No drawing uploaded</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if analysis.raw_text %}
+    <div class="card">
+      <div class="section-title" style="margin-bottom:12px;">Raw OCR Text</div>
+      <div class="raw-text-block">{{ analysis.raw_text }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- RIGHT: editable field form -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <div class="section-title">Extracted Fields</div>
+      <div style="font-size:11px; color:var(--chalk-3);">
+        {% set missing_count = namespace(n=0) %}
+        {% for key, label, unit in field_meta %}
+          {% set f = fields.get(key) %}
+          {% if not f or not f.value %}{% set missing_count.n = missing_count.n + 1 %}{% endif %}
+        {% endfor %}
+        {% if missing_count.n > 0 %}
+        <span style="color:#fb7185;">{{ missing_count.n }} field{{ 's' if missing_count.n != 1 }} need input</span>
+        {% else %}
+        <span style="color:#4ade80;">All fields populated</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="POST"
+          action="{{ url_for('plot_analysis.edit', project_id=project.id, analysis_id=analysis.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <table class="field-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+            <th>Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key, label, unit in field_meta %}
+          {% set f = fields.get(key) %}
+          {% set is_missing = not f or not f.value %}
+          {% set conf_label = f.confidence_label if f else 'missing' %}
+          <tr class="{{ 'needs-input-row' if is_missing else '' }}">
+            <td>
+              <div style="font-weight:500; color:var(--chalk); font-size:13px;">{{ label }}</div>
+              <div style="font-size:11px; color:var(--chalk-3);">{{ unit }}</div>
+            </td>
+            <td>
+              <input
+                type="text"
+                name="{{ key }}"
+                value="{{ f.value if f and f.value else '' }}"
+                placeholder="{{ 'Enter ' + label.lower() + '…' }}"
+                class="field-input {{ 'missing' if is_missing else ('manual' if f and f.is_manual_override else '') }}"
+                inputmode="decimal"
+              >
+              {% if is_missing %}
+              <div style="font-size:10px; color:#fb7185; margin-top:4px;">Needs manual input</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if is_missing %}
+              <span class="conf-badge missing">Missing</span>
+              {% elif conf_label == 'manual' %}
+              <span class="conf-badge manual">Manual</span>
+              {% elif conf_label == 'high' %}
+              <span class="conf-badge high">High {{ '%.0f'|format(f.confidence * 100) }}%</span>
+              {% elif conf_label == 'medium' %}
+              <span class="conf-badge medium">Med {{ '%.0f'|format(f.confidence * 100) }}%</span>
+              {% elif conf_label == 'low' %}
+              <span class="conf-badge low">Low {{ '%.0f'|format(f.confidence * 100) }}%</span>
+              {% else %}
+              <span class="conf-badge missing">OCR 0%</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="action-bar">
+        <a href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}"
+           class="btn btn-ghost">Back</a>
+        <button type="submit" class="btn btn-ghost">Save Fields</button>
+      </div>
+    </form>
+
+    <!-- Run analysis button (separate form) -->
+    <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--line);">
+      <p style="font-size:12px; color:var(--chalk-3); margin-bottom:12px;">
+        Save fields first, then run the compliance engine to compute scores.
+      </p>
+      <form method="POST"
+            action="{{ url_for('plot_analysis.run_analysis', project_id=project.id, analysis_id=analysis.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary" style="width:100%;">
+          <svg viewBox="0 0 24 24" style="width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0;">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Run Compliance Analysis
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Highlight input as manually edited
+document.querySelectorAll('.field-input').forEach(input => {
+  const original = input.value;
+  input.addEventListener('input', () => {
+    if (input.value !== original && input.value !== '') {
+      input.classList.remove('missing');
+      input.classList.add('manual');
+    }
+  });
+});
+</script>
+{% endblock %}

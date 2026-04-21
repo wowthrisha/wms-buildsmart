@@ -1,17 +1,17 @@
 {% extends 'base_architect.html' if current_user.role == 'architect' else 'base_client.html' %}
 {% block title %}Payments — {{ project.name }}{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
 {% endblock %}
 {% block content %}
 <div class="meetings-page">
-  <div class="meetings-shell">
+  <div class="meetings-shell project-tab-shell">
     <section class="meetings-hero">
       <div class="meetings-head">
         <div>
           <div class="meetings-kicker">Payments Ledger</div>
           <h1 class="meetings-title">{{ project.name }}</h1>
-          <p class="meetings-subtitle">A shared financial workspace for budget, client payments, project expenses, proofs, and approvals. Both sides see the exact same numbers and ledger rows.</p>
+          <p class="meetings-subtitle">A shared financial workspace for budget, payments, expenses, proofs, and approvals with one consistent ledger view for both sides.</p>
         </div>
         <div class="inline-actions">
           {% if current_user.role == 'client' %}
@@ -20,9 +20,6 @@
           {% if current_user.role == 'architect' %}
           <button type="button" class="mt-btn primary" data-open-modal="expense-modal">Add Expense</button>
           <button type="button" class="mt-btn secondary" data-open-modal="budget-modal">Update Budget</button>
-          {% endif %}
-          {% if current_user.role == 'architect' %}
-          <a class="mt-btn ghost" href="{{ url_for('projects.workspace', project_id=project.id) }}">Back To Project</a>
           {% endif %}
         </div>
       </div>

@@ -8,9 +8,9 @@ from sqlalchemy.orm import joinedload
 
 from app import db
 from app.auth import require_architect
-from app.models import AuditLog, Payment, PaymentLog, Project
+from app.models import AuditLog, PaymentLog, Project
 from app.notifications_service import notify_user_comms
-from app.time_utils import utc_now
+from app.time_utils import ensure_utc, utc_now
 
 bp = Blueprint('payments', __name__)
 
@@ -78,6 +78,11 @@ def _notify_counterparty(project, title, body):
 
 
 def _auto_confirm_stale(project):
+    last_run = project.auto_confirm_checked_at  # naive datetime from DB
+    now = utc_now()  # naive datetime — keep consistent, no tzinfo mixing
+    if last_run and now - last_run < timedelta(hours=1):
+        return 0
+
     cutoff = utc_now() - timedelta(days=7)
     stale_logs = (
         PaymentLog.query
@@ -85,10 +90,8 @@ def _auto_confirm_stale(project):
         .filter(PaymentLog.created_at <= cutoff)
         .all()
     )
-    if not stale_logs:
-        return 0
 
-    approved_at = utc_now()
+    approved_at = now
     with _transaction():
         for log in stale_logs:
             log.status = 'auto_confirmed'
@@ -101,6 +104,7 @@ def _auto_confirm_stale(project):
                 description=f'Client payment #{log.id} auto-confirmed after 7 days.',
                 is_client_visible=True,
             ))
+        project.auto_confirm_checked_at = approved_at
     return len(stale_logs)
 
 
@@ -243,6 +247,15 @@ def index():
     return render_template('payments_index.html', project_cards=_build_project_cards(projects))
 
 
+@bp.route('/payments/project/<int:project_id>')
+@login_required
+def project_summary_json(project_id):
+    """Lightweight JSON summary endpoint used by tests and future API consumers."""
+    project = _get_project_or_403(project_id)
+    logs = _payment_logs_for(project)
+    return jsonify({'summary': _build_summary(project, logs)})
+
+
 @bp.route('/projects/<int:project_id>/payments')
 @login_required
 def project_overview(project_id):
@@ -258,6 +271,8 @@ def project_overview(project_id):
     return render_template(
         'payments_project.html',
         project=project,
+        active_project=project,
+        active_tab='payments',
         logs=filtered_logs,
         all_logs=logs,
         filters=filters,
@@ -293,30 +308,6 @@ def update_budget(project_id):
     return redirect(url_for('payments.project_overview', project_id=project.id))
 
 
-@bp.route('/payments/project/<int:project_id>', methods=['GET'])
-@login_required
-def history(project_id):
-    project = _get_project_or_403(project_id)
-    _auto_confirm_stale(project)
-    logs = _payment_logs_for(project)
-    summary = _build_summary(project, logs)
-    return jsonify({
-        'summary': summary,
-        'rows': [{
-            'id': log.id,
-            'amount': log.amount,
-            'paid_by': log.paid_by,
-            'paid_to': log.paid_to,
-            'description': log.description,
-            'category': log.category,
-            'stage': log.stage,
-            'payment_method': log.payment_method,
-            'status': log.status,
-            'comment': log.comment,
-            'created_at': log.created_at.isoformat(),
-            'approved_at': log.approved_at.isoformat() if log.approved_at else None,
-        } for log in logs],
-    })
 
 
 @bp.route('/projects/<int:project_id>/payments/add', methods=['POST'])
@@ -410,6 +401,28 @@ def add(project_id):
         current_app.logger.error(f'Payment add error: {exc}')
         flash('Unable to save the payment right now. Please try again.', 'error')
         return redirect(url_for('payments.project_overview', project_id=project.id))
+
+    # Bridge proof file to Document Vault (stream already consumed; use path-based helper)
+    try:
+        from app.services.document_service import create_vault_record_from_path
+        from app.models import Document, DocumentVersion
+        payment_name = (
+            f"Payment Proof — {payment_log.category} — ₹{payment_log.amount:,.0f}"
+        )
+        vault_doc, _ = create_vault_record_from_path(
+            file_path=proof_path,
+            original_filename=proof.filename,
+            project_id=project.id,
+            uploaded_by=current_user.id,
+            uploaded_by_role=current_user.role,
+            source_module='payments',
+            display_name=payment_name,
+            visible_to_client=True,
+        )
+        payment_log.document_id = vault_doc.id
+        db.session.commit()
+    except Exception:
+        pass  # vault bridging is best-effort; do not fail the payment
 
     if current_user.role == 'client':
         _notify_counterparty(project, 'Payment update', f'{current_user.name} logged a client payment of ₹{amount:,.0f} for {project.name}.')
@@ -532,15 +545,3 @@ def download_proof(payment_log_id):
     from app.storage import send_file_securely
     return send_file_securely(payment_log.proof_path)
 
-
-@bp.route('/payments/<int:payment_id>/download')
-@login_required
-def download_bill(payment_id):
-    payment = Payment.query.get_or_404(payment_id)
-    project = _get_project_or_403(payment.project_id)
-
-    if not payment.bill_filename:
-        abort(404)
-
-    from app.storage import send_file_securely
-    return send_file_securely(payment.bill_filename)
