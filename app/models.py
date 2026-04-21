@@ -20,6 +20,7 @@ class User(db.Model, UserMixin):
     lock_until      = db.Column(db.DateTime, nullable=True)
     reminders_email = db.Column(db.Boolean, default=True)
     reminders_sms   = db.Column(db.Boolean, default=False)
+    profession      = db.Column(db.String(120))
     created_at      = db.Column(db.DateTime, default=utc_now)
 
     notifications   = db.relationship('Notification', backref='user', lazy='dynamic')

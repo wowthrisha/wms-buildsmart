@@ -1,0 +1,189 @@
+{% extends "base_architect.html" %}
+{% block title %}{{ project.name }} — BuildSmart{% endblock %}
+{% block content %}
+{% set pending_docs = docs_list | selectattr('pending_verification') | list | length %}
+{% set client_name = project.client.name if project.client else 'No client assigned' %}
+{% set client_email = project.client.email if project.client else 'Assign a client to activate shared workflows.' %}
+<div class="meetings-page">
+  <div class="meetings-shell project-tab-shell">
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Project Workspace</div>
+          <h1 class="meetings-title">{{ project.name }}</h1>
+          <p class="meetings-subtitle">{{ project.plot_zone or 'Mixed-use' }} project for {{ client_name }}. Use this page to check health, jump into the live tabs, and keep the workspace clean.</p>
+        </div>
+        <div class="inline-actions">
+          <a class="mt-btn secondary" href="{{ url_for('payments.project_overview', project_id=project.id) }}">Open Payments</a>
+          <form action="{{ url_for('projects.delete', project_id=project.id) }}" method="POST" onsubmit="return confirm('Delete this project forever?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="mt-btn ghost">Delete Project</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="next-step-card status-bar {{ 'warning' if pending_docs or compliance_stats.missing else 'neutral' }}">
+      <div>
+        <div class="section-kicker">Next Step</div>
+        <div style="font-size:20px; font-weight:700; margin-top:6px;">
+          {% if pending_docs %}
+          Review {{ pending_docs }} pending client upload{{ 's' if pending_docs != 1 else '' }}
+          {% elif compliance_stats.missing %}
+          Complete {{ compliance_stats.missing }} missing compliance item{{ 's' if compliance_stats.missing != 1 else '' }}
+          {% elif latest_pa %}
+          Latest analysis is ready to review
+          {% else %}
+          Start the first plot analysis run
+          {% endif %}
+        </div>
+        <div class="muted-copy" style="margin-top:6px;">
+          {% if pending_docs %}
+          New client-side files are waiting inside the document vault for verification.
+          {% elif compliance_stats.missing %}
+          Missing items are still the biggest blocker to a clean project checklist.
+          {% elif latest_pa %}
+          Jump back into Plot Analysis to confirm the latest session and export its report.
+          {% else %}
+          Use the plot tab to enter dimensions and generate the first compliance snapshot.
+          {% endif %}
+        </div>
+      </div>
+      <span class="status-pill {% if pending_docs or compliance_stats.missing %}pending{% else %}confirmed{% endif %}">
+        {% if pending_docs or compliance_stats.missing %}Needs Attention{% else %}On Track{% endif %}
+      </span>
+    </section>
+
+    <div class="summary-grid">
+      <article class="metric-card">
+        <div class="metric-label">Documents</div>
+        <div class="metric-value">{{ docs_list|length }}</div>
+        <div class="metric-foot">Files in the project vault</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Compliance</div>
+        <div class="metric-value">{{ compliance_stats.percent }}%</div>
+        <div class="metric-foot">{{ compliance_stats.uploaded }} of {{ compliance_stats.total }} items uploaded</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Analyses</div>
+        <div class="metric-value">{{ pa_count }}</div>
+        <div class="metric-foot">Saved plot analysis sessions</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Images</div>
+        <div class="metric-value">{{ project.images.count() }}</div>
+        <div class="metric-foot">Reference images and renders</div>
+      </article>
+    </div>
+
+    <section class="detail-grid">
+      <article class="section-card">
+        <div class="section-head" style="padding-left:0; padding-right:0; padding-top:0;">
+          <div>
+            <div class="section-kicker">Project Details</div>
+            <h3 style="margin-top:6px;">Workspace Snapshot</h3>
+          </div>
+        </div>
+        <div class="field-grid two">
+          <div class="file-chip">
+            <strong>Client</strong>
+            <span>{{ client_name }}</span>
+          </div>
+          <div class="file-chip">
+            <strong>Contact</strong>
+            <span>{{ client_email }}</span>
+          </div>
+          <div class="file-chip">
+            <strong>Status</strong>
+            <span>{{ project.status }}</span>
+          </div>
+          <div class="file-chip">
+            <strong>Created</strong>
+            <span>{{ project.created_at|strftime('%d %b %Y') }}</span>
+          </div>
+          <div class="file-chip">
+            <strong>Last Updated</strong>
+            <span>{{ project.updated_at|timeago }}</span>
+          </div>
+          <div class="file-chip">
+            <strong>Budget</strong>
+            <span>{% if project.total_budget %}₹{{ '{:,.0f}'.format(project.total_budget) }}{% else %}Not set{% endif %}</span>
+          </div>
+        </div>
+
+        <div class="section-head" style="padding-left:0; padding-right:0; margin-top:24px; border-bottom:none;">
+          <div>
+            <div class="section-kicker">Quick Links</div>
+            <h3 style="margin-top:6px;">Open the active project tools</h3>
+          </div>
+        </div>
+        <div class="project-card-grid">
+          <a class="project-link-card" href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}">
+            <div class="project-card-head">
+              <div class="section-kicker">Plot Analysis</div>
+            </div>
+            <div class="project-card-name">Run and review compliance sessions</div>
+            <div class="project-card-meta">{{ pa_count }} saved session{{ 's' if pa_count != 1 else '' }}</div>
+          </a>
+          <a class="project-link-card" href="{{ url_for('projects.project_documents', project_id=project.id) }}">
+            <div class="project-card-head">
+              <div class="section-kicker">Documents</div>
+            </div>
+            <div class="project-card-name">Manage drawings and versions</div>
+            <div class="project-card-meta">{{ docs_list|length }} file{{ 's' if docs_list|length != 1 else '' }} in vault</div>
+          </a>
+          <a class="project-link-card" href="{{ url_for('projects.project_compliance', project_id=project.id) }}">
+            <div class="project-card-head">
+              <div class="section-kicker">Compliance</div>
+            </div>
+            <div class="project-card-name">Track missing approvals and uploads</div>
+            <div class="project-card-meta">{{ compliance_stats.missing }} missing item{{ 's' if compliance_stats.missing != 1 else '' }}</div>
+          </a>
+          <a class="project-link-card" href="{{ url_for('meetings.project_meetings', project_id=project.id) }}">
+            <div class="project-card-head">
+              <div class="section-kicker">Meetings</div>
+            </div>
+            <div class="project-card-name">Review schedule and MOM flow</div>
+            <div class="project-card-meta">{{ all_meetings|length }} meeting{{ 's' if all_meetings|length != 1 else '' }} logged</div>
+          </a>
+        </div>
+      </article>
+
+      <article class="section-card">
+        <div class="meetings-head" style="margin-bottom:16px;">
+          <div>
+            <div class="section-kicker">Image Board</div>
+            <h3 style="margin-top:6px;">Visual references</h3>
+          </div>
+          <form action="{{ url_for('projects.upload_image', project_id=project.id) }}" method="POST" enctype="multipart/form-data" style="display:flex; gap:8px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="file" name="image" id="img-upload" style="display:none;" onchange="this.form.submit()" accept="image/*">
+            <label for="img-upload" class="btn btn-primary" style="cursor:pointer;">Add Image</label>
+          </form>
+        </div>
+        <p class="metric-foot" style="margin-bottom:16px;">Keep project references, renders, and comparison images in one consistent board.</p>
+        <div class="image-board-grid">
+          {% for img in project.images.all() %}
+          <div class="image-card" style="position:relative; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--ink-2); transition:all 0.3s ease;">
+            <div style="position:relative; flex:1; aspect-ratio:4/3; background:linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%); overflow:hidden; cursor:pointer;" onclick="openImageModal('{{ url_for('documents.serve_file', filename=img.filename) }}')">
+              <img src="{{ url_for('documents.serve_file', filename=img.filename) }}" style="width:100%; height:100%; object-fit:cover;" alt="Project image">
+              <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.7); padding:4px 8px; border-radius:4px; font-size:10px; color:#fff; text-transform:uppercase; letter-spacing:0.05em;">{{ img.tag }}</div>
+            </div>
+            <div style="padding:12px; border-top:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-size:11px; color:var(--chalk-3);">{{ img.created_at|strftime('%b %d, %Y') }}</div>
+              <button class="img-del-btn" data-img-id="{{ img.id }}" data-project-id="{{ project.id }}" data-csrf="{{ csrf_token() }}" onclick="deleteImage(this.dataset.imgId, this.dataset.projectId, this.dataset.csrf)">Delete</button>
+            </div>
+          </div>
+          {% else %}
+          <div style="grid-column: 1/-1; text-align:center; padding:60px 40px; border:2px dashed var(--line); border-radius:12px; background:rgba(13,13,13,0.5);">
+            <div style="color:var(--chalk-3); font-size:13px; margin-bottom:8px; font-weight:500;">No images uploaded yet</div>
+            <div style="color:var(--chalk-3); font-size:11px;">Upload visual references, renders, or site photos to keep the project workspace complete.</div>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+  </div>
+</div>
+{% endblock %}

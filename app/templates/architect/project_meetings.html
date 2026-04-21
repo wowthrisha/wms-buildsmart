@@ -7,14 +7,13 @@
 
 {% set pending = meetings | selectattr('normalized_status', 'equalto', 'pending_request') | list %}
 
-<div class="page-shell">
+<div class="page-shell project-tab-shell">
 
   <div class="page-hero">
     <p class="page-kicker">Meetings</p>
     <h1 class="page-title">{{ project.name }}</h1>
     <p class="page-subtitle">
-      Schedule, propose, and confirm meetings. Log minutes and
-      convert decisions into tracked requirements.
+      Schedule meetings, capture minutes, and convert decisions into tracked requirements without leaving the project workspace.
     </p>
     {% if current_user.role == 'architect' %}
       <button class="hero-cta" type="button" onclick="openScheduleModal()">

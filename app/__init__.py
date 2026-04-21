@@ -1,4 +1,5 @@
-from flask import Flask
+from flask import Flask, url_for
+import os
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
@@ -206,6 +207,17 @@ def create_app(test_config=None):
                pay_bp, act_bp, client_bp, settings_api, notif_api, dev_bp, req_bp]:
         app.register_blueprint(bp)
 
+    # Helper to add a cache-busting query param based on file mtime for static assets
+    def static_file_url(filename):
+        try:
+            path = os.path.join(app.root_path, 'static', filename)
+            v = int(os.path.getmtime(path))
+        except Exception:
+            v = 0
+        return url_for('static', filename=filename) + f'?v={v}'
+
+    app.jinja_env.globals['static_file_url'] = static_file_url
+
     # P2-15: Custom error pages
     from flask import render_template as _rt
     @app.errorhandler(404)
@@ -284,6 +296,7 @@ def _apply_migrations():
         "ALTER TABLE user ADD COLUMN reset_token_created_at DATETIME",
         "ALTER TABLE user ADD COLUMN failed_attempts INTEGER DEFAULT 0",
         "ALTER TABLE user ADD COLUMN lock_until DATETIME",
+        "ALTER TABLE user ADD COLUMN profession VARCHAR(120)",
         "ALTER TABLE audit_log ADD COLUMN is_client_visible BOOLEAN DEFAULT 0",
         "ALTER TABLE audit_log ADD COLUMN source_module VARCHAR(50)",
         "ALTER TABLE meeting ADD COLUMN description TEXT",

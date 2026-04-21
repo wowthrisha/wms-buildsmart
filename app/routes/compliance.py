@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from flask import Blueprint, abort, jsonify, render_template, request
+from flask import Blueprint, abort, jsonify, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import db
@@ -62,6 +62,10 @@ def _item_payload(item: ComplianceItem) -> dict:
         'is_custom': bool(item.is_custom),
         'pending_verification': bool(item.document.pending_verification) if item.document else False,
         'updated_at': item.updated_at.isoformat() if item.updated_at else None,
+        'document_name': item.document.original_name if item.document else None,
+        'document_download_url': url_for('documents.download', doc_id=item.document_id) if item.document_id else None,
+        'document_visible_to_client': bool(item.document.visible_to_client) if item.document else False,
+        'uploader_role': item.document.uploader_role if item.document else None,
     }
 
 

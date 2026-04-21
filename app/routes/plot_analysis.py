@@ -1269,6 +1269,9 @@ def client_view(project_id):
     if project.client_id != current_user.id:
         abort(403)
 
+    checklist_items = ensure_project_compliance_items(project.id)
+    db.session.commit()
+
     analyses = (
         PlotAnalysis.query
         .filter_by(project_id=project.id)
@@ -1276,10 +1279,26 @@ def client_view(project_id):
         .order_by(PlotAnalysis.created_at.desc())
         .all()
     )
+    latest_analysis = analyses[0] if analyses else None
+    latest_result_payload = _load_result_payload(latest_analysis) if latest_analysis else None
+    compliance_stats = {
+        'total': len(checklist_items),
+        'required_total': sum(1 for item in checklist_items if item.required),
+        'verified': sum(1 for item in checklist_items if item.status == 'verified'),
+        'uploaded': sum(1 for item in checklist_items if item.status == 'uploaded'),
+        'pending': sum(1 for item in checklist_items if item.status == 'client_uploaded'),
+        'missing': sum(1 for item in checklist_items if item.status == 'missing'),
+    }
     return render_template(
         'client/plot_analysis.html',
         project=project,
         analyses=analyses,
+        latest_analysis=latest_analysis,
+        latest_result_payload=latest_result_payload,
+        latest_result_summary=_result_summary(latest_result_payload),
+        checklist_items=checklist_items,
+        compliance_stats=compliance_stats,
+        selected_tab=(request.args.get('tab') or 'plot').strip().lower(),
         active_project=project,
         active_tab='plot',
     )

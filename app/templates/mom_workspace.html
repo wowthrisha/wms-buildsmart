@@ -246,8 +246,12 @@
       <input type="hidden" name="category" value="Client Request">
       <div class="modal-body modal-fields">
         <div>
+          <label>Title <span style="font-size:11px; color:var(--mt-faint);">(optional — auto-filled from description)</span></label>
+          <input type="text" name="title" placeholder="e.g. Change bedroom window size">
+        </div>
+        <div>
           <label>Description</label>
-          <textarea name="description" placeholder="Describe the new client requirement" required></textarea>
+          <textarea name="description" placeholder="Describe the client's requested change" required></textarea>
         </div>
       </div>
       <div class="modal-foot">

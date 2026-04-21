@@ -28,11 +28,15 @@
 .cd-field:focus { outline:none; border-color:var(--gold); }
 </style>
 
-<div class="page-hero" style="margin-bottom:24px;">
-  <p class="page-kicker">Document Vault</p>
-  <h1 class="page-title">Documents</h1>
-  <p class="page-subtitle">Files from your architect and your own uploads.</p>
-</div>
+<section class="meetings-hero" style="margin-bottom:24px;">
+  <div class="meetings-head">
+    <div>
+      <div class="meetings-kicker">Document Vault</div>
+      <h1 class="meetings-title">Documents</h1>
+      <p class="meetings-subtitle">Files from your architect and your own uploads.</p>
+    </div>
+  </div>
+</section>
 
 {# ── Upload panel ─── #}
 <div class="cd-upload-zone">
@@ -71,10 +75,17 @@
 } %}
 
 <div class="table-card">
-  <table class="data-table">
+  <div class="table-toolbar">
+    <div>
+      <div class="section-kicker">Files</div>
+      <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">All Documents</h3>
+    </div>
+    <span class="muted-copy">{{ documents|length }} file{{ 's' if documents|length != 1 }}</span>
+  </div>
+  <table class="dark-table">
     <thead>
       <tr>
-        <th style="padding-left:20px;">Document</th>
+        <th>Document</th>
         <th>Source</th>
         <th>Version</th>
         <th>Date</th>
@@ -86,7 +97,7 @@
       {% set cv = d.current_version %}
       {% set vc = d.versions.count() %}
       <tr>
-        <td style="padding-left:20px;">
+        <td>
           <div style="font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             {{ d.original_name }}
             {% if d.pending_verification %}
@@ -94,7 +105,7 @@
             {% endif %}
           </div>
           {% if cv %}
-          <div style="font-size:11px;color:var(--chalk-3);margin-top:4px;">
+          <div style="font-size:11px;color:var(--mt-faint);margin-top:4px;font-family:'Space Mono',monospace;">
             {{ cv.file_type.split('/')[-1].upper() if cv.file_type else '' }}
             {% if cv.file_size %}&nbsp;· {{ cv.file_size }}{% endif %}
           </div>
@@ -105,18 +116,18 @@
           <span class="cd-source {{ sm }}">{{ SOURCE_LABELS.get(sm, 'General') }}</span>
         </td>
         <td>
-          <span class="badge badge-gold" style="font-size:11px;">{{ cv.label if cv else 'v1' }}</span>
+          <span class="status-pill info-pill" style="font-size:11px;">{{ cv.label if cv else 'v1' }}</span>
           {% if vc > 1 %}
-          <span class="badge badge-muted" style="font-size:10px;margin-left:4px;">+{{ vc - 1 }} more</span>
+          <span style="font-size:10px;color:var(--mt-faint);margin-left:4px;">+{{ vc - 1 }} more</span>
           {% endif %}
         </td>
-        <td style="white-space:nowrap;font-size:12px;color:var(--chalk-3);">
+        <td style="white-space:nowrap;font-size:12px;color:var(--mt-faint);">
           {{ d.created_at|strftime('%d %b %Y') }}
         </td>
         <td>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <a href="{{ url_for('documents.download', doc_id=d.id) }}"
-               class="btn btn-ghost" style="font-size:12px;padding:5px 12px;"
+               class="mt-btn ghost" style="font-size:12px;"
                target="_blank" rel="noopener">Download</a>
 
             {# Client can replace their own uploads #}
@@ -126,10 +137,8 @@
                   style="display:inline-flex;align-items:center;gap:6px;">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="file" name="doc" accept=".pdf,.jpg,.jpeg,.png"
-                     style="font-size:11px;color:var(--chalk-3);max-width:130px;">
-              <button type="submit" class="btn btn-ghost" style="font-size:11px;padding:4px 10px;">
-                Replace
-              </button>
+                     style="font-size:11px;color:var(--mt-faint);max-width:130px;">
+              <button type="submit" class="mt-btn ghost" style="font-size:11px;">Replace</button>
             </form>
             {% endif %}
           </div>
@@ -137,7 +146,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="5" style="text-align:center;padding:48px 20px;color:var(--chalk-3);">
+        <td colspan="5" style="text-align:center;padding:48px 20px;color:var(--mt-faint);">
           No documents yet. Upload one above or wait for your architect to share files.
         </td>
       </tr>

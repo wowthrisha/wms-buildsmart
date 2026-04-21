@@ -5,13 +5,13 @@
 {% endblock %}
 {% block content %}
 <div class="meetings-page">
-  <div class="meetings-shell">
+  <div class="meetings-shell project-tab-shell">
     <section class="meetings-hero">
       <div class="meetings-head">
         <div>
           <div class="meetings-kicker">Payments Ledger</div>
           <h1 class="meetings-title">{{ project.name }}</h1>
-          <p class="meetings-subtitle">A shared financial workspace for budget, client payments, project expenses, proofs, and approvals. Both sides see the exact same numbers and ledger rows.</p>
+          <p class="meetings-subtitle">A shared financial workspace for budget, payments, expenses, proofs, and approvals with one consistent ledger view for both sides.</p>
         </div>
         <div class="inline-actions">
           {% if current_user.role == 'client' %}

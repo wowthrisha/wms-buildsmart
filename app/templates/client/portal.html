@@ -74,8 +74,13 @@
     <!-- RAG Chatbot -->
     <div class="section-card" style="display:flex; flex-direction:column; min-height:400px;">
       <p class="section-kicker">Regulations Assistant</p>
-      <p style="font-size:15px; font-weight:700; color:var(--chalk); margin-bottom:8px;">Ask About Your Project</p>
-      <p style="color:var(--mt-muted); font-size:13px; margin-bottom:16px;">Ask questions about TNPCR building rules, setbacks, FAR limits, and compliance requirements for your plot.</p>
+      <div class="meetings-head" style="margin-bottom:10px;">
+        <div>
+          <p style="font-size:15px; font-weight:700; color:var(--chalk); margin-bottom:8px;">Ask About Your Project</p>
+          <p style="color:var(--mt-muted); font-size:13px; margin-bottom:0;">Ask questions about TNPCR building rules, setbacks, FAR limits, and compliance requirements for your plot.</p>
+        </div>
+        <a class="mt-btn ghost" href="{{ url_for('client.assistant') }}">Open Full Assistant</a>
+      </div>
 
       <div id="rag-messages"
            style="min-height:120px; max-height:320px; overflow-y:auto; margin-bottom:16px;
@@ -123,6 +128,6 @@
 <script>
 // Store CSRF and endpoint for sendRagQuery
 window._RAG_CSRF = '{{ csrf_token() }}';
-window._RAG_ENDPOINT = '{{ url_for("client.rag_query") }}';
+window._RAG_ENDPOINT = '{{ url_for("client.assistant_query") }}';
 </script>
 {% endblock %}

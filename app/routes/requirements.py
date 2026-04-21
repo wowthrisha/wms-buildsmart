@@ -1,9 +1,9 @@
-from datetime import datetime
-
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from app import csrf
 
 from app import db
+import app.assistant_service as assistant_service
 from app.auth import roles_required
 from app.models import (
     AuditLog,
@@ -15,6 +15,7 @@ from app.models import (
     RequirementComment,
 )
 from app.notifications_service import notify_user
+from app.time_utils import utc_now
 
 bp = Blueprint('requirements', __name__)
 
@@ -25,7 +26,6 @@ KANBAN_LABELS = {
     'in_progress': 'In Progress',
     'done': 'Done',
 }
-
 
 def _project_access_check(project):
     if current_user.role == 'architect' and project.architect_id != current_user.id:
@@ -121,6 +121,62 @@ def _build_columns_json(project_id):
             'meeting_id': requirement.meeting_id,
         } for requirement in requirements]
     return result
+
+
+def _requirements_summary(columns):
+    items = [requirement for bucket in columns.values() for requirement in bucket]
+    return {
+        'total': len(items),
+        'needs_review': len(columns.get('new', [])),
+        'client_requests': sum(1 for requirement in items if requirement.source == 'client'),
+        'completed': len(columns.get('done', [])),
+    }
+
+
+def _update_requirement_record(requirement, project, data):
+    if current_user.role == 'architect':
+        if project.architect_id != current_user.id:
+            abort(403)
+    elif current_user.role == 'client':
+        if project.client_id != current_user.id:
+            abort(403)
+        if requirement.raised_by != current_user.id:
+            abort(403)
+    else:
+        abort(403)
+
+    title = data.get('title')
+    if isinstance(title, str) and title.strip():
+        requirement.title = title.strip()[:255]
+    if 'description' in data:
+        requirement.description = data.get('description')
+    if 'category' in data:
+        category = (data.get('category') or '').strip()
+        if category:
+            requirement.category = category[:100]
+
+    requirement.updated_at = utc_now()
+    db.session.commit()
+    return requirement
+
+
+def _delete_requirement_record(requirement, project, *, include_audit=True):
+    if current_user.role != 'architect':
+        return jsonify({'error': 'Forbidden'}), 403
+    if project.architect_id != current_user.id:
+        abort(403)
+
+    if include_audit:
+        db.session.add(AuditLog(
+            project_id=requirement.project_id,
+            actor_id=current_user.id,
+            action='REQ_DELETE',
+            description=f'Deleted requirement: {requirement.title}',
+            is_client_visible=False,
+        ))
+    db.session.delete(requirement)
+    db.session.commit()
+    return jsonify({'success': True, 'id': requirement.id})
 
 
 @bp.route('/projects/<int:project_id>/meetings/<int:meeting_id>/comment', methods=['POST'])
@@ -221,8 +277,8 @@ def add_requirement(project_id):
     description = (request.form.get('description') or '').strip()
     source = (request.form.get('source') or '').strip()
     title = (request.form.get('title') or '').strip()
-    if not title and source == 'meeting_change' and current_user.role == 'client' and description:
-        title = 'Client Requirement'
+    if not title and description and (source == 'meeting_change' or current_user.role == 'client'):
+        title = description[:80].strip() or 'Client Requirement'
     title = title[:255]
 
     if not title:
@@ -330,45 +386,29 @@ def update_requirement(req_id):
         return jsonify({'error': 'No data'}), 400
     req = Requirement.query.get_or_404(req_id)
     project = Project.query.get_or_404(req.project_id)
-    if current_user.role == 'architect':
-        if project.architect_id != current_user.id:
-            abort(403)
-    elif current_user.role == 'client':
-        if project.client_id != current_user.id:
-            abort(403)
-        if req.raised_by != current_user.id:
-            abort(403)
-    if 'title' in data and data['title'].strip():
-        req.title = data['title'].strip()
-    if 'description' in data:
-        req.description = data['description']
-    if 'category' in data:
-        req.category = data['category']
-    req.updated_at = datetime.utcnow()
-    db.session.commit()
+    req = _update_requirement_record(req, project, data)
     return jsonify({'success': True, 'id': req.id, 'title': req.title})
+
+
+@bp.route('/projects/<int:project_id>/requirements/<int:req_id>', methods=['PATCH'])
+@login_required
+def update_requirement_scoped(project_id, req_id):
+    """Project-scoped edit endpoint used by the kanban board UI."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({'error': 'No data'}), 400
+    requirement, project = _get_requirement_or_403(project_id, req_id)
+    requirement = _update_requirement_record(requirement, project, data)
+    return jsonify({'success': True, 'id': requirement.id, 'title': requirement.title})
 
 
 @bp.route('/requirements/<int:req_id>', methods=['DELETE'])
 @login_required
 def delete_requirement_global(req_id):
     """Delete a requirement — architect only. Called from kanban JS."""
-    if current_user.role != 'architect':
-        return jsonify({'error': 'Forbidden'}), 403
     req = Requirement.query.get_or_404(req_id)
     project = Project.query.get_or_404(req.project_id)
-    if project.architect_id != current_user.id:
-        abort(403)
-    db.session.add(AuditLog(
-        project_id=req.project_id,
-        actor_id=current_user.id,
-        action='REQ_DELETE',
-        description=f'Deleted requirement: {req.title}',
-        is_client_visible=False,
-    ))
-    db.session.delete(req)
-    db.session.commit()
-    return jsonify({'success': True, 'id': req_id})
+    return _delete_requirement_record(req, project, include_audit=True)
 
 
 @bp.route('/projects/<int:project_id>/requirements')
@@ -376,15 +416,61 @@ def delete_requirement_global(req_id):
 def kanban(project_id):
     project = _project_or_403(project_id)
     columns = _build_columns(project.id)
+    board_summary = _requirements_summary(columns)
     return render_template(
         'architect/kanban.html',
         project=project,
         active_project=project,
         active_tab='requirements',
         columns=columns,
+        board_summary=board_summary,
         kanban_states=KANBAN_STATES,
         kanban_labels=KANBAN_LABELS,
     )
+
+
+@bp.route('/projects/<int:project_id>/assistant')
+@login_required
+def assistant(project_id):
+    project = _project_or_403(project_id)
+    if current_user.role != 'architect':
+        return redirect(url_for('client.assistant'))
+    workspace = assistant_service.build_assistant_workspace(project, current_user)
+    return render_template(
+        'assistant_workspace.html',
+        project=project,
+        active_project=project,
+        active_tab='assistant',
+        **workspace,
+    )
+
+
+@bp.route('/projects/<int:project_id>/assistant/query', methods=['POST'])
+@login_required
+@roles_required(['architect'])
+@csrf.exempt
+def assistant_query(project_id):
+    project = _project_or_403(project_id)
+    payload = request.get_json(silent=True) or {}
+    question = str(payload.get('question') or request.form.get('question') or '').strip()
+    if not question:
+        return jsonify({'answer': 'Please enter a question.'}), 400
+
+    try:
+        answer = assistant_service.answer_assistant_question(project, current_user, question)
+        return jsonify({
+            'answer': answer,
+            'project_id': project.id,
+            'project_name': project.name,
+            'audience': 'architect',
+        })
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error(f'Assistant query failed for project {project.id}: {exc}')
+        return jsonify({
+            'answer': 'Could not process your question right now. Please try again in a moment.',
+            'error': str(exc),
+        }), 500
 
 
 @bp.route('/projects/<int:project_id>/requirements/<int:req_id>')
@@ -417,13 +503,8 @@ def requirement_detail(project_id, req_id):
 @login_required
 def delete_requirement(project_id, req_id):
     project = _project_or_403(project_id)
-    if current_user.role != 'architect':
-        return jsonify({'error': 'Forbidden'}), 403
-
     requirement = Requirement.query.filter_by(id=req_id, project_id=project_id).first_or_404()
-    db.session.delete(requirement)
-    db.session.commit()
-    return jsonify({'success': True})
+    return _delete_requirement_record(requirement, project, include_audit=True)
 
 
 @bp.route('/projects/<int:project_id>/requirements/<int:req_id>/comments', methods=['POST'])
@@ -441,7 +522,7 @@ def add_requirement_comment(project_id, req_id):
         content=content[:4000],
         author_id=current_user.id,
         role=current_user.role,
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
         parent_id=payload.get('parent_id') or request.form.get('parent_id'),
     )
     db.session.add(comment)
