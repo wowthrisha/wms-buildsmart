@@ -1,34 +1,610 @@
 {% extends "base_client.html" %}
 {% block title %}Plot Analysis — BuildSmart{% endblock %}
 
-{% block content %}
-<div class="page-head">
-  <h1 class="page-title">Plot Analysis</h1>
-  <p class="page-subtitle">Read-only plot analysis results for {{ project.name }}.</p>
-</div>
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/client_plot_analysis.css') }}">
+{% endblock %}
 
-{% if not analyses %}
-<div class="card">
-  <p style="color:var(--chalk-3);">No plot analyses are available yet.</p>
-</div>
-{% else %}
-<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px;">
-  {% for analysis in analyses %}
-  <div class="card">
-    <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; margin-bottom:12px;">
-      <div>
-        <div style="font-size:14px; font-weight:700;">{{ analysis.original_filename or 'Plot Analysis' }}</div>
-        <div style="font-size:11px; color:var(--chalk-3); margin-top:4px;">{{ analysis.created_at|strftime('%d %b %Y · %H:%M') }}</div>
+{% block content %}
+<div class="meetings-page client-analysis-page">
+  <div class="meetings-shell">
+    <section class="meetings-hero cpa-hero" data-tilt-card>
+      <div class="meetings-head cpa-hero-head">
+        <div>
+          <div class="meetings-kicker">Plot Intelligence Workspace</div>
+          <h1 class="meetings-title">Plot Analysis & Compliance</h1>
+          <p class="meetings-subtitle">
+            A client-friendly view of your architect's analysis snapshots, compliance readiness, and document verification flow. The visual language matches the payments workspace so the whole portal feels consistent.
+          </p>
+        </div>
+        <div class="cpa-hero-badge">
+          <div class="section-kicker">Active Project</div>
+          <div class="cpa-hero-project">{{ project.name }}</div>
+          <div class="muted-copy">
+            {{ analyses|length }} analysis snapshot{{ 's' if analyses|length != 1 }} ·
+            {{ compliance_stats.verified }} verified compliance doc{{ 's' if compliance_stats.verified != 1 }}
+          </div>
+        </div>
       </div>
-      <span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; font-size:10px; font-weight:700; background:rgba(255,255,255,0.06); color:var(--chalk-2);">{{ analysis.status|replace('_', ' ')|title }}</span>
-    </div>
-    <div style="display:flex; flex-direction:column; gap:10px;">
-      <div style="display:flex; justify-content:space-between;"><span>Trust Level</span><strong>{{ analysis.trust_level or '—' }}</strong></div>
-      <div style="display:flex; justify-content:space-between;"><span>Overall Score</span><strong>{% if analysis.trust_level == 'INSUFFICIENT' %}Insufficient data{% elif analysis.overall_score is not none %}{{ analysis.overall_score }}%{% else %}—{% endif %}</strong></div>
-      <div style="display:flex; justify-content:space-between;"><span>Data Completeness</span><strong>{{ analysis.effective_data_completeness if analysis.effective_data_completeness is not none else '—' }}{% if analysis.effective_data_completeness is not none %}%{% endif %}</strong></div>
-    </div>
+    </section>
+
+    <section class="summary-grid cpa-summary-grid">
+      <article class="metric-card" data-tilt-card>
+        <div class="metric-label">Latest Analysis</div>
+        <div class="metric-value">
+          {% if latest_analysis %}
+            {{ latest_analysis.status|replace('_', ' ')|title }}
+          {% else %}
+            Waiting
+          {% endif %}
+        </div>
+        <div class="metric-foot">
+          {% if latest_analysis %}
+            {{ latest_analysis.created_at|strftime('%d %b %Y · %H:%M') }}
+          {% else %}
+            No published plot review yet
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="metric-card" data-tilt-card>
+        <div class="metric-label">Overall Score</div>
+        <div class="metric-value">
+          {% if latest_analysis and latest_analysis.trust_level == 'INSUFFICIENT' %}
+            --
+          {% elif latest_analysis and latest_analysis.overall_score is not none %}
+            {{ '%.1f'|format(latest_analysis.overall_score) }}%
+          {% else %}
+            --
+          {% endif %}
+        </div>
+        <div class="metric-foot">
+          {% if latest_analysis %}
+            Trust level: {{ latest_analysis.trust_level or 'Pending' }}
+          {% else %}
+            Score appears after your architect publishes a result
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="metric-card" data-tilt-card>
+        <div class="metric-label">Data Completeness</div>
+        <div class="metric-value">
+          {% if latest_analysis and latest_analysis.effective_data_completeness is not none %}
+            {{ '%.1f'|format(latest_analysis.effective_data_completeness) }}%
+          {% else %}
+            --
+          {% endif %}
+        </div>
+        <div class="metric-foot">
+          {{ latest_result_summary.violations }} violation{{ 's' if latest_result_summary.violations != 1 }} ·
+          {{ latest_result_summary.warnings }} warning{{ 's' if latest_result_summary.warnings != 1 }}
+        </div>
+      </article>
+
+      <article class="metric-card" data-tilt-card>
+        <div class="metric-label">Compliance Ready</div>
+        <div class="metric-value">{{ compliance_stats.verified }}/{{ compliance_stats.required_total }}</div>
+        <div class="metric-foot">
+          {{ compliance_stats.pending }} pending verification · {{ compliance_stats.missing }} missing
+        </div>
+      </article>
+    </section>
+
+    <section class="tab-nav cpa-tabs" aria-label="Plot analysis sections">
+      <button
+        type="button"
+        class="tab-btn {% if selected_tab != 'compliance' %}active{% endif %}"
+        data-tab="plot"
+      >
+        Plot Analysis
+      </button>
+      <button
+        type="button"
+        class="tab-btn {% if selected_tab == 'compliance' %}active{% endif %}"
+        data-tab="compliance"
+      >
+        Compliance
+      </button>
+    </section>
+
+    <section class="tab-panel {% if selected_tab != 'compliance' %}active{% endif %}" data-panel="plot">
+      <section class="next-step-card {% if latest_analysis and latest_analysis.report_ready %}{% if latest_result_payload and latest_result_payload.valid and latest_result_payload.compliant %}success{% else %}warning{% endif %}{% elif latest_analysis %}info{% else %}neutral{% endif %}" data-tilt-card>
+        <div>
+          <div class="section-kicker">Snapshot</div>
+          <div class="cpa-headline">
+            {% if latest_analysis and latest_analysis.report_ready and latest_result_payload and latest_result_payload.valid %}
+              {{ 'Latest review looks compliant.' if latest_result_payload.compliant else 'Latest review needs attention.' }}
+            {% elif latest_analysis %}
+              Latest review is waiting for stronger input data.
+            {% else %}
+              Your architect has not published a plot analysis yet.
+            {% endif %}
+          </div>
+          <div class="muted-copy" style="margin-top:6px;">
+            {% if latest_analysis %}
+              {{ latest_analysis.original_filename or 'Plot analysis snapshot' }} · {{ latest_analysis.created_at|strftime('%d %b %Y · %H:%M') }}
+            {% else %}
+              Once an architect publishes a snapshot, you will see score, trust, and compliance context here.
+            {% endif %}
+          </div>
+        </div>
+        {% if latest_analysis %}
+          {% if latest_result_payload and latest_result_payload.valid and latest_result_payload.compliant %}
+          <span class="status-pill confirmed">Compliant</span>
+          {% elif latest_analysis.trust_level == 'INSUFFICIENT' %}
+          <span class="status-pill info-pill">Insufficient Data</span>
+          {% else %}
+          <span class="status-pill warning">Needs Review</span>
+          {% endif %}
+        {% else %}
+        <span class="status-pill pending">No Data</span>
+        {% endif %}
+      </section>
+
+      <section class="detail-grid">
+        <article class="section-card" data-tilt-card>
+          <div class="section-head" style="padding-left:0; padding-right:0; padding-top:0;">
+            <div>
+              <div class="section-kicker">Latest Report</div>
+              <h3 style="margin-top:6px;">Published analysis summary</h3>
+            </div>
+            <span class="status-pill info-pill">Client View</span>
+          </div>
+
+          {% if latest_analysis %}
+          <div class="cpa-kv-grid">
+            <div class="cpa-kv-row">
+              <span>Status</span>
+              <strong>{{ latest_analysis.status|replace('_', ' ')|title }}</strong>
+            </div>
+            <div class="cpa-kv-row">
+              <span>Trust Level</span>
+              <strong>{{ latest_analysis.trust_level or '--' }}</strong>
+            </div>
+            <div class="cpa-kv-row">
+              <span>Overall Score</span>
+              <strong>
+                {% if latest_analysis.trust_level == 'INSUFFICIENT' %}
+                  Insufficient data
+                {% elif latest_analysis.overall_score is not none %}
+                  {{ '%.1f'|format(latest_analysis.overall_score) }}%
+                {% else %}
+                  --
+                {% endif %}
+              </strong>
+            </div>
+            <div class="cpa-kv-row">
+              <span>Data Completeness</span>
+              <strong>
+                {% if latest_analysis.effective_data_completeness is not none %}
+                  {{ '%.1f'|format(latest_analysis.effective_data_completeness) }}%
+                {% else %}
+                  --
+                {% endif %}
+              </strong>
+            </div>
+            <div class="cpa-kv-row">
+              <span>Violations</span>
+              <strong>{{ latest_result_summary.violations }}</strong>
+            </div>
+            <div class="cpa-kv-row">
+              <span>Warnings</span>
+              <strong>{{ latest_result_summary.warnings }}</strong>
+            </div>
+          </div>
+          {% else %}
+          <div class="mt-empty">No plot analyses are available yet.</div>
+          {% endif %}
+        </article>
+
+        <article class="surface-card cpa-spotlight-card" data-tilt-card>
+          <div class="section-kicker">Client Guidance</div>
+          <h3 style="margin-top:8px;">How this workspace works</h3>
+          <p class="muted-copy" style="margin-top:10px;">
+            The analysis side stays read-only for clients, while the compliance tab lets you upload supporting documents. Your files land in the document vault immediately with a pending verification tag, and they only count as verified compliance after your architect confirms them.
+          </p>
+          <div class="cpa-action-stack">
+            <a class="mt-btn primary" href="{{ url_for('client.documents') }}">Open Document Vault</a>
+            <button type="button" class="mt-btn secondary cpa-open-tab" data-tab-target="compliance">Open Compliance Tab</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="table-card" data-tilt-card>
+        <div class="table-toolbar">
+          <div>
+            <div class="section-kicker">Analysis Ledger</div>
+            <h3 style="margin:6px 0 0;">Published snapshots</h3>
+          </div>
+          <div class="muted-copy">{{ analyses|length }} visible row{{ 's' if analyses|length != 1 }}</div>
+        </div>
+        <div class="table-card-body">
+          {% if analyses %}
+          <table class="dark-table">
+            <thead>
+              <tr>
+                <th>Snapshot</th>
+                <th>Status</th>
+                <th>Trust</th>
+                <th>Score</th>
+                <th>Completeness</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for analysis in analyses %}
+              <tr>
+                <td>
+                  <div style="font-weight:700;">{{ analysis.original_filename or 'Plot Analysis Snapshot' }}</div>
+                  <div class="audit-text">{{ analysis.created_at|strftime('%d %b %Y · %H:%M') }}</div>
+                </td>
+                <td>
+                  {% if analysis.status == 'confirmed' %}
+                  <span class="status-pill confirmed">Confirmed</span>
+                  {% elif analysis.status == 'insufficient_data' %}
+                  <span class="status-pill info-pill">Insufficient Data</span>
+                  {% else %}
+                  <span class="status-pill warning">{{ analysis.status|replace('_', ' ')|title }}</span>
+                  {% endif %}
+                </td>
+                <td><span class="status-pill {{ analysis.trust_tone }}">{{ analysis.trust_level or 'Pending' }}</span></td>
+                <td>
+                  {% if analysis.trust_level == 'INSUFFICIENT' %}
+                    Insufficient data
+                  {% elif analysis.overall_score is not none %}
+                    {{ '%.1f'|format(analysis.overall_score) }}%
+                  {% else %}
+                    --
+                  {% endif %}
+                </td>
+                <td>
+                  {% if analysis.effective_data_completeness is not none %}
+                    {{ '%.1f'|format(analysis.effective_data_completeness) }}%
+                  {% else %}
+                    --
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="mt-empty">No plot analyses are available yet.</div>
+          {% endif %}
+        </div>
+      </section>
+    </section>
+
+    <section class="tab-panel {% if selected_tab == 'compliance' %}active{% endif %}" data-panel="compliance">
+      <section class="next-step-card warning" data-tilt-card>
+        <div>
+          <div class="section-kicker">Compliance Upload Flow</div>
+          <div class="cpa-headline">Client uploads stay in the vault as pending until your architect verifies them.</div>
+          <div class="muted-copy" style="margin-top:6px;">
+            Upload directly from this checklist. The file is visible in the document vault right away, but the compliance row only becomes verified after architect review.
+          </div>
+        </div>
+        <a class="mt-btn secondary" href="{{ url_for('client.documents') }}">Open Vault</a>
+      </section>
+
+      <section class="summary-grid cpa-summary-grid">
+        <article class="metric-card" data-tilt-card>
+          <div class="metric-label">Checklist Items</div>
+          <div class="metric-value" data-compliance-stat="total">{{ compliance_stats.total }}</div>
+          <div class="metric-foot">Across required and optional documents</div>
+        </article>
+        <article class="metric-card" data-tilt-card>
+          <div class="metric-label">Pending Verification</div>
+          <div class="metric-value" data-compliance-stat="pending">{{ compliance_stats.pending }}</div>
+          <div class="metric-foot">Uploaded by you and waiting for architect review</div>
+        </article>
+        <article class="metric-card" data-tilt-card>
+          <div class="metric-label">Verified</div>
+          <div class="metric-value" data-compliance-stat="verified">{{ compliance_stats.verified }}</div>
+          <div class="metric-foot">Accepted into the compliance checklist</div>
+        </article>
+        <article class="metric-card" data-tilt-card>
+          <div class="metric-label">Missing</div>
+          <div class="metric-value" data-compliance-stat="missing">{{ compliance_stats.missing }}</div>
+          <div class="metric-foot">Still needs an upload or architect action</div>
+        </article>
+      </section>
+
+      <section class="table-card" data-tilt-card>
+        <div class="table-toolbar">
+          <div>
+            <div class="section-kicker">Compliance Checklist</div>
+            <h3 style="margin:6px 0 0;">Upload supporting documents</h3>
+          </div>
+          <div class="muted-copy">{{ checklist_items|length }} visible requirement{{ 's' if checklist_items|length != 1 }}</div>
+        </div>
+        <div class="table-card-body">
+          {% if checklist_items %}
+          <table class="dark-table" id="client-compliance-table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Requirement</th>
+                <th>Vault</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in checklist_items %}
+              <tr
+                id="client-comp-row-{{ item.id }}"
+                data-item-id="{{ item.id }}"
+                data-status="{{ item.status }}"
+                data-required="{{ 'true' if item.required else 'false' }}"
+              >
+                <td>
+                  <div class="cpa-doc-name">
+                    {{ item.custom_label or item.label }}
+                    {% if item.is_custom %}
+                    <span class="cpa-mini-pill custom">Custom</span>
+                    {% endif %}
+                  </div>
+                  <div class="audit-text">{{ item.description or 'Upload the supporting document for this checklist item.' }}</div>
+                </td>
+                <td>
+                  <span class="status-pill info-pill">{{ item.category|replace('_', ' ')|title }}</span>
+                </td>
+                <td data-role="status">
+                  {% if item.status == 'verified' %}
+                  <span class="status-pill confirmed">Verified</span>
+                  {% elif item.status == 'client_uploaded' %}
+                  <span class="status-pill warning">Pending Verification</span>
+                  {% elif item.status == 'uploaded' %}
+                  <span class="status-pill success">Uploaded</span>
+                  {% elif item.status == 'optional' %}
+                  <span class="status-pill info-pill">Optional</span>
+                  {% else %}
+                  <span class="status-pill pending">Missing</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if item.required %}
+                  <span class="status-pill pending">Required</span>
+                  {% else %}
+                  <span class="status-pill info-pill">Optional</span>
+                  {% endif %}
+                </td>
+                <td data-role="vault">
+                  {% if item.document_id %}
+                  <div class="cpa-vault-link">
+                    <a href="{{ url_for('documents.download', doc_id=item.document_id) }}" target="_blank" rel="noopener">
+                      {{ item.document.original_name if item.document else 'Open file' }}
+                    </a>
+                  </div>
+                  <div class="audit-text">
+                    {% if item.document and item.document.pending_verification %}
+                      In vault · needs architect verification
+                    {% elif item.status == 'verified' %}
+                      Verified and attached to this checklist item
+                    {% else %}
+                      Available in document vault
+                    {% endif %}
+                  </div>
+                  {% else %}
+                  <div class="muted-copy">No file uploaded yet</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="action-stack" style="gap:10px;">
+                    <button type="button" class="mt-btn secondary client-comp-upload">
+                      {{ 'Replace File' if item.document_id else 'Upload File' }}
+                    </button>
+                    <input type="file" class="client-comp-input" accept=".pdf,.jpg,.jpeg,.png,.webp" hidden>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="mt-empty">No compliance requirements are available for this project yet.</div>
+          {% endif %}
+        </div>
+      </section>
+    </section>
   </div>
-  {% endfor %}
+
+  <div class="cpa-cursor" aria-hidden="true"></div>
 </div>
-{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const projectId = {{ project.id }};
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const table = document.getElementById('client-compliance-table');
+  const allTabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+
+  function statusHtml(item) {
+    if (item.status === 'verified') return '<span class="status-pill confirmed">Verified</span>';
+    if (item.status === 'client_uploaded') return '<span class="status-pill warning">Pending Verification</span>';
+    if (item.status === 'uploaded') return '<span class="status-pill success">Uploaded</span>';
+    if (item.status === 'optional') return '<span class="status-pill info-pill">Optional</span>';
+    return '<span class="status-pill pending">Missing</span>';
+  }
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function (char) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
+    });
+  }
+
+  function vaultHtml(item) {
+    if (!item.document_download_url) {
+      return '<div class="muted-copy">No file uploaded yet</div>';
+    }
+    let note = 'Available in document vault';
+    if (item.pending_verification || item.status === 'client_uploaded') {
+      note = 'In vault · needs architect verification';
+    } else if (item.status === 'verified') {
+      note = 'Verified and attached to this checklist item';
+    }
+    return [
+      '<div class="cpa-vault-link">',
+      '<a href="' + escapeHtml(item.document_download_url) + '" target="_blank" rel="noopener">',
+      escapeHtml(item.document_name || 'Open file'),
+      '</a>',
+      '</div>',
+      '<div class="audit-text">' + escapeHtml(note) + '</div>'
+    ].join('');
+  }
+
+  function refreshComplianceStats() {
+    if (!table) return;
+    const rows = Array.from(table.querySelectorAll('tbody tr[data-item-id]'));
+    const stats = {
+      total: rows.length,
+      pending: 0,
+      verified: 0,
+      missing: 0
+    };
+
+    rows.forEach((row) => {
+      const status = row.dataset.status;
+      if (status === 'client_uploaded') stats.pending += 1;
+      if (status === 'verified') stats.verified += 1;
+      if (status === 'missing') stats.missing += 1;
+    });
+
+    Object.entries(stats).forEach(([key, value]) => {
+      const target = document.querySelector('[data-compliance-stat="' + key + '"]');
+      if (target) target.textContent = value;
+    });
+  }
+
+  async function uploadComplianceFile(row, file) {
+    const itemId = row.dataset.itemId;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch('/projects/' + projectId + '/compliance/' + itemId + '/upload', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: formData
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.success) {
+      throw new Error(payload.error || 'Upload failed.');
+    }
+    return payload.item;
+  }
+
+  function refreshRow(row, item) {
+    row.dataset.status = item.status;
+    const statusCell = row.querySelector('[data-role="status"]');
+    const vaultCell = row.querySelector('[data-role="vault"]');
+    const actionBtn = row.querySelector('.client-comp-upload');
+
+    if (statusCell) statusCell.innerHTML = statusHtml(item);
+    if (vaultCell) vaultCell.innerHTML = vaultHtml(item);
+    if (actionBtn) actionBtn.textContent = item.document_download_url ? 'Replace File' : 'Upload File';
+    refreshComplianceStats();
+  }
+
+  if (table) {
+    table.querySelectorAll('tbody tr[data-item-id]').forEach((row) => {
+      const button = row.querySelector('.client-comp-upload');
+      const input = row.querySelector('.client-comp-input');
+      if (!button || !input) return;
+
+      button.addEventListener('click', () => input.click());
+      input.addEventListener('change', async () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const original = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Uploading...';
+        try {
+          const item = await uploadComplianceFile(row, file);
+          refreshRow(row, item);
+          if (typeof window.showFlash === 'function') {
+            window.showFlash('Compliance document uploaded and marked for architect verification.', 'success');
+          }
+        } catch (error) {
+          if (typeof window.showFlash === 'function') {
+            window.showFlash(error.message || 'Upload failed.', 'error');
+          }
+        } finally {
+          button.disabled = false;
+          if (button.textContent === 'Uploading...') button.textContent = original;
+          input.value = '';
+        }
+      });
+    });
+  }
+
+  document.querySelectorAll('.cpa-open-tab').forEach((button) => {
+    button.addEventListener('click', () => {
+      const target = button.dataset.tabTarget;
+      const tabButton = allTabButtons.find((item) => item.dataset.tab === target);
+      if (tabButton) tabButton.click();
+    });
+  });
+
+  if (window.matchMedia('(pointer: fine)').matches) {
+    const cursor = document.querySelector('.cpa-cursor');
+    const scope = document.querySelector('.client-analysis-page');
+    if (cursor && scope) {
+      let targetX = window.innerWidth / 2;
+      let targetY = window.innerHeight / 2;
+      let currentX = targetX;
+      let currentY = targetY;
+
+      const tick = () => {
+        currentX += (targetX - currentX) * 0.16;
+        currentY += (targetY - currentY) * 0.16;
+        cursor.style.transform = 'translate(' + currentX + 'px, ' + currentY + 'px)';
+        requestAnimationFrame(tick);
+      };
+
+      scope.addEventListener('mousemove', (event) => {
+        targetX = event.clientX;
+        targetY = event.clientY;
+        cursor.classList.add('visible');
+      });
+
+      scope.addEventListener('mouseleave', () => {
+        cursor.classList.remove('visible');
+      });
+
+      document.addEventListener('mouseover', (event) => {
+        cursor.classList.toggle(
+          'is-hovering',
+          Boolean(event.target.closest('a, button, input, select, textarea, label, .tab-btn'))
+        );
+      });
+
+      tick();
+    }
+
+    document.querySelectorAll('[data-tilt-card]').forEach((card) => {
+      card.addEventListener('mousemove', (event) => {
+        const rect = card.getBoundingClientRect();
+        const px = (event.clientX - rect.left) / rect.width;
+        const py = (event.clientY - rect.top) / rect.height;
+        const tiltY = (px - 0.5) * 7;
+        const tiltX = (0.5 - py) * 6;
+        card.style.setProperty('--cpa-tilt-x', tiltX.toFixed(2) + 'deg');
+        card.style.setProperty('--cpa-tilt-y', tiltY.toFixed(2) + 'deg');
+      });
+
+      card.addEventListener('mouseleave', () => {
+        card.style.setProperty('--cpa-tilt-x', '0deg');
+        card.style.setProperty('--cpa-tilt-y', '0deg');
+      });
+    });
+  }
+})();
+</script>
 {% endblock %}

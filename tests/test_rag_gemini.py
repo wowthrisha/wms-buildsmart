@@ -12,8 +12,16 @@ from app.rag import RAGManager
 
 def test_rag_flow():
     rag = RAGManager.get_instance()
-    
-    print("--- 1. Testing RAG Initialization ---")
+
+    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    has_gemini = bool(os.environ.get("GEMINI_API_KEY"))
+
+    print("--- 0. Provider Check ---")
+    print(f"ANTHROPIC_API_KEY configured: {'yes' if has_anthropic else 'no'}")
+    print(f"GEMINI_API_KEY configured: {'yes' if has_gemini else 'no'}")
+    print("Gemini is preferred when configured; Claude is the secondary live-model fallback.")
+
+    print("\n--- 1. Testing RAG Initialization ---")
     success = rag.initialize()
     if not success:
         print("❌ RAG Initialization Failed (Check if PDF exists and libs are installed)")

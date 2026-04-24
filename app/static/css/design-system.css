@@ -31,9 +31,9 @@
       --gold-grad: linear-gradient(135deg, #e8c97a 0%, #f0a84a 100%);
 
       /* ── Semantic Colours ── */
-      --teal: #5eead4;   /* success / compliance */
-      --rose: #fb7185;   /* danger / warning */
-      --sky:  #60a5fa;   /* info */
+      --teal: #e8c97a;
+      --rose: #f0ede8;
+      --sky:  #e8c97a;
 
       /* ── Radii ── */
       --r-lg: 20px;
@@ -184,7 +184,7 @@
       backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--line);
       display: flex; align-items: center;
-      padding: 0 32px; gap: 16px;
+      padding: 0 28px; gap: 16px;
       z-index: 200;
     }
     .breadcrumb {
@@ -200,7 +200,12 @@
     .proj-tab-nav {
       display: flex; align-items: center; gap: 2px;
       margin-left: 4px;
+      min-width: 0;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
     }
+    .proj-tab-nav::-webkit-scrollbar { display: none; }
     .ptab {
       display: inline-block; padding: 6px 13px;
       font-size: 12px; font-weight: 500; color: var(--chalk-3);
@@ -254,7 +259,7 @@
     .main {
       grid-column: 2;
       grid-row: 2;
-      padding: 40px 44px;
+      padding: 32px 36px 44px;
       overflow-y: auto;
       overflow-x: hidden;
       background: var(--ink);
@@ -649,11 +654,11 @@
   --accent-gold:       #e8a020;
   --accent-gold-hover: #f0b030;
   --accent-gold-muted: rgba(232,160,32,0.15);
-  --accent-green:      #1d9e75;
-  --accent-amber:      #ef9f27;
-  --accent-red:        #e24b4a;
-  --accent-blue:       #4a7cdc;
-  --accent-purple:     #534ab7;
+  --accent-green:      #e8a020;
+  --accent-amber:      #e8a020;
+  --accent-red:        #f0ede8;
+  --accent-blue:       #e8a020;
+  --accent-purple:     #e8a020;
 
   /* Font stacks */
   --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -699,7 +704,7 @@
 
 /* ─── Page shell ─────────────────────────────── */
 .page-shell {
-  max-width: 1400px;
+  max-width: 1520px;
   margin: 0 auto;
   padding: var(--space-6) var(--space-6) var(--space-8);
 }

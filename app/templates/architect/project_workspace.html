@@ -1,51 +1,51 @@
 {% extends "base_architect.html" %}
 {% block title %}{{ project.name }} — BuildSmart{% endblock %}
-{% block extra_css %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/payments.css') }}">
-{% endblock %}
 {% block content %}
-<div class="page-hero" style="margin-bottom:20px;">
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+<div class="meetings-page">
+<section class="meetings-hero" style="margin-bottom:20px;">
+  <div class="meetings-head">
     <div>
-      <p class="page-kicker">Project Workspace</p>
-      <h1 class="page-title">{{ project.name }}</h1>
-      <p class="page-subtitle">{{ project.plot_zone }} Project · Stage: <strong style="color:var(--text-primary);">{{ project.status }}</strong></p>
+      <div class="meetings-kicker">Project Workspace</div>
+      <h1 class="meetings-title">{{ project.name }}</h1>
+      <p class="meetings-subtitle">{{ project.plot_zone }} Project · Stage: <strong style="color:var(--gold);">{{ project.status }}</strong></p>
     </div>
-    <form action="{{ url_for('projects.delete', project_id=project.id) }}" method="POST" onsubmit="return confirm('Delete this project forever?')" style="align-self:flex-end;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="btn btn-ghost" style="color:var(--rose); border-color:rgba(251,113,113,0.2);">Delete</button>
-    </form>
+    <div class="inline-actions">
+      <form action="{{ url_for('projects.delete', project_id=project.id) }}" method="POST" onsubmit="return confirm('Delete this project forever?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="mt-btn ghost" style="color:var(--rose); border-color:rgba(251,113,113,0.2);">Delete Project</button>
+      </form>
+    </div>
   </div>
-</div>
+</section>
 
-<div class="stat-grid" style="margin-bottom:24px;">
-  <div class="stat-tile">
-    <div class="st-label">Documents</div>
-    <div class="st-value">{{ docs_list|length if docs_list else 0 }}</div>
-    <div class="st-sub">In vault</div>
-  </div>
-  <div class="stat-tile">
-    <div class="st-label">Compliance</div>
-    <div class="st-value">{{ project.checklist.count() }}</div>
-    <div class="st-sub">Checklist items</div>
-  </div>
-  <div class="stat-tile">
-    <div class="st-label">Analyses</div>
-    <div class="st-value">{{ pa_count }}</div>
-    <div class="st-sub">Plot analysis sessions</div>
-  </div>
-  <div class="stat-tile">
-    <div class="st-label">Images</div>
-    <div class="st-value">{{ project.images.count() }}</div>
-    <div class="st-sub">On board</div>
-  </div>
+<div class="summary-grid" style="margin-bottom:24px;">
+  <article class="metric-card">
+    <div class="metric-label">Documents</div>
+    <div class="metric-value">{{ docs_list|length if docs_list else 0 }}</div>
+    <div class="metric-foot">In vault</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Compliance</div>
+    <div class="metric-value">{{ project.checklist.count() }}</div>
+    <div class="metric-foot">Checklist items</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Analyses</div>
+    <div class="metric-value">{{ pa_count }}</div>
+    <div class="metric-foot">Plot analysis sessions</div>
+  </article>
+  <article class="metric-card">
+    <div class="metric-label">Images</div>
+    <div class="metric-value">{{ project.images.count() }}</div>
+    <div class="metric-foot">On board</div>
+  </article>
 </div>
 
 <!-- Tab: Overview -->
 <div class="tab-panel active" data-panel="overview">
   <div class="two-col">
-    <div class="card">
-        <div class="section-title">Project Details</div>
+    <div class="section-card">
+        <div class="section-kicker" style="margin-bottom:14px;">Project Details</div>
         <div class="field">
             <label>Client</label>
             <div style="font-weight:600;">{{ project.client.name if project.client else 'No client assigned' }}</div>
@@ -61,9 +61,9 @@
         </div>
     </div>
     
-    <div class="card">
-        <div class="page-head-row" style="margin-bottom:16px;">
-            <div class="section-title" style="margin:0;">Image Board</div>
+    <div class="section-card">
+        <div class="meetings-head" style="margin-bottom:16px;">
+            <div class="meetings-kicker">Image Board</div>
             <form action="{{ url_for('projects.upload_image', project_id=project.id) }}" method="POST" enctype="multipart/form-data" style="display:flex; gap:8px;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="file" name="image" id="img-upload" style="display:none;" onchange="this.form.submit()" accept="image/*">
@@ -108,7 +108,7 @@
 
     <!-- LEFT: full-module CTA -->
     <div>
-      <div class="card" style="padding:40px 36px; text-align:center; border:1px dashed var(--line-hi);">
+      <div class="section-card" style="padding:40px 36px; text-align:center; border:1px dashed var(--mt-border);">
         <svg viewBox="0 0 24 24" style="width:48px; height:48px; stroke:var(--gold); fill:none; stroke-width:1.2; margin:0 auto 20px;">
           <path d="M3 3h18v18H3zM3 9h18M9 3v18"/>
         </svg>
@@ -141,7 +141,7 @@
 
       {% if latest_pa %}
       <!-- Latest analysis card -->
-      <div class="card" style="padding:0; overflow:hidden;">
+      <div class="section-card" style="padding:0; overflow:hidden;">
         <div style="padding:14px 18px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center;">
           <div style="font-size:12px; font-weight:600; color:var(--chalk-3); text-transform:uppercase; letter-spacing:0.06em;">Latest Analysis</div>
           {% if latest_pa_result and latest_pa_result.valid %}
@@ -168,7 +168,7 @@
       </div>
 
       {% else %}
-      <div class="card" style="text-align:center; padding:24px; border:1px dashed var(--line);">
+      <div class="section-card" style="text-align:center; padding:24px; border:1px dashed var(--mt-border);">
         <div style="font-size:12px; color:var(--chalk-3); margin-bottom:12px;">No analyses yet for this project.</div>
         <a href="{{ url_for('plot_analysis.project_overview', project_id=project.id) }}"
            class="btn btn-ghost" style="font-size:12px;">Start First Analysis</a>
@@ -176,9 +176,9 @@
       {% endif %}
 
       <!-- Versions count -->
-      <div class="card" style="padding:14px 18px;">
-        <div style="font-size:13px; font-weight:600; color:var(--chalk);">{{ pa_count }} Analysis Session{{ 's' if pa_count != 1 }}</div>
-        <div style="font-size:11px; color:var(--chalk-3); margin-top:2px;">Across all versions</div>
+      <div class="section-card" style="padding:14px 18px;">
+        <div style="font-size:13px; font-weight:600; color:var(--mt-text);">{{ pa_count }} Analysis Session{{ 's' if pa_count != 1 }}</div>
+        <div class="metric-foot" style="margin-top:4px;">Across all versions</div>
       </div>
     </div>
 
@@ -266,11 +266,11 @@
 </style>
 
 <div class="tab-panel" data-panel="documents">
-    <div class="card">
+    <div class="section-card">
 
         <!-- ── Header ───────────────────────────────────────────── -->
-        <div class="page-head-row" style="margin-bottom:20px;">
-            <div class="section-title" style="margin:0;">Document Vault</div>
+        <div class="meetings-head" style="margin-bottom:20px;">
+            <div class="meetings-kicker">Document Vault</div>
             <button type="button" class="btn btn-primary" id="doc-upload-toggle">
                 <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;vertical-align:middle;margin-right:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 Upload Document
@@ -641,25 +641,25 @@
 {% set req_count  = all_meetings | selectattr('normalized_status','equalto','pending_request') | list | length %}
 {% set conf_count = all_meetings | selectattr('status','equalto','confirmed')  | list | length %}
 {% set done_count = all_meetings | selectattr('status','equalto','completed')  | list | length %}
-<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px;">
+<div class="summary-grid" style="margin-bottom:20px;">
   {% for label, count, color in [
     ('Requests', req_count, '#a78bfa'),
     ('Pending',  all_meetings|selectattr('normalized_status','in',['proposed','counter_proposed'])|list|length, '#e8c97a'),
     ('Confirmed',conf_count, '#5eead4'),
     ('Completed',done_count, '#60a5fa'),
   ] %}
-  <div class="card" style="padding:18px 20px;">
-    <div style="font-size:11px; color:var(--chalk-3); text-transform:uppercase; letter-spacing:.08em;">{{ label }}</div>
-    <div style="font-size:28px; font-weight:700; margin-top:6px; color:{{ color }};">{{ count }}</div>
-  </div>
+  <article class="metric-card">
+    <div class="metric-label">{{ label }}</div>
+    <div class="metric-value" style="color:{{ color }};">{{ count }}</div>
+  </article>
   {% endfor %}
 </div>
-<div class="card" style="padding:28px 32px; display:flex; align-items:center; justify-content:space-between;">
+<div class="section-card" style="display:flex; align-items:center; justify-content:space-between; padding:28px 32px;">
   <div>
-    <div style="font-size:18px; font-weight:700; color:var(--chalk); margin-bottom:6px;">Project Meetings</div>
-    <div style="font-size:13px; color:var(--chalk-3);">Manage scheduling, MOM, discussion and requirements for this project.</div>
+    <div style="font-size:18px; font-weight:700; color:var(--mt-text); margin-bottom:6px;">Project Meetings</div>
+    <div class="metric-foot">Manage scheduling, MOM, discussion and requirements for this project.</div>
   </div>
-  <a href="/projects/{{ project.id }}/meetings" class="btn btn-primary" style="white-space:nowrap; padding:12px 28px;">
+  <a href="/projects/{{ project.id }}/meetings" class="mt-btn primary" style="white-space:nowrap;">
     Open Meetings →
   </a>
 </div>
@@ -965,9 +965,15 @@
 
 <!-- Tab: Activity -->
 <div class="tab-panel" data-panel="activity">
-    <div class="card" style="padding:0;">
-        <div class="section-title" style="padding:24px 24px 0 24px;">Project Activity</div>
-        <table class="data-table" style="margin-top:16px;">
+    <div class="table-card">
+        <div class="table-toolbar">
+          <div>
+            <div class="section-kicker">Audit Trail</div>
+            <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">Project Activity</h3>
+          </div>
+          <span class="muted-copy">{{ audit_logs|length }} entries</span>
+        </div>
+        <table class="dark-table">
             <thead>
                 <tr>
                     <th>Time</th>
@@ -979,14 +985,22 @@
             <tbody>
                 {% for log in audit_logs %}
                 <tr>
-                    <td style="font-size:12px;">{{ log.created_at|timeago }}</td>
-                    <td>{{ log.actor.name }}</td>
-                    <td><span class="badge badge-muted">{{ log.action }}</span></td>
-                    <td>{{ log.description }}</td>
+                    <td style="color:var(--mt-faint); white-space:nowrap; font-size:11px; font-family:'Space Mono',monospace;">{{ log.created_at|timeago }}</td>
+                    <td>{{ log.actor.name if log.actor else '—' }}</td>
+                    <td>
+                      <span class="status-pill {{
+                        'confirmed' if log.action in ('PAYMENT_CONFIRMED', 'DOCUMENT_VERIFIED', 'REQ_DONE', 'MEETING_CONFIRMED', 'APPROVE', 'VERIFIED', 'STATUS_CHANGE')
+                        else 'pending' if log.action in ('PAYMENT_LOGGED', 'EXPENSE_LOGGED', 'PAYMENT_COMMENT', 'MOM_UPDATE', 'UPDATE', 'UPLOAD', 'PAYMENT_AUTO_CONFIRMED')
+                        else 'requested' if log.action in ('DOCUMENT_UPLOADED', 'REQ_CREATE', 'MEETING_PROPOSE', 'CREATE')
+                        else 'rejected' if log.action in ('PAYMENT_REJECTED', 'REQ_DECLINED', 'REJECT', 'DELETE')
+                        else 'info-pill'
+                      }}">{{ log.action | replace('_', ' ') | title }}</span>
+                    </td>
+                    <td style="font-size:13px; color:var(--mt-text);">{{ log.description }}</td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4" style="text-align:center; padding:40px; color:var(--chalk-3);">No activity logged.</td>
+                    <td colspan="4" style="text-align:center; padding:48px; color:var(--mt-faint);">No activity logged.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -994,6 +1008,7 @@
     </div>
 </div>
 
+</div><!-- /.meetings-page -->
 {% endblock %}
 
 {% block extra_js %}

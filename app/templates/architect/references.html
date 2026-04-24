@@ -14,57 +14,24 @@
    ══════════════════════════════════════════════ */
 
 /* Shell */
-.vr-shell { padding: 32px 40px; max-width: 1280px; }
+.vr-shell { padding: 0; max-width: 1520px; margin: 0 auto; width: 100%; }
 
-/* ── Hero ── */
-.vr-hero {
-  display: flex; justify-content: space-between;
-  align-items: flex-start; flex-wrap: wrap; gap: 16px;
-  margin-bottom: 32px;
-}
-.vr-kicker {
-  font-size: 10px; letter-spacing: 2.5px; font-weight: 700;
-  text-transform: uppercase; color: var(--gold); margin-bottom: 8px;
-}
-.vr-title {
-  font-size: 30px; font-weight: 700; color: var(--chalk);
-  margin: 0 0 6px; font-family: 'Syne', sans-serif;
-}
-.vr-sub { font-size: 13px; color: var(--chalk-3); margin: 0; }
-.vr-hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-
-/* ── Stats row ── */
-.vr-stats {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 14px; margin-bottom: 28px;
-}
-.vr-stat-card {
-  background: var(--ink-1); border: 1px solid var(--line);
-  border-radius: 12px; padding: 18px 20px;
-  transition: border-color 0.2s;
-}
-.vr-stat-card:hover { border-color: var(--line-hi); }
-.vr-stat-label {
-  font-size: 10px; color: var(--chalk-3); text-transform: uppercase;
-  letter-spacing: 1.5px; font-weight: 600; margin-bottom: 10px;
-}
-.vr-stat-value { font-size: 26px; font-weight: 700; color: var(--chalk); line-height: 1; }
-.vr-stat-sub { font-size: 11px; color: var(--chalk-3); margin-top: 6px; }
-.color-green { color: var(--teal) !important; }
+/* Color helpers for metric values */
+.color-green { color: var(--gold) !important; }
 .color-amber { color: var(--gold) !important; }
-.color-red   { color: var(--rose) !important; }
+.color-red   { color: var(--chalk) !important; }
 .color-muted { color: var(--chalk-3) !important; }
 
 /* ── Divergence warning ── */
 .vr-warn {
   display: flex; gap: 14px; align-items: flex-start;
-  background: rgba(251,113,133,0.07);
-  border: 1px solid rgba(251,113,133,0.25);
-  border-left: 3px solid var(--rose);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-left: 3px solid var(--gold);
   border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;
 }
 .vr-warn-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-.vr-warn-title { font-size: 13px; font-weight: 600; color: var(--rose); margin-bottom: 4px; }
+.vr-warn-title { font-size: 13px; font-weight: 600; color: var(--gold); margin-bottom: 4px; }
 .vr-warn-body { font-size: 13px; color: var(--chalk-2); line-height: 1.55; }
 
 /* ── AI Requirement Card ── */
@@ -120,17 +87,12 @@
   border: 1px solid var(--line-hi); color: var(--chalk-2);
   background: var(--ink-2); white-space: nowrap;
 }
-.ai-tag.conflict {
-  border-color: rgba(251,113,133,0.35);
-  background: rgba(251,113,133,0.08); color: var(--rose);
-}
-.ai-tag.spatial {
-  border-color: rgba(96,165,250,0.35);
-  background: rgba(96,165,250,0.08); color: var(--sky);
-}
+.ai-tag.conflict,
+.ai-tag.spatial,
 .ai-tag.material {
   border-color: rgba(232,201,122,0.35);
-  background: var(--gold-dim); color: var(--gold);
+  background: var(--gold-dim);
+  color: var(--gold);
 }
 
 /* ── Filter tabs ── */
@@ -191,13 +153,13 @@
   border: 1px solid rgba(232,201,122,0.4);
 }
 .role-pill.architect {
-  background: rgba(96,165,250,0.15); color: var(--sky);
-  border: 1px solid rgba(96,165,250,0.35);
+  background: rgba(255,255,255,0.08); color: var(--chalk);
+  border: 1px solid rgba(255,255,255,0.16);
 }
 .ref-del-btn {
   position: absolute; top: 10px; right: 10px;
-  background: rgba(251,113,133,0.85); border: none;
-  color: #fff; border-radius: 6px; padding: 4px 10px;
+  background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.18);
+  color: var(--chalk); border-radius: 6px; padding: 4px 10px;
   cursor: pointer; font-size: 10px; font-weight: 600;
   opacity: 0; transition: opacity 0.18s;
 }
@@ -349,72 +311,75 @@
 {% endblock %}
 
 {% block content %}
-<div class="vr-shell">
+<div class="meetings-page">
+<div class="vr-shell project-tab-shell">
 
   {# ── HERO ── #}
-  <div class="vr-hero">
-    <div>
-      <div class="vr-kicker">Project Workspace</div>
-      <h1 class="vr-title">Visual References</h1>
-      <p class="vr-sub">
-        {{ project.name }} &nbsp;·&nbsp; Dual-Pipeline AI Analysis &nbsp;·&nbsp;
-        {{ refs | length }} reference{{ 's' if refs | length != 1 else '' }}
-      </p>
+  <section class="meetings-hero" style="margin-bottom:24px;">
+    <div class="meetings-head">
+      <div>
+        <div class="meetings-kicker">Project Workspace</div>
+        <h1 class="meetings-title">Visual References</h1>
+        <p class="meetings-subtitle">
+          {{ project.name }} &nbsp;·&nbsp; Dual-Pipeline AI Analysis &nbsp;·&nbsp;
+          {{ refs | length }} reference{{ 's' if refs | length != 1 else '' }}
+        </p>
+      </div>
+      <div class="inline-actions">
+        <button class="mt-btn ghost" onclick="openUpload()">+ Add Reference</button>
+        {% if refs %}
+        <button class="mt-btn primary" id="regenBtn" onclick="regenerateCard()">
+          ↻ Regenerate Analysis
+        </button>
+        {% endif %}
+      </div>
     </div>
-    <div class="vr-hero-actions">
-      <button class="btn btn-ghost" onclick="openUpload()">+ Add Reference</button>
-      {% if refs %}
-      <button class="btn btn-primary" id="regenBtn" onclick="regenerateCard()">
-        ↻ Regenerate Analysis
-      </button>
-      {% endif %}
-    </div>
-  </div>
+  </section>
 
   {# ── STATS ROW ── #}
-  <div class="vr-stats">
-    <div class="vr-stat-card">
-      <div class="vr-stat-label">Total References</div>
-      <div class="vr-stat-value">{{ refs | length }}</div>
-      <div class="vr-stat-sub">{{ client_refs | length }} client · {{ arch_refs | length }} architect</div>
-    </div>
+  <div class="summary-grid" style="margin-bottom:24px;">
+    <article class="metric-card">
+      <div class="metric-label">Total References</div>
+      <div class="metric-value">{{ refs | length }}</div>
+      <div class="metric-foot">{{ client_refs | length }} client · {{ arch_refs | length }} architect</div>
+    </article>
 
-    <div class="vr-stat-card">
-      <div class="vr-stat-label">Feasibility Score</div>
+    <article class="metric-card">
+      <div class="metric-label">Feasibility Score</div>
       {% if card and card.feasibility_pct is not none %}
         {% set fp = card.feasibility_pct | round(0) | int %}
-        <div class="vr-stat-value {% if fp >= 70 %}color-green{% elif fp >= 40 %}color-amber{% else %}color-red{% endif %}">
+        <div class="metric-value {% if fp >= 70 %}color-green{% elif fp >= 40 %}color-amber{% else %}color-red{% endif %}">
           {{ fp }}%
         </div>
       {% else %}
-        <div class="vr-stat-value color-muted">—</div>
+        <div class="metric-value color-muted">—</div>
       {% endif %}
-      <div class="vr-stat-sub">TNPCR compliance estimate</div>
-    </div>
+      <div class="metric-foot">TNPCR compliance estimate</div>
+    </article>
 
-    <div class="vr-stat-card">
-      <div class="vr-stat-label">Style Divergence</div>
+    <article class="metric-card">
+      <div class="metric-label">Style Divergence</div>
       {% if card and card.divergence_score is not none %}
         {% set ds = card.divergence_score | round(0) | int %}
-        <div class="vr-stat-value {% if ds < 40 %}color-green{% elif ds < 60 %}color-amber{% else %}color-red{% endif %}">
+        <div class="metric-value {% if ds < 40 %}color-green{% elif ds < 60 %}color-amber{% else %}color-red{% endif %}">
           {{ ds }}%
         </div>
       {% else %}
-        <div class="vr-stat-value color-muted">—</div>
+        <div class="metric-value color-muted">—</div>
       {% endif %}
-      <div class="vr-stat-sub">Client vs architect mismatch</div>
-    </div>
+      <div class="metric-foot">Client vs architect mismatch</div>
+    </article>
 
-    <div class="vr-stat-card">
-      <div class="vr-stat-label">Conflicts Detected</div>
+    <article class="metric-card">
+      <div class="metric-label">Conflicts Detected</div>
       {% if card %}
         {% set nc = card.conflicts_json | from_json | length %}
-        <div class="vr-stat-value {% if nc > 0 %}color-red{% else %}color-green{% endif %}">{{ nc }}</div>
+        <div class="metric-value {% if nc > 0 %}color-red{% else %}color-green{% endif %}">{{ nc }}</div>
       {% else %}
-        <div class="vr-stat-value color-muted">—</div>
+        <div class="metric-value color-muted">—</div>
       {% endif %}
-      <div class="vr-stat-sub">TNPCR rule violations</div>
-    </div>
+      <div class="metric-foot">TNPCR rule violations</div>
+    </article>
   </div>
 
   {# ── DIVERGENCE WARNING ── #}
@@ -581,7 +546,8 @@
     {% endif %}
 
   </div>
-</div>
+</div><!-- /.vr-shell -->
+</div><!-- /.meetings-page -->
 
 
 {# ══ UPLOAD MODAL ══ #}

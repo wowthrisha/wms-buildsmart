@@ -10,7 +10,7 @@ from datetime import datetime
 bp = Blueprint('projects', __name__)
 
 
-def _workspace_response(project_id, *, active_tab='overview'):
+def _workspace_context(project_id, *, active_tab='overview'):
     require_architect()
     p = Project.query.get_or_404(project_id)
     if current_user.role == 'architect' and p.architect_id != current_user.id:
@@ -48,23 +48,39 @@ def _workspace_response(project_id, *, active_tab='overview'):
                     .order_by(PaymentLog.created_at.desc(), PaymentLog.id.desc())
                     .all())
     db.session.commit()  # Release SQLite read transaction promptly
+    return {
+        'project': p,
+        'active_project': p,
+        'active_tab': active_tab,
+        'Meeting': Meeting,
+        'latest_pa': latest_pa,
+        'latest_pa_result': latest_pa_result,
+        'pa_count': pa_count,
+        'checklist_items': checklist_items,
+        'compliance_tree': compliance_tree,
+        'compliance_stats': compliance_stats,
+        'compliance_coverage': compliance_coverage,
+        'docs_list': docs_list,
+        'audit_logs': audit_logs,
+        'logs': audit_logs,
+        'all_meetings': all_meetings,
+        'payment_logs': payment_logs,
+    }
+
+
+def _workspace_template(active_tab):
+    return {
+        'overview': 'architect/project_overview.html',
+        'documents': 'architect/project_documents.html',
+        'compliance': 'architect/project_compliance.html',
+        'activity': 'architect/activity_project.html',
+    }.get(active_tab, 'architect/project_overview.html')
+
+
+def _workspace_response(project_id, *, active_tab='overview'):
     return render_template(
-        'architect/project_workspace.html',
-        project=p,
-        active_project=p,
-        active_tab=active_tab,
-        Meeting=Meeting,
-        latest_pa=latest_pa,
-        latest_pa_result=latest_pa_result,
-        pa_count=pa_count,
-        checklist_items=checklist_items,
-        compliance_tree=compliance_tree,
-        compliance_stats=compliance_stats,
-        compliance_coverage=compliance_coverage,
-        docs_list=docs_list,
-        audit_logs=audit_logs,
-        all_meetings=all_meetings,
-        payment_logs=payment_logs,
+        _workspace_template(active_tab),
+        **_workspace_context(project_id, active_tab=active_tab),
     )
 
 @bp.route('/')
@@ -176,6 +192,8 @@ def workspace(project_id):
         return redirect(url_for('projects.project_activity', project_id=project_id))
     if _tab == 'requirements':
         return redirect(url_for('requirements.kanban', project_id=project_id))
+    if _tab == 'assistant':
+        return redirect(url_for('requirements.assistant', project_id=project_id))
     return _workspace_response(project_id, active_tab='overview')
 
 

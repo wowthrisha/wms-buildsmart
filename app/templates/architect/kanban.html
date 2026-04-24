@@ -19,19 +19,54 @@
 </style>
 
 <div class="meetings-page">
-  <div class="meetings-shell">
+  <div class="meetings-shell project-tab-shell">
     <section class="meetings-hero">
       <div class="meetings-head">
         <div>
           <div class="meetings-kicker">Requirement Board</div>
           <h1 class="meetings-title">Requirements</h1>
-          <p class="meetings-subtitle">Small linked cards only. Drag between columns to update the database and keep the meeting workflow in sync.</p>
+          <p class="meetings-subtitle">
+            {% if current_user.role == 'architect' %}
+            Track client-raised changes, confirm them through the board, and keep the shared project delivery view in sync.
+            {% else %}
+            Raise requirement changes here and follow how your architect verifies them through the workflow.
+            {% endif %}
+          </p>
         </div>
         <div class="inline-actions">
-          <a class="mt-btn ghost" href="{{ url_for('meetings.index') }}">Back to Meetings</a>
+          {% if current_user.role == 'architect' %}
+          <button type="button" class="mt-btn primary" data-open-modal="architect-requirement-modal">Add Requirement</button>
+          {% else %}
+          <button type="button" class="mt-btn primary" data-open-modal="client-requirement-modal">Raise Requirement Change</button>
+          {% endif %}
+          <a class="mt-btn ghost" href="{{ url_for('requirements.assistant', project_id=project.id) }}">Open Assistant</a>
+          <a class="mt-btn ghost" href="{{ url_for('meetings.index') if current_user.role == 'architect' else url_for('client.meetings') }}">Back to Meetings</a>
         </div>
       </div>
     </section>
+
+    <div class="summary-grid kanban-board-summary">
+      <article class="metric-card">
+        <div class="metric-label">Total Requirements</div>
+        <div class="metric-value">{{ board_summary.total }}</div>
+        <div class="metric-foot">Captured across meetings, comments, and direct entries</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Needs Review</div>
+        <div class="metric-value">{{ board_summary.needs_review }}</div>
+        <div class="metric-foot">Awaiting architect confirmation</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Client Requests</div>
+        <div class="metric-value">{{ board_summary.client_requests }}</div>
+        <div class="metric-foot">Raised by the client side</div>
+      </article>
+      <article class="metric-card">
+        <div class="metric-label">Completed</div>
+        <div class="metric-value">{{ board_summary.completed }}</div>
+        <div class="metric-foot">Requirements moved to done</div>
+      </article>
+    </div>
 
     <!-- AI Suggestions section — hidden until JS finds cards -->
     <div id="suggested-section" class="section-card" style="display:none; margin-bottom:20px;">
@@ -54,21 +89,29 @@
         </div>
         <div class="kanban-dropzone" id="drop-{{ state }}">
           {% for requirement in columns[state] %}
-          <article class="kanban-card" draggable="true"
+          <article class="kanban-card" draggable="{{ 'true' if current_user.role == 'architect' else 'false' }}"
                    data-id="{{ requirement.id }}"
                    data-state="{{ requirement.status }}"
                    data-req-id="{{ requirement.id }}">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
-              <p class="kanban-card-title"
-                 id="req-title-{{ requirement.id }}"
-                 style="margin:0; flex:1;">{{ requirement.title }}</p>
+            <div class="kanban-card-top">
+              <div style="flex:1;">
+                <div class="kanban-card-flags">
+                  <span class="source-chip {{ requirement.source|replace('_', '-') }}">{{ requirement.source|replace('_', ' ')|title }}</span>
+                  {% if requirement.source == 'client' and requirement.status == 'new' %}
+                  <span class="source-chip review">Needs architect review</span>
+                  {% endif %}
+                </div>
+                <p class="kanban-card-title"
+                   id="req-title-{{ requirement.id }}"
+                   style="margin:0; flex:1;">{{ requirement.title }}</p>
+              </div>
               {% if current_user.role == 'architect' %}
               <div style="display:flex; gap:2px; margin-left:8px;">
                 <button class="icon-btn"
                         onclick="editRequirement(
                           {{ requirement.id }},
-                          '{{ requirement.title | replace("'", "\\'") }}',
-                          '{{ (requirement.description or '') | replace("'", "\\'") | replace('\n', ' ') }}'
+                          {{ requirement.title | tojson }},
+                          {{ (requirement.description or '') | tojson }}
                         )"
                         title="Edit">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
@@ -80,7 +123,7 @@
                 <button class="icon-btn icon-btn-danger"
                         onclick="deleteRequirement(
                           {{ requirement.id }},
-                          '{{ requirement.title | replace("'", "\\'") }}'
+                          {{ requirement.title | tojson }}
                         )"
                         title="Delete">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
@@ -93,12 +136,27 @@
               </div>
               {% endif %}
             </div>
+            {% if requirement.description %}
+            <p class="kanban-card-body" id="req-desc-{{ requirement.id }}">{{ requirement.description[:160] }}{% if requirement.description|length > 160 %}...{% endif %}</p>
+            {% endif %}
             <div class="kanban-card-meta">
               <span>{{ requirement.category }}</span>
               <span>{{ requirement.created_at|strftime('%d %b %Y') }}</span>
-              <span>{{ requirement.creator.name if requirement.creator else 'Unknown' }}</span>
+              <span>{{ requirement.raiser.name if requirement.raiser else requirement.creator.name if requirement.creator else 'Unknown' }}</span>
             </div>
           </article>
+          {% else %}
+          <div class="kanban-empty">
+            {% if state == 'new' %}
+            No new items yet.
+            {% elif state == 'confirmed' %}
+            Nothing confirmed yet.
+            {% elif state == 'in_progress' %}
+            No active work in progress.
+            {% else %}
+            Nothing completed yet.
+            {% endif %}
+          </div>
           {% endfor %}
         </div>
       </section>
@@ -108,26 +166,101 @@
   </div>
 </div>
 
+{% if current_user.role == 'client' %}
+<div class="modal-backdrop mt-modal" id="client-requirement-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Client Action</div>
+      <h2 class="modal-title">Raise Requirement Change</h2>
+    </div>
+    <form method="POST" action="{{ url_for('requirements.add_requirement', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="source" value="meeting_change">
+      <input type="hidden" name="category" value="Client Request">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Title <span style="font-size:11px; color:var(--mt-faint);">(optional — auto-filled from description)</span></label>
+          <input type="text" name="title" placeholder="e.g. Increase wardrobe width">
+        </div>
+        <div>
+          <label>Description</label>
+          <textarea name="description" placeholder="Describe the change you want your architect to review" required></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="client-requirement-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Create Requirement</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="modal-backdrop mt-modal" id="architect-requirement-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Architect Action</div>
+      <h2 class="modal-title">Add Requirement</h2>
+    </div>
+    <form method="POST" action="{{ url_for('requirements.add_requirement', project_id=project.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body modal-fields">
+        <div>
+          <label>Title</label>
+          <input type="text" name="title" placeholder="e.g. Add skylight above staircase" required>
+        </div>
+        <div>
+          <label>Category</label>
+          <select name="category">
+            <option value="General">General</option>
+            <option value="Design">Design</option>
+            <option value="Client Request">Client Request</option>
+            <option value="Compliance">Compliance</option>
+            <option value="Execution">Execution</option>
+          </select>
+        </div>
+        <div>
+          <label>Initial Status</label>
+          <select name="status">
+            <option value="confirmed">Confirmed</option>
+            <option value="new">New</option>
+            <option value="in_progress">In Progress</option>
+          </select>
+        </div>
+        <div>
+          <label>Description</label>
+          <textarea name="description" placeholder="Capture the requirement context, constraints, or expected outcome"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="mt-btn ghost" data-close-modal="architect-requirement-modal">Cancel</button>
+        <button type="submit" class="mt-btn primary">Add Requirement</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <!-- Edit Requirement Modal -->
-<div id="edit-req-modal"
-     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);
-            z-index:1000; align-items:center; justify-content:center;">
-  <div style="background:var(--ink-1); border:1px solid var(--line-hi);
-              border-radius:20px; padding:32px; width:480px; max-width:90vw;">
-    <p style="font-size:11px; text-transform:uppercase; letter-spacing:0.1em;
-              color:var(--chalk-3); margin-bottom:16px;">Edit Requirement</p>
-    <input type="hidden" id="edit-req-id">
-    <div style="margin-bottom:16px;">
-      <label class="ds-label">Title</label>
-      <input type="text" id="edit-req-title" class="ds-input">
+<div class="modal-backdrop mt-modal" id="edit-req-modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div class="section-kicker">Requirement Edit</div>
+      <h2 class="modal-title">Update Requirement</h2>
     </div>
-    <div style="margin-bottom:24px;">
-      <label class="ds-label">Description</label>
-      <textarea id="edit-req-desc" class="ds-input" rows="3"></textarea>
+    <div class="modal-body modal-fields">
+      <input type="hidden" id="edit-req-id">
+      <div>
+        <label>Title</label>
+        <input type="text" id="edit-req-title" class="ds-input">
+      </div>
+      <div>
+        <label>Description</label>
+        <textarea id="edit-req-desc" class="ds-input" rows="4" placeholder="Describe the requirement"></textarea>
+      </div>
     </div>
-    <div style="display:flex; gap:10px; justify-content:flex-end;">
-      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveRequirement()">Save Changes</button>
+    <div class="modal-foot">
+      <button type="button" class="mt-btn ghost" data-close-modal="edit-req-modal">Cancel</button>
+      <button type="button" class="mt-btn primary" onclick="saveRequirement()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -141,6 +274,16 @@ window.BUILDSMART_PROJECT_ID = {{ project.id }};
 (function () {
   var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
   var dragged = null;
+
+  function openModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.add('open');
+  }
+
+  function closeModal(id) {
+    var modal = document.getElementById(id);
+    if (modal) modal.classList.remove('open');
+  }
 
   function updateCount(state) {
     var count = document.querySelectorAll('#drop-' + state + ' .kanban-card').length;
@@ -159,9 +302,17 @@ window.BUILDSMART_PROJECT_ID = {{ project.id }};
       },
       body: 'status=' + encodeURIComponent(state)
     }).then(function (response) {
-      return response.json();
-    }).then(function (data) {
-      if (!data.status) return;
+      return response.json().then(function (data) {
+        return { ok: response.ok, data: data };
+      });
+    }).then(function (payload) {
+      var data = payload.data || {};
+      if (!payload.ok || !data.status) {
+        if (window.handleRequirementError) {
+          window.handleRequirementError(data.error || 'Unable to move requirement.');
+        }
+        return;
+      }
       var oldState = card.dataset.state;
       card.dataset.state = data.status;
       document.getElementById('drop-' + data.status).prepend(card);
@@ -171,6 +322,9 @@ window.BUILDSMART_PROJECT_ID = {{ project.id }};
   }
 
   document.querySelectorAll('.kanban-card').forEach(function (card) {
+    if (card.getAttribute('draggable') !== 'true') {
+      return;
+    }
     card.addEventListener('dragstart', function (event) {
       dragged = card;
       card.classList.add('dragging');
@@ -197,6 +351,26 @@ window.BUILDSMART_PROJECT_ID = {{ project.id }};
       event.preventDefault();
       zone.classList.remove('drag-over');
       moveCard(dragged, zone.id.replace('drop-', ''));
+    });
+  });
+
+  document.querySelectorAll('[data-open-modal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      openModal(button.getAttribute('data-open-modal'));
+    });
+  });
+
+  document.querySelectorAll('[data-close-modal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      closeModal(button.getAttribute('data-close-modal'));
+    });
+  });
+
+  document.querySelectorAll('.modal-backdrop.mt-modal').forEach(function (modal) {
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) {
+        modal.classList.remove('open');
+      }
     });
   });
 }());

@@ -1,34 +1,67 @@
 {% extends "base_client.html" %}
 {% block title %}Updates — BuildSmart{% endblock %}
-
 {% block content %}
-<div class="page-head">
-    <h1 class="page-title">Project Updates</h1>
-    <p class="page-subtitle">Timeline of major decisions and milestones.</p>
-</div>
+<div class="meetings-page">
+  <div class="meetings-shell">
 
-<div class="card" style="padding:0;">
-    <table class="data-table">
-        <thead>
+    <section class="meetings-hero">
+      <div class="meetings-head">
+        <div>
+          <div class="meetings-kicker">Activity Log</div>
+          <h1 class="meetings-title">Project Updates</h1>
+          <p class="meetings-subtitle">Timeline of major decisions and milestones across this project.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div>
+          <div class="section-kicker">Timeline</div>
+          <h3 style="margin:4px 0 0; font-size:16px; font-weight:700; color:var(--mt-text);">Activity log</h3>
+        </div>
+        <span class="muted-copy">{{ logs|length }} entries</span>
+      </div>
+      <div class="table-card-body" style="padding-top:0;">
+        <table class="dark-table">
+          <thead>
             <tr>
-                <th>Date</th>
-                <th>Action</th>
-                <th>Description</th>
+              <th>Date</th>
+              <th>Action</th>
+              <th>Description</th>
             </tr>
-        </thead>
-        <tbody>
+          </thead>
+          <tbody>
             {% for log in logs %}
             <tr>
-                <td>{{ log.created_at|strftime('%d %b, %H:%M') }}</td>
-                <td><span class="badge badge-sky">{{ log.action }}</span></td>
-                <td>{{ log.description }}</td>
+              <td style="color:var(--mt-faint); white-space:nowrap; font-size:11px; font-family:'Space Mono',monospace;">
+                {{ log.created_at.strftime('%d %b, %H:%M') }}
+              </td>
+              <td>
+                <span class="status-pill {{
+                  'confirmed'
+                  if log.action in ('PAYMENT_CONFIRMED', 'DOCUMENT_VERIFIED', 'REQ_DONE', 'MEETING_CONFIRMED', 'APPROVE', 'VERIFIED')
+                  else 'pending'
+                  if log.action in ('PAYMENT_LOGGED', 'EXPENSE_LOGGED', 'PAYMENT_COMMENT', 'MOM_UPDATE', 'UPDATE', 'UPLOAD')
+                  else 'requested'
+                  if log.action in ('DOCUMENT_UPLOADED', 'REQ_CREATE', 'MEETING_PROPOSE', 'CREATE')
+                  else 'rejected'
+                  if log.action in ('PAYMENT_REJECTED', 'REQ_DECLINED', 'REJECT')
+                  else 'info-pill'
+                }}">{{ log.action | replace('_', ' ') | title }}</span>
+              </td>
+              <td style="font-size:13px; color:var(--mt-text);">{{ log.description }}</td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="3" style="text-align:center; padding:40px; color:var(--chalk-3);">No updates recorded yet.</td>
+              <td colspan="3" style="text-align:center; padding:48px; color:var(--mt-faint);">No updates recorded yet.</td>
             </tr>
             {% endfor %}
-        </tbody>
-    </table>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
 </div>
 {% endblock %}

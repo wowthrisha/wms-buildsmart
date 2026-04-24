@@ -71,6 +71,22 @@ document.addEventListener('click', (e) => {
 window.closeModal = function(id) {
     document.getElementById(id).classList.remove('open');
 };
+
+window.openBuildSmartModal = function(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('open');
+    modal.style.display = '';
+};
+
+window.closeBuildSmartModal = function(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.remove('open');
+    if (!modal.classList.contains('mt-modal')) {
+        modal.style.display = 'none';
+    }
+};
 // SSE Notifications
 if (!!window.EventSource) {
     const source = new EventSource('/notifications/stream');
@@ -101,46 +117,35 @@ window.openImageModal = function(imageSrc) {
 };
 
 // ── RAG Chat Widget ──────────────────────────────────────────────
-window.sendRagQuery = function() {
+function appendRagMessage(messages, variant, text, id) {
+  const node = document.createElement('div');
+  node.className = 'assistant-message assistant-message-' + variant;
+  if (id) node.id = id;
+  node.textContent = text;
+  messages.appendChild(node);
+  messages.scrollTop = messages.scrollHeight;
+  return node;
+}
+
+window.sendRagQuery = function(event) {
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
   const input    = document.getElementById('rag-input');
   const messages = document.getElementById('rag-messages');
   const btn      = document.getElementById('rag-send-btn');
   if (!input || !messages) return;
   const query = input.value.trim();
-  if (!query) return;
+  if (!query) {
+    if (typeof window.showFlash === 'function') {
+      window.showFlash('Please enter a question.', 'info');
+    }
+    return;
+  }
 
-  // User message bubble (right-aligned, gold tint)
-  const userMsg = document.createElement('div');
-  userMsg.style.cssText = [
-    'align-self:flex-end',
-    'background:rgba(232,201,122,0.15)',
-    'border:1px solid rgba(232,201,122,0.4)',
-    'border-radius:12px',
-    'padding:10px 14px',
-    'font-size:13px',
-    'color:var(--chalk)',
-    'max-width:80%',
-    'word-break:break-word'
-  ].join(';');
-  userMsg.textContent = query;
-  messages.appendChild(userMsg);
-
-  // Loading bubble
-  const loadingMsg = document.createElement('div');
-  loadingMsg.id = 'rag-loading';
-  loadingMsg.style.cssText = [
-    'align-self:flex-start',
-    'background:var(--ink-2)',
-    'border:1px solid var(--line)',
-    'border-radius:12px',
-    'padding:10px 14px',
-    'font-size:13px',
-    'color:var(--chalk-3)',
-    'max-width:80%'
-  ].join(';');
-  loadingMsg.textContent = 'Thinking…';
-  messages.appendChild(loadingMsg);
-  messages.scrollTop = messages.scrollHeight;
+  const queryText = query;
+  appendRagMessage(messages, 'user', query);
+  appendRagMessage(messages, 'system', 'Thinking…', 'rag-loading');
 
   input.value = '';
   if (btn) btn.disabled = true;
@@ -155,54 +160,51 @@ window.sendRagQuery = function() {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRFToken': csrf
+      'X-CSRFToken': csrf,
+      'X-CSRF-Token': csrf,
+      'X-Requested-With': 'XMLHttpRequest'
     },
-    body: JSON.stringify({ question: query })
+    body: JSON.stringify({ question: query }),
+    // ensure cookies/session are sent for CSRF validation
+    credentials: 'same-origin'
   })
-  .then(r => {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
+  .then(async r => {
+    let data = {};
+    try {
+      data = await r.json();
+    } catch (e) {
+      data = {};
+    }
+    if (!r.ok) {
+      throw { status: r.status, data: data };
+    }
+    return data;
   })
   .then(data => {
     const loading = document.getElementById('rag-loading');
     if (loading) loading.remove();
-    const replyMsg = document.createElement('div');
-    replyMsg.style.cssText = [
-      'align-self:flex-start',
-      'background:var(--ink-2)',
-      'border:1px solid var(--line)',
-      'border-radius:12px',
-      'padding:10px 14px',
-      'font-size:13px',
-      'color:var(--chalk)',
-      'max-width:80%',
-      'line-height:1.6',
-      'white-space:pre-wrap',
-      'word-break:break-word'
-    ].join(';');
-    replyMsg.textContent = data.answer || data.response || data.result || JSON.stringify(data);
-    messages.appendChild(replyMsg);
-    messages.scrollTop = messages.scrollHeight;
+    appendRagMessage(
+      messages,
+      'assistant',
+      data.answer || data.response || data.result || JSON.stringify(data)
+    );
   })
   .catch(err => {
     const loading = document.getElementById('rag-loading');
     if (loading) loading.remove();
-    const errMsg = document.createElement('div');
-    errMsg.style.cssText = [
-      'align-self:flex-start',
-      'background:rgba(226,75,74,0.1)',
-      'border:1px solid rgba(226,75,74,0.4)',
-      'border-radius:12px',
-      'padding:10px 14px',
-      'font-size:13px',
-      'color:#fb7185',
-      'max-width:80%'
-    ].join(';');
-    errMsg.textContent = 'Could not get a response. Please try again.';
-    messages.appendChild(errMsg);
-    messages.scrollTop = messages.scrollHeight;
+    const message = (err && err.data && (err.data.answer || err.data.error))
+      || 'Could not get a response. Please try again.';
+    if (input && !input.value) {
+      input.value = queryText;
+    }
+    appendRagMessage(messages, 'error', message);
+    if (typeof window.showFlash === 'function') {
+      window.showFlash(message, 'error');
+    }
   })
   .finally(() => { if (btn) btn.disabled = false; });
+
+  return false;
 };
 
 // ── AI Suggestion Cards (Kanban) ─────────────────────────────────
@@ -280,6 +282,23 @@ window.acceptSuggestion = function(cardId, btn) {
   });
 };
 
+window.getRequirementApiBase = function(requirementId) {
+  const projectId = window.BUILDSMART_PROJECT_ID;
+  if (projectId) {
+    return '/projects/' + projectId + '/requirements/' + requirementId;
+  }
+  return '/requirements/' + requirementId;
+};
+
+window.handleRequirementError = function(message) {
+  const text = message || 'Unable to update requirement right now.';
+  if (typeof window.showFlash === 'function') {
+    window.showFlash(text, 'error');
+    return;
+  }
+  alert(text);
+};
+
 window.checkSuggestionsEmpty = function() {
   const container = document.getElementById('suggested-cards');
   const section   = document.getElementById('suggested-section');
@@ -293,36 +312,46 @@ window.editRequirement = function(id, title, description) {
   document.getElementById('edit-req-id').value    = id;
   document.getElementById('edit-req-title').value = title;
   document.getElementById('edit-req-desc').value  = description;
-  const modal = document.getElementById('edit-req-modal');
-  if (modal) modal.style.display = 'flex';
+  window.openBuildSmartModal('edit-req-modal');
 };
 
 window.closeEditModal = function() {
-  const modal = document.getElementById('edit-req-modal');
-  if (modal) modal.style.display = 'none';
+  window.closeBuildSmartModal('edit-req-modal');
 };
 
 window.saveRequirement = function() {
   const id    = document.getElementById('edit-req-id').value;
   const title = document.getElementById('edit-req-title').value.trim();
   const desc  = document.getElementById('edit-req-desc').value;
-  if (!title) { alert('Title is required'); return; }
+  if (!title) {
+    window.handleRequirementError('Title is required.');
+    return;
+  }
 
   const csrf = document.querySelector('meta[name=csrf-token]')?.content
     || document.querySelector('input[name=csrf_token]')?.value || '';
 
-  fetch('/requirements/' + id, {
+  fetch(window.getRequirementApiBase(id), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
     body: JSON.stringify({ title: title, description: desc })
   })
-  .then(r => r.json())
+  .then(r => r.json().then(data => ({ ok: r.ok, data: data })))
   .then(data => {
-    if (data.success) {
+    if (data.ok && data.data.success) {
       const titleEl = document.getElementById('req-title-' + id);
-      if (titleEl) titleEl.textContent = data.title;
+      const descEl = document.getElementById('req-desc-' + id);
+      if (titleEl) titleEl.textContent = data.data.title;
+      if (descEl) {
+        descEl.textContent = desc.length > 160 ? desc.substring(0, 160) + '...' : desc;
+      }
       window.closeEditModal();
+      if (typeof window.showFlash === 'function') {
+        window.showFlash('Requirement updated.', 'success');
+      }
+      return;
     }
+    window.handleRequirementError(data.data && data.data.error);
   });
 };
 
@@ -330,21 +359,32 @@ window.deleteRequirement = function(id, title) {
   if (!confirm('Delete requirement "' + title + '"?\n\nThis cannot be undone.')) return;
   const csrf = document.querySelector('meta[name=csrf-token]')?.content
     || document.querySelector('input[name=csrf_token]')?.value || '';
-  fetch('/requirements/' + id, {
+  fetch(window.getRequirementApiBase(id) + '/delete', {
     method: 'DELETE',
     headers: { 'X-CSRFToken': csrf }
   })
-  .then(r => r.json())
+  .then(r => r.json().then(data => ({ ok: r.ok, data: data })))
   .then(data => {
-    if (data.success) {
+    if (data.ok && data.data.success) {
       const card = document.querySelector('[data-req-id="' + id + '"]');
       if (card) {
+        const column = card.closest('.kanban-dropzone');
+        const countEl = column
+          ? document.getElementById('count-' + column.id.replace('drop-', ''))
+          : null;
         card.style.transition = 'all 0.2s';
         card.style.opacity    = '0';
         card.style.transform  = 'scale(0.95)';
-        setTimeout(() => card.remove(), 200);
+        setTimeout(() => {
+          card.remove();
+          if (countEl && column) {
+            countEl.textContent = column.querySelectorAll('.kanban-card').length;
+          }
+        }, 200);
       }
+      return;
     }
+    window.handleRequirementError(data.data && data.data.error);
   });
 };
 
